@@ -27,6 +27,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   bool _pendingTapConsumed = false;
   _FloatingNotice? _floatingNotice;
   Timer? _noticeTimer;
+  UpdateCheckResult? _pendingUpdate;
+  bool _updateDialogShowing = false;
 
   /// The launcher is a native App surface. Device WebViews stay mounted
   /// underneath it so returning to a device restores the exact same page
@@ -39,15 +41,77 @@ class _AppShellState extends ConsumerState<AppShell> {
     _launcherVisible = widget.startAtLauncher;
     NotificationTap.bind((payload) => _jumpTo(payload));
     NotifierService.instance.setLockScreenRedact(ref.read(biometricProvider));
-    // Keep launch quiet: only a confirmed newer GitHub release opens the
-    // release page. Missing releases and network failures do nothing here.
+    // Keep launch quiet: the check runs in the background and only a confirmed
+    // newer release produces a one-time foreground prompt.
     unawaited(_checkForUpdateOnLaunch());
   }
 
   Future<void> _checkForUpdateOnLaunch() async {
     final result = await UpdateService.instance.checkForUpdate();
-    if (!mounted || !result.hasUpdate) return;
-    await UpdateService.instance.openRelease(result.releaseUri!);
+    if (!mounted || !result.hasUpdate || result.latestVersion == null) {
+      return;
+    }
+    if (await UpdateService.instance.wasPrompted(result.latestVersion!)) {
+      return;
+    }
+    _pendingUpdate = result;
+    await _maybeShowUpdatePrompt();
+  }
+
+  Future<void> _maybeShowUpdatePrompt() async {
+    if (!mounted ||
+        _updateDialogShowing ||
+        _pendingUpdate == null ||
+        ref.read(appLifecycleProvider) != AppLifecycleState.resumed) {
+      return;
+    }
+    final result = _pendingUpdate!;
+    final version = result.latestVersion;
+    final releaseUri = result.releaseUri;
+    if (version == null || releaseUri == null) return;
+    _pendingUpdate = null;
+
+    // Mark before displaying so a repeated rebuild or a second resume cannot
+    // open the same prompt twice. Closing it means “ask again only for a new
+    // version”, as requested.
+    await UpdateService.instance.markPrompted(version);
+    if (!mounted ||
+        ref.read(appLifecycleProvider) != AppLifecycleState.resumed) {
+      return;
+    }
+
+    _updateDialogShowing = true;
+    try {
+      final l10n = AppLocalizations.of(context)!;
+      final open = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.updateDialogTitle),
+          content: Text(l10n.updateDialogMessage(version)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.updateDialogLater),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.updateDialogDownload),
+            ),
+          ],
+        ),
+      );
+      if (open == true) {
+        final opened = await UpdateService.instance.openRelease(releaseUri);
+        if (!opened && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.updateFailed)),
+          );
+        }
+      }
+    } finally {
+      _updateDialogShowing = false;
+    }
   }
 
   @override
@@ -137,6 +201,11 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AppLifecycleState>(appLifecycleProvider, (_, next) {
+      if (next == AppLifecycleState.resumed) {
+        unawaited(_maybeShowUpdatePrompt());
+      }
+    });
     ref.listen<bool>(
       biometricProvider,
       (_, next) => NotifierService.instance.setLockScreenRedact(next),

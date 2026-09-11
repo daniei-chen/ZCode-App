@@ -17,7 +17,7 @@
 >
 > Engineering status: test counts and `flutter analyze` results come from CI output; before release, run analysis, tests, and both platform builds with Flutter 3.47.
 
-ZCode App 1.0.1 is a mobile companion app for ZCode desktop remote control. The desktop shows a QR code; scan it once with your phone to import the device and it stays usable long-term. Manage multiple machines in parallel and switch between them in a single UI.
+ZCode App 1.0.2 is a mobile companion app for ZCode desktop remote control. The desktop shows a QR code; scan it once with your phone to import the device and it stays usable long-term. Manage multiple machines in parallel and switch between them in a single UI.
 
 <p align="center">
   <img src="docs/screenshots/device-light.png" width="260" alt="ZCode device management in light mode" />

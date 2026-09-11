@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 enum UpdateCheckStatus { upToDate, updateAvailable, noRelease, failed }
@@ -35,6 +36,26 @@ class UpdateService {
 
   static const repositoryUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
   static final latestReleasePage = Uri.parse('$repositoryUrl/releases/latest');
+  static const _promptedVersionKey = 'zremote.update.promptedVersion';
+
+  /// Returns whether the foreground update prompt has already been shown for
+  /// this exact release. A newer release naturally gets a new prompt.
+  Future<bool> wasPrompted(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_promptedVersionKey) == version;
+    } catch (_) {
+      // A storage failure must not hide an available update forever.
+      return false;
+    }
+  }
+
+  Future<void> markPrompted(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_promptedVersionKey, version);
+    } catch (_) {}
+  }
 
   Future<UpdateCheckResult> checkForUpdate({
     http.Client? client,

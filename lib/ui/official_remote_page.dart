@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -119,6 +120,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 (function () {
   var requestedDark = ${dark ? 'true' : 'false'};
   var requestedTheme = requestedDark ? 'dark' : 'light';
+  // Native/app-driven changes are never reported back as if they were a
+  // human click inside the WebView. The user-gesture observer below checks
+  // this deadline before sending a theme change to Flutter.
+  window.__zcodeControlThemeSuppressUntil = Date.now() + 800;
+  // This injection is an app-owned decision. If it follows a manual choice
+  // from the WebView, it must be allowed to win immediately; the gesture
+  // window is only for the page's own DOM/storage mutations to settle.
+  window.__zcodeControlUserThemeGestureUntil = 0;
   // ZCode's renderer does not key its palette from a generic data-theme
   // attribute. It persists `zcode-theme` and derives these two theme classes
   // from the effective value. Mirror that contract so the WebView follows the
@@ -136,6 +145,15 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     var state = window.__zcodeControlThemeState;
     var currentRoot = document.documentElement;
     if (!state || !currentRoot) return;
+
+    // A theme menu click in the official page changes its DOM and/or storage
+    // asynchronously. Do not race that change by immediately painting the
+    // old native theme back over it. The user observer below will report the
+    // settled value to Flutter, which then reinjects this script with the new
+    // app-owned decision.
+    if (Date.now() <= (window.__zcodeControlUserThemeGestureUntil || 0)) {
+      return;
+    }
 
     var theme = state.theme;
     var dark = state.dark;
@@ -182,6 +200,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     try {
       window.localStorage.setItem('zcode-theme', rendererTheme);
     } catch (e) {}
+    // Reset the observer baseline for every native/app-driven update. Without
+    // this, a later ordinary click could mistake the already-applied native
+    // theme for a manual WebView change.
+    window.__zcodeControlUserThemeLast = requestedTheme;
 
     var previous = window.__zcodeControlAppliedTheme;
     window.__zcodeControlAppliedTheme = rendererTheme;
@@ -211,6 +233,108 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     }
   }
   install();
+
+  // The official page remains the source of the WebView UI, but its manual
+  // light/dark choice should also become the app-wide choice. Watch the
+  // renderer's persisted value and classes only after a real pointer/touch
+  // or keyboard gesture. This keeps page/bootstrap mutations and system
+  // brightness changes from rewriting the native setting by themselves.
+  if (!window.__zcodeControlUserThemeObserverInstalled) {
+    window.__zcodeControlUserThemeObserverInstalled = true;
+    window.__zcodeControlUserThemeGestureUntil = 0;
+
+    function normalizeUserTheme(raw) {
+      if (raw === null || raw === undefined) return null;
+      var value = String(raw).toLowerCase().trim();
+      if (value.indexOf('dark') >= 0) return 'dark';
+      if (value.indexOf('light') >= 0) return 'light';
+      if (value === 'system' || value === 'auto' ||
+          value.indexOf('system') >= 0) return 'system';
+      return null;
+    }
+
+    function currentUserTheme() {
+      var root = document.documentElement;
+      if (!root) return null;
+      try {
+        var stored = normalizeUserTheme(
+          window.localStorage.getItem('zcode-theme')
+        );
+        if (stored) return stored;
+      } catch (e) {}
+      if (root.classList.contains('theme-zai-dark') ||
+          root.classList.contains('dark')) return 'dark';
+      if (root.classList.contains('theme-zai-light') ||
+          root.classList.contains('light')) return 'light';
+      return normalizeUserTheme(root.getAttribute('data-theme')) ||
+        normalizeUserTheme(root.getAttribute('data-zcode-browser-theme-surface'));
+    }
+
+    window.__zcodeControlUserThemeLast =
+      currentUserTheme() || window.__zcodeControlThemeState.theme;
+
+    function notifyUserThemeIfChanged() {
+      if (Date.now() > window.__zcodeControlUserThemeGestureUntil) return;
+      if (Date.now() < (window.__zcodeControlThemeSuppressUntil || 0)) return;
+      var theme = currentUserTheme();
+      if (!theme || theme === window.__zcodeControlUserThemeLast) return;
+      var bridge = window.flutter_inappwebview;
+      if (!bridge || typeof bridge.callHandler !== 'function') return;
+      window.__zcodeControlUserThemeLast = theme;
+      try {
+        bridge.callHandler('zrTheme', JSON.stringify({
+          theme: theme,
+          source: 'user'
+        }));
+      } catch (e) {}
+    }
+
+    function scheduleUserThemeCheck() {
+      [0, 80, 260, 700, 1400].forEach(function (delay) {
+        window.setTimeout(notifyUserThemeIfChanged, delay);
+      });
+    }
+
+    function markUserThemeGesture() {
+      window.__zcodeControlUserThemeGestureUntil = Date.now() + 2200;
+      scheduleUserThemeCheck();
+    }
+
+    ['click', 'pointerup', 'touchend'].forEach(function (eventName) {
+      document.addEventListener(eventName, markUserThemeGesture, true);
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ' ||
+          event.key === 'Spacebar') {
+        markUserThemeGesture();
+      }
+    }, true);
+
+    function installUserThemeObserver() {
+      var root = document.documentElement;
+      if (!root) {
+        window.setTimeout(installUserThemeObserver, 0);
+        return;
+      }
+      try {
+        new MutationObserver(function () {
+          if (Date.now() <= window.__zcodeControlUserThemeGestureUntil) {
+            scheduleUserThemeCheck();
+          }
+        }).observe(root, {
+          attributes: true,
+          attributeFilter: ['class', 'data-theme',
+            'data-zcode-browser-theme-surface'],
+          subtree: true
+        });
+      } catch (e) {}
+    }
+    installUserThemeObserver();
+
+    window.addEventListener('storage', function (event) {
+      if (event.key === 'zcode-theme') scheduleUserThemeCheck();
+    }, true);
+  }
 })();
 ''';
 
@@ -279,6 +403,23 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   Future<void> _applyWebTheme(bool dark) async {
     try {
       await _controller?.evaluateJavascript(source: _themeSyncScript(dark));
+    } catch (_) {}
+  }
+
+  void _onWebThemeChange(Object? raw) {
+    if (!mounted || raw is! String) return;
+    try {
+      final payload = jsonDecode(raw);
+      if (payload is! Map || payload['source'] != 'user') return;
+      final selected = payload['theme'];
+      final mode = switch (selected) {
+        'light' => kThemeLight,
+        'dark' => kThemeDark,
+        'system' => kThemeSystem,
+        _ => null,
+      };
+      if (mode == null || ref.read(themeModeProvider) == mode) return;
+      unawaited(ref.read(themeModeProvider.notifier).set(mode));
     } catch (_) {}
   }
 
@@ -442,12 +583,27 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         rendererPriorityPolicy: RendererPriorityPolicy(
                           rendererRequestedPriority:
                               RendererPriority.RENDERER_PRIORITY_IMPORTANT,
-                          waivedWhenNotVisible: true,
+                          // The official page owns the WebSocket that carries
+                          // updates for every conversation. This WebView is
+                          // deliberately kept mounted under the native
+                          // launcher, so lowering Chromium priority whenever
+                          // the launcher covers it would silently pause the
+                          // only live event source and make background alerts
+                          // appear unreliable.
+                          waivedWhenNotVisible: false,
                         ),
                       ),
                       onWebViewCreated: (controller) {
                         _controller = controller;
                         unawaited(_applyWebTheme(_currentDark(context)));
+                        controller.addJavaScriptHandler(
+                          handlerName: 'zrTheme',
+                          callback: (args) {
+                            final body = args.isNotEmpty ? args.first : null;
+                            _onWebThemeChange(body);
+                            return null;
+                          },
+                        );
                         controller.addJavaScriptHandler(
                           handlerName: 'zrEvents',
                           callback: (args) {

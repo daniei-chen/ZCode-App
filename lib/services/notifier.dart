@@ -186,18 +186,19 @@ class NotifierService {
   );
 
   Future<void>? _initFuture;
-  bool _permissionAsked = false;
+  Future<void>? _permissionFuture;
   bool _lockScreenRedact = false;
 
   void setLockScreenRedact(bool value) => _lockScreenRedact = value;
 
-  Future<void> ensurePermission() async {
-    if (_permissionAsked) return;
-    _permissionAsked = true;
+  Future<void> ensurePermission() =>
+      _permissionFuture ??= _requestPermission();
+
+  Future<void> _requestPermission() async {
     try {
-      // Initialization is intentionally allowed to run in parallel with the
-      // first Flutter frame. Wait here before touching the plugin so startup
-      // never has to block on notification setup.
+      // A launch-time init is started in parallel with the first Flutter
+      // frame. Every event awaits this shared future, so the first alert
+      // cannot race plugin initialization or Android 13+ permission setup.
       await init();
       await _plugin
           .resolvePlatformSpecificImplementation<
@@ -252,7 +253,7 @@ class NotifierService {
     final spec = NotificationSpec.from(device, event, l10n);
     if (spec == null) return;
     try {
-      if (!_permissionAsked) await ensurePermission();
+      await ensurePermission();
       final id = NotificationSpec.stableId(device, event);
       await _plugin.show(
         id: id,
@@ -283,7 +284,7 @@ class NotifierService {
 
   Future<bool> showTest() async {
     try {
-      if (!_permissionAsked) await ensurePermission();
+      await ensurePermission();
       await _plugin.show(
         id: 0x5A5254,
         title: 'ZCode',

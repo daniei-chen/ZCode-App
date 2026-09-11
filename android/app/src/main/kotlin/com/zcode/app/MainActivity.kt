@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
+import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
@@ -214,7 +215,18 @@ class MainActivity : FlutterFragmentActivity() {
     private fun playDefaultNotificationSound() {
         previewRingtone?.stop()
         val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        previewRingtone = uri?.let { RingtoneManager.getRingtone(this, it) }
+        previewRingtone = uri?.let { RingtoneManager.getRingtone(this, it) }?.also {
+            // The preview is an in-app notification, not a phone-call ring.
+            // Keep the same system URI while routing it through the
+            // notification stream, so a muted ringtone stream cannot make an
+            // in-app alert appear silent on tablets.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                it.audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            }
+        }
         previewRingtone?.play()
     }
 

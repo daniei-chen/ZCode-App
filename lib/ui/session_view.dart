@@ -206,10 +206,12 @@ class _SessionViewState extends ConsumerState<SessionView> {
         eventSessionId: event.taskId,
       );
       if (!notify) continue;
-      NotifierService.instance.notifyFrom(
-        widget.device,
-        event,
-        l10n: AppLocalizations.of(context),
+      unawaited(
+        NotifierService.instance.notifyFrom(
+          widget.device,
+          event,
+          l10n: AppLocalizations.of(context),
+        ),
       );
     }
   }
@@ -542,7 +544,7 @@ class _SessionViewState extends ConsumerState<SessionView> {
                         // The native relay remains the data source for background
                         // devices; do not keep every hidden Chromium renderer at
                         // foreground priority.
-                        waivedWhenNotVisible: true,
+                        waivedWhenNotVisible: false,
                       ),
                     ),
                     onWebViewCreated: (controller) {

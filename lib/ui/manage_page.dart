@@ -371,8 +371,28 @@ class _RenameDialogState extends State<_RenameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      icon: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: context.zt.accent.withValues(alpha: 0.10),
+        ),
+        child: Icon(Icons.edit_outlined, color: context.zt.accent, size: 22),
+      ),
       title: Text(widget.l10n.renameDialogTitle),
-      content: TextField(controller: _controller, autofocus: true),
+      contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 40,
+        decoration: InputDecoration(
+          hintText: widget.initialName,
+          counterText: '',
+        ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -631,6 +651,16 @@ class _DeviceCard extends ConsumerWidget {
                 ),
               ),
               PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                offset: const Offset(0, 8),
+                elevation: 8,
+                color: context.zt.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: context.zt.hairline),
+                ),
+                constraints: const BoxConstraints(minWidth: 184),
                 icon: Icon(Icons.more_horiz, color: context.zt.textLo),
                 onSelected: (action) async {
                   switch (action) {
@@ -655,16 +685,31 @@ class _DeviceCard extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (_) => [
-                  PopupMenuItem(
+                  _deviceMenuItem(
+                    context,
                     value: 'open',
-                    child: Text(l10n.menuOpenSession),
+                    icon: Icons.open_in_new_rounded,
+                    label: l10n.menuOpenSession,
                   ),
-                  PopupMenuItem(value: 'rename', child: Text(l10n.menuRename)),
-                  PopupMenuItem(
+                  _deviceMenuItem(
+                    context,
+                    value: 'rename',
+                    icon: Icons.edit_outlined,
+                    label: l10n.menuRename,
+                  ),
+                  _deviceMenuItem(
+                    context,
                     value: 'replace',
-                    child: Text(l10n.menuReplace),
+                    icon: Icons.link_rounded,
+                    label: l10n.menuReplace,
                   ),
-                  PopupMenuItem(value: 'delete', child: Text(l10n.menuDelete)),
+                  _deviceMenuItem(
+                    context,
+                    value: 'delete',
+                    icon: Icons.delete_outline_rounded,
+                    label: l10n.menuDelete,
+                    color: context.zt.danger,
+                  ),
                 ],
               ),
               ReorderableDragStartListener(
@@ -681,6 +726,38 @@ class _DeviceCard extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _deviceMenuItem(
+    BuildContext context, {
+    required String value,
+    required IconData icon,
+    required String label,
+    Color? color,
+  }) {
+    final foreground = color ?? context.zt.textHi;
+    return PopupMenuItem<String>(
+      value: value,
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Icon(icon, size: 19, color: color ?? context.zt.textLo),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: foreground,
+            ),
+          ),
+        ],
       ),
     );
   }

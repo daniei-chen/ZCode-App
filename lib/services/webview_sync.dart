@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -136,10 +137,12 @@ class WebViewSyncController {
       );
       if (!shouldNotify) continue;
 
-      NotifierService.instance.notifyFrom(
-        device,
-        enriched,
-        l10n: AppLocalizations.of(context),
+      unawaited(
+        NotifierService.instance.notifyFrom(
+          device,
+          enriched,
+          l10n: AppLocalizations.of(context),
+        ),
       );
     }
   }
