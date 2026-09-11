@@ -1,0 +1,174 @@
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/device.dart';
+import '../models/notification_prefs.dart';
+
+class DeviceStore {
+  DeviceStore._();
+
+  static final DeviceStore instance = DeviceStore._();
+
+  static const _indexKey = 'zremote.device.index';
+  static const _deviceKeyPrefix = 'zremote.device.';
+  static const _biometricKey = 'zremote.biometricEnabled';
+
+  final _secure = const FlutterSecureStorage();
+
+  Future<List<RemoteDevice>> loadAll() async {
+    final indexRaw = await _secure.read(key: _indexKey);
+    if (indexRaw == null) return [];
+    final ids = (jsonDecode(indexRaw) as List).cast<String>();
+    final rawDevices = await Future.wait(
+      ids.map((id) => _secure.read(key: _deviceKey(id))),
+    );
+    final devices = <RemoteDevice>[];
+    for (var i = 0; i < ids.length; i++) {
+      final raw = rawDevices[i];
+      if (raw == null) continue;
+      try {
+        devices.add(
+          RemoteDevice.fromJson(jsonDecode(raw) as Map<String, dynamic>),
+        );
+      } catch (_) {}
+    }
+    return devices;
+  }
+
+  Future<void> add(RemoteDevice device) async {
+    final ids = await _readIndex();
+    if (!ids.contains(device.id)) ids.add(device.id);
+    await _secure.write(
+      key: _deviceKey(device.id),
+      value: jsonEncode(device.toJson()),
+    );
+    await _secure.write(key: _indexKey, value: jsonEncode(ids));
+  }
+
+  Future<void> update(RemoteDevice device) => _secure.write(
+    key: _deviceKey(device.id),
+    value: jsonEncode(device.toJson()),
+  );
+
+  Future<void> remove(String id) async {
+    await _secure.delete(key: _deviceKey(id));
+    await _secure.delete(key: _warmupKey(id));
+    final ids = await _readIndex();
+    ids.remove(id);
+    await _secure.write(key: _indexKey, value: jsonEncode(ids));
+  }
+
+  Future<void> saveOrder(List<String> ids) async {
+    final current = await _readIndex();
+    if (current.length != ids.length) return;
+    final idSet = ids.toSet();
+    if (idSet.length != ids.length) return;
+    if (!current.toSet().containsAll(idSet)) return;
+    await _secure.write(key: _indexKey, value: jsonEncode(ids));
+  }
+
+  Future<List<String>> _readIndex() async {
+    final raw = await _secure.read(key: _indexKey);
+    if (raw == null) return [];
+    try {
+      return (jsonDecode(raw) as List).cast<String>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  String _deviceKey(String id) => '$_deviceKeyPrefix$id';
+
+  Future<bool> biometricEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_biometricKey) ?? false;
+  }
+
+  Future<void> setBiometricEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_biometricKey, value);
+  }
+
+  static const _keepAliveKey = 'zremote.keepalive';
+
+  Future<bool> keepAliveEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Background keep-alive is opt-in: a permanently resident foreground
+    // service/wakelock has a direct battery cost and should never surprise a
+    // newly installed user.
+    return prefs.getBool(_keepAliveKey) ?? false;
+  }
+
+  Future<void> setKeepAliveEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keepAliveKey, value);
+  }
+
+  static const _themeModeKey = 'zremote.themeMode';
+
+  /// 主题模式：`system` / `light` / `dark`。
+  Future<String> themeModeSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_themeModeKey) ?? 'system';
+  }
+
+  Future<void> setThemeModeSetting(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, value);
+  }
+
+  static const _lastDeviceKey = 'zremote.lastDevice';
+
+  Future<String?> lastDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastDeviceKey);
+  }
+
+  Future<void> setLastDeviceId(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastDeviceKey, id);
+  }
+
+  static const _notifApprovalKey = 'zremote.notify.approval';
+  static const _notifCompleteKey = 'zremote.notify.complete';
+  static const _notifFailKey = 'zremote.notify.fail';
+  static const _notifSoundUriKey = 'zremote.notify.soundUri';
+
+  Future<NotificationPrefs> notificationPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    return NotificationPrefs(
+      approval: prefs.getBool(_notifApprovalKey) ?? true,
+      complete: prefs.getBool(_notifCompleteKey) ?? true,
+      fail: prefs.getBool(_notifFailKey) ?? true,
+      soundUri: prefs.getString(_notifSoundUriKey) ?? '',
+    );
+  }
+
+  Future<void> setNotificationPrefs(NotificationPrefs value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notifApprovalKey, value.approval);
+    await prefs.setBool(_notifCompleteKey, value.complete);
+    await prefs.setBool(_notifFailKey, value.fail);
+    await prefs.setString(_notifSoundUriKey, value.soundUri);
+  }
+
+  static String _warmupKey(String id) => 'zremote.warmup.$id';
+
+  /// 面板预热请求的录制存档（warmup 服务用，JSON 数组）。
+  ///
+  /// 其中可能包含 URL 和请求参数，和设备凭证一样按敏感数据处理，使用
+  /// secure storage 而不是普通 SharedPreferences。
+  Future<String?> warmupScript(String deviceId) async {
+    return _secure.read(key: _warmupKey(deviceId));
+  }
+
+  Future<void> setWarmupScript(String deviceId, String? json) async {
+    if (json == null) {
+      await _secure.delete(key: _warmupKey(deviceId));
+    } else {
+      await _secure.write(key: _warmupKey(deviceId), value: json);
+    }
+  }
+}

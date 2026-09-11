@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- System-mode fallback. MainActivity replaces this with the saved app
+         theme before Flutter's first frame when a custom mode is selected. -->
+    <color name="splash_background">#F8F8F8</color>
+    <color name="launch_background_light">#F8F8F8</color>
+    <color name="launch_background_dark">#161616</color>
+</resources>

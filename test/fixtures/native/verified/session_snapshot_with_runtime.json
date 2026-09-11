@@ -1,0 +1,121 @@
+{
+  "protocol": {
+    "name": "zcode-session",
+    "version": 1
+  },
+  "session": {
+    "sessionId": "sess_fixture_0001",
+    "workspace": {
+      "kind": "local",
+      "path": "<workspace>"
+    },
+    "sessionKind": "regular",
+    "title": "fixture message",
+    "titleSource": "first_input",
+    "mode": "build",
+    "status": "idle",
+    "model": {
+      "providerId": "fixture-provider",
+      "modelId": "fixture-model-flash"
+    },
+    "createdAt": 1789000000000,
+    "updatedAt": 1789000001000
+  },
+  "settings": {
+    "appliedProviderRevision": "rev-7",
+    "model": {
+      "current": {
+        "providerId": "fixture-provider",
+        "modelId": "fixture-model-flash"
+      },
+      "available": [
+        {
+          "ref": {
+            "providerId": "fixture-provider",
+            "modelId": "fixture-model-flash"
+          },
+          "label": "Fixture Flash",
+          "providerLabel": "Fixture Provider",
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "reasoning": {
+            "enabled": true,
+            "levels": [
+              {
+                "value": "high",
+                "label": "High"
+              },
+              {
+                "value": "max",
+                "label": "Max",
+                "description": "Deepest reasoning"
+              }
+            ],
+            "defaultLevel": "high"
+          },
+          "supportsImages": true,
+          "supportsTools": true
+        },
+        {
+          "ref": {
+            "providerId": "fixture-provider",
+            "modelId": "fixture-model-pro"
+          },
+          "label": "Fixture Pro",
+          "providerLabel": "Fixture Provider",
+          "contextWindow": 128000,
+          "reasoning": {
+            "enabled": false,
+            "levels": []
+          },
+          "disabledReason": "quota_exhausted"
+        }
+      ],
+      "lastUsed": {
+        "providerId": "fixture-provider",
+        "modelId": "fixture-model-flash"
+      }
+    },
+    "thoughtLevel": {
+      "enabled": true,
+      "current": "max",
+      "defaultLevel": "high",
+      "available": [
+        {
+          "value": "high",
+          "label": "High"
+        },
+        {
+          "value": "max",
+          "label": "Max",
+          "description": "Deepest reasoning"
+        }
+      ]
+    },
+    "mode": {
+      "current": "build"
+    }
+  },
+  "projection": {
+    "sessionId": "sess_fixture_0001",
+    "status": "idle",
+    "mode": "build",
+    "turnCount": 2,
+    "totalTokenCount": 39300,
+    "contextUsed": 39300,
+    "contextWindow": 200000,
+    "pendingPermissions": [],
+    "activeToolCalls": [],
+    "backgroundJobs": []
+  },
+  "runtime": {
+    "eventSeq": 42,
+    "stateRevision": 7,
+    "pendingRequestIds": [],
+    "contextUsage": {
+      "used": 39300,
+      "size": 200000
+    }
+  },
+  "messages": []
+}

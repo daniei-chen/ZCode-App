@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- These two themes are selected by MainActivity from the app preference
+         before Android 12's system splash is released. -->
+    <style name="SavedLightSplashTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/launch_background_light</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/launch_background_light</item>
+        <item name="android:windowBackground">@color/launch_background_light</item>
+        <item name="android:statusBarColor">@color/launch_background_light</item>
+        <item name="android:navigationBarColor">@color/launch_background_light</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <style name="SavedDarkSplashTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/launch_background_dark</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/launch_background_dark</item>
+        <item name="android:windowBackground">@color/launch_background_dark</item>
+        <item name="android:statusBarColor">@color/launch_background_dark</item>
+        <item name="android:navigationBarColor">@color/launch_background_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

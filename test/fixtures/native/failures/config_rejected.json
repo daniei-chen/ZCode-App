@@ -1,0 +1,7 @@
+{
+  "commandId": "cmd_fixture_switch_0001",
+  "status": "rejected",
+  "reasonCode": "thought_level_unsupported",
+  "message": "fixture: requested thought level is not offered by the model",
+  "revisionAtDecision": 7
+}

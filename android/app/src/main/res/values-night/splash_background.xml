@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Match the dark Flutter surface during the mandatory Android launch window. -->
+    <color name="splash_background">#161616</color>
+    <color name="launch_background_light">#F8F8F8</color>
+    <color name="launch_background_dark">#161616</color>
+</resources>

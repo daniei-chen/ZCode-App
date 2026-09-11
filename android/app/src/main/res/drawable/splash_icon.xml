@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep the Flutter launch background and Android 12 launch icon identical. -->
+<scale xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/launcher_mark"
+    android:scaleWidth="24%"
+    android:scaleHeight="24%"
+    android:scaleGravity="center" />

@@ -1,0 +1,13 @@
+{
+  "commandId": "cmd_fixture_create_0001",
+  "status": "accepted",
+  "revisionAtDecision": 7,
+  "result": {
+    "type": "createSession",
+    "sessionId": "sess_fixture_0003",
+    "input": {
+      "delivery": "startNow",
+      "inputId": "in_fixture_0001"
+    }
+  }
+}

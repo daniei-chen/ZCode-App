@@ -1,0 +1,13 @@
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    # Local reverse-engineering probes live outside the delivered source and
+    # are gitignored; they must not gate the repository's analyze result.
+    - tools/**
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:

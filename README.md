@@ -1,0 +1,112 @@
+# ZCode
+
+<p align="center">
+  <img src="assets/brand/mark.png" width="96" alt="ZCode 图标" />
+</p>
+
+<p align="center">
+  <strong>ZCode App</strong><br />
+  ZCode 桌面端的 Android 移动远程控制客户端
+</p>
+
+<p align="center">
+  <a href="https://github.com/2421873411a-rgb/ZCode-App/releases">下载 Release</a>
+  ·
+  <a href="https://github.com/2421873411a-rgb/ZCode-App/issues">反馈问题</a>
+</p>
+
+> ZCode App 是个人开发的非官方软件，与 Z.ai 无隶属关系。ZCode 及相关名称、图标和商标归其各自所有者所有。
+
+## 项目简介
+
+ZCode App（当前版本 1.0.0）面向需要在手机或平板上管理 ZCode 桌面任务的用户。它通过 ZCode 桌面端的移动远程控制功能接入电脑：扫码或粘贴控制链接，命名并保存设备，之后即可从设备页快速进入最近使用的设备和会话。
+
+应用采用原生 Flutter 外壳承载设备管理、设置、通知和会话入口；对桌面端能力保留 WebView 兼容环境，尽量延续电脑端的交互、布局和数据体验。Android 安装标识为 `com.zcode.app`，应用显示名为 `ZCode`。
+
+## 界面预览
+
+### 设备管理
+
+<p align="center">
+  <img src="docs/screenshots/device-light.png" width="260" alt="ZCode 设备管理浅色模式" />
+  <img src="docs/screenshots/device-dark.png" width="260" alt="ZCode 设备管理深色模式" />
+</p>
+
+### 设置与会话
+
+<p align="center">
+  <img src="docs/screenshots/settings-light.png" width="260" alt="ZCode 设置页面" />
+  <img src="docs/screenshots/session-panel-dark.png" width="260" alt="ZCode 会话面板" />
+</p>
+
+截图中的设备名、任务内容和链接均为演示数据。请勿把真实二维码、控制链接或包含 `sid`、`hash`、token 的截图上传到公开仓库。
+
+## 主要功能
+
+- **扫码 / 链接接入**：设备页提供并排的“扫码”和“链接”入口，支持导入桌面端控制链接。
+- **多设备管理**：设备可命名、排序、替换链接和删除；保存后无需重复导入。
+- **快速启动**：有最近使用设备时自动进入，没有时显示“等待接入设备”的设备页。
+- **桌面体验兼容**：原生页面负责移动端壳、任务、通知、设备和设置；需要完整桌面交互时可进入 WebView 兼容环境。
+- **统一主题链路**：日间、夜间和跟随系统设置同时影响设备页、设置页、启动冷屏及进入后的 WebView 主题。
+- **任务通知**：审批请求、任务完成和任务失败都支持通知；前台使用应用内通知栏，离开应用后才使用 Android 弹窗式通知。
+- **通知音效**：应用内提示音可选择；离开应用后的 Android 通知始终使用系统默认提示音，不把自定义音频交给系统通知频道。
+- **通知跳转**：通知标题使用实际会话标题，内容显示任务摘要；点击后直接回到对应设备和对话。
+- **轻量后台监控**：默认不常驻“ZCode 运行中”通知；只有主动开启持续连接时，才使用 Android 要求的最低可见前台服务状态。
+- **简体中文**：界面固定使用简体中文，不提供中英文切换。
+- **更新入口**：设备页提供检查更新和 GitHub 仓库入口，发布后可从 Releases 获取新版 APK。
+
+## 使用方式
+
+1. 在电脑端 ZCode 打开“移动远程控制”。
+2. 在 ZCode App 设备页点击“扫码”，或点击“链接”粘贴控制链接。
+3. 导入后为设备命名，例如“家里电脑”或“办公室”。
+4. 点击设备卡片进入任务和会话；再次打开应用会优先恢复最近使用的设备。
+
+控制链接相当于远程访问凭据。请只在自己的设备之间传递，不要提交到 Git、Issue、日志或公开截图中。
+
+## 构建
+
+环境要求：
+
+- Flutter `>= 3.47`
+- Dart `>= 3.10`
+- Android SDK 36
+- JDK 17
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+正式 Release 构建需要在 `android/key.properties` 中配置发布签名。GitHub Actions 同样要求配置仓库 Secrets：`KEYSTORE_BASE64` 和 `KEYSTORE_PASSWORD`；没有发布签名时工作流会主动失败，不会退回使用 debug key。
+
+## 项目结构
+
+```text
+lib/
+  models/       设备、通知、会话等数据模型
+  relay/        远程协议、消息和会话数据处理
+  services/     设备存储、WebView、通知、更新和后台服务
+  state/        设备池、会话、事件流和页面状态
+  ui/           设备、任务、会话、通知、工作台和设置页面
+android/        Android 原生启动、通知音效和后台服务实现
+docs/           架构说明、协议记录、测试截图和设计资料
+test/           Dart 单元测试与 Widget 测试
+```
+
+## 测试状态
+
+当前工程已完成：
+
+- `flutter analyze`：无问题
+- `flutter test`：654 项通过
+- Android Release APK：已构建并在模拟器安装启动验证
+- 包名：`com.zcode.app`
+
+## 声明与许可证
+
+本软件为个人开发的非官方软件，如有侵权，请联系作者处理。软件仅通过 ZCode 桌面端公开的移动远程控制链路接入，不伪造请求、不绕过鉴权。
+
+本项目使用 [MIT License](LICENSE)。

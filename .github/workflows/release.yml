@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: 3.47.3
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      # 正式发布必须使用 release keystore；缺失时故意失败，禁止 debug-key fallback。
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "KEYSTORE_BASE64 is required for release" >&2; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo "KEYSTORE_PASSWORD is required for release" >&2; exit 1; }
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/zcode-app-release.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=zcode-app\nstoreFile=zcode-app-release.jks\n' \
+            "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > android/key.properties
+
+      - run: flutter build apk --release
+
+      - name: Rename Android package
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/ZCode.apk
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zcode-app-apk
+          path: build/app/outputs/flutter-apk/ZCode.apk
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
+        with:
+          generate_release_notes: true
+          files: build/app/outputs/flutter-apk/ZCode.apk
+
+  # iOS 出未签名 IPA：无 Apple 开发者账号也可分发，用户自行签名侧载。
+  # iOS 构建是发布产物的一部分，失败必须让发布任务失败，不能伪装成成功。
+  ipa:
+    needs: apk
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: 3.47.3
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/Payload
+          cp -R build/ios/iphoneos/Runner.app build/Payload/Runner.app
+          ditto -c -k --keepParent build/Payload zcode-app-ios-unsigned.ipa
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: zcode-app-ios-unsigned-ipa
+          path: zcode-app-ios-unsigned.ipa
+
+      - name: Attach unsigned IPA to Release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
+        with:
+          append_body: true
+          body: |
+            > **iOS 包 `zcode-app-ios-unsigned.ipa` 为未签名包，无法直接安装。**
+            > 请使用 [AltStore](https://altstore.io) / [Sideloadly](https://sideloadly.io) / TrollStore 等工具，
+            > 用自己的 Apple ID 签名后侧载（免费账号 7 天需重新签名）。
+          files: zcode-app-ios-unsigned.ipa
