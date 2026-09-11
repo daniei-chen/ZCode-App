@@ -299,6 +299,36 @@ abstract final class EventParser {
     return events;
   }
 
+  /// Returns only events that represent an immediate user action request.
+  ///
+  /// Completion and failure are deliberately not returned here. The remote
+  /// page carries many nested `type`/`event` values while a reply is still
+  /// streaming (for example a tool step finishing or a reasoning item being
+  /// updated). Those values are not proof that the whole assistant turn has
+  /// ended. The callers use [StateDiffer] for the terminal transition instead.
+  static List<ObservedEvent> parseUserActionRoot(dynamic root) =>
+      parseRoot(root)
+          .where((event) {
+            final hasTarget = event.taskId != null && event.taskId!.isNotEmpty;
+            return hasTarget &&
+                (event.type == 'permission_request' ||
+                    event.type == 'elicitation_request');
+          })
+          .toList(growable: false);
+
+  /// Removes duplicate representations of one event in a relay delivery.
+  /// The same request can arrive once as an explicit event and once alongside
+  /// the state delta that produced it.
+  static List<ObservedEvent> dedupe(Iterable<ObservedEvent> input) {
+    final seen = <String>{};
+    final result = <ObservedEvent>[];
+    for (final event in input) {
+      final key = '${event.type}\u0000${event.taskId ?? ''}';
+      if (seen.add(key)) result.add(event);
+    }
+    return result;
+  }
+
   static void _walk(dynamic node, int depth, List<ObservedEvent> out) {
     if (depth > _maxDepth || node == null) return;
     if (node is Map) {
@@ -1116,8 +1146,21 @@ class StateDiffer {
       final prevPhase = prev?.phase;
       final phase = next.phase;
       const donePhases = {'completedSuccess', 'completedInterrupted'};
-      final isDone = phase != null && donePhases.contains(phase);
-      final wasDone = prevPhase != null && donePhases.contains(prevPhase);
+      // `sessionEnded:false` is still an active turn even if a nested
+      // activity object briefly reports a completed-looking phase. A flat
+      // task-index row may omit sessionEnded, so null remains acceptable for
+      // that authoritative displayStatus representation.
+      final isDone =
+          phase != null &&
+          donePhases.contains(phase) &&
+          next.sessionEnded != false;
+      final wasDone =
+          prev != null &&
+          prev.sessionEnded != false &&
+          prevPhase != null &&
+          donePhases.contains(prevPhase);
+      final wasError =
+          prev != null && prev.sessionEnded != false && prevPhase == 'error';
       if (prev != null && isDone && !wasDone) {
         events.add(
           ObservedEvent(
@@ -1128,7 +1171,10 @@ class StateDiffer {
           ),
         );
       }
-      if (prev != null && phase == 'error' && prevPhase != 'error') {
+      if (prev != null &&
+          phase == 'error' &&
+          next.sessionEnded != false &&
+          !wasError) {
         events.add(
           ObservedEvent(
             type: 'error',

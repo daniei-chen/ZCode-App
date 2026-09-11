@@ -76,6 +76,23 @@ void main() {
       expect(events, hasLength(1));
       expect(events.first.summary, '选择部署目标');
     });
+
+    test('通知解析只保留有目标的审批/输入请求，不消费流式终态字段', () {
+      final events = EventParser.parseUserActionRoot({
+        'type': 'completed',
+        'taskId': 't1',
+        'content': {'type': 'completed', 'message': '工具步骤完成，但整次回复仍在继续'},
+      });
+      expect(events, isEmpty);
+
+      final request = EventParser.parseUserActionRoot({
+        'event': 'permission_request',
+        'taskId': 't1',
+        'description': '需要批准写入文件',
+      });
+      expect(request, hasLength(1));
+      expect(request.single.type, 'permission_request');
+    });
   });
 
   group('白名单', () {
@@ -178,7 +195,7 @@ void main() {
           summary: '创建文件 zz-test.txt',
         ),
       )!;
-      expect(spec.channelId, 'zr_perm_alert_v5');
+      expect(spec.channelId, 'zr_perm_alert_v6');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, '修复登录页');
@@ -191,7 +208,7 @@ void main() {
         _device('公司MBP'),
         const ObservedEvent(type: 'error', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelId, 'zr_fail_alert_v5');
+      expect(spec.channelId, 'zr_fail_alert_v6');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, 'hi');
@@ -203,7 +220,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(done.channelId, 'zr_done_alert_v5');
+      expect(done.channelId, 'zr_done_alert_v6');
       expect(done.importance, Importance.high);
       expect(done.priority, Priority.high);
       expect(done.title, 'hi');
@@ -251,7 +268,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelId, 'zr_done_alert_v5');
+      expect(spec.channelId, 'zr_done_alert_v6');
     });
   });
 
@@ -524,6 +541,36 @@ void main() {
 
       final fresh = StateDiffer();
       expect(fresh.apply(SessionStateExtractor.parse(frameDone)), isEmpty);
+    });
+
+    test('差分：sessionEnded=false 的假终态不通知，确认结束后才通知', () {
+      final differ = StateDiffer();
+      differ.apply(const [
+        SessionState(
+          sessionId: 's-false-done',
+          phase: 'running',
+          sessionEnded: false,
+        ),
+      ]);
+      expect(
+        differ.apply(const [
+          SessionState(
+            sessionId: 's-false-done',
+            phase: 'completedSuccess',
+            sessionEnded: false,
+          ),
+        ]),
+        isEmpty,
+      );
+      final events = differ.apply(const [
+        SessionState(
+          sessionId: 's-false-done',
+          phase: 'completedSuccess',
+          sessionEnded: true,
+        ),
+      ]);
+      expect(events, hasLength(1));
+      expect(events.single.type, 'completed');
     });
 
     test('提取：session.removed delta 只带裸 sessionId', () {

@@ -553,15 +553,17 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
     }
 
     final differ = _stateDiffers[deviceId] ??= StateDiffer();
-    final events = <ObservedEvent>[
-      ...EventParser.parseRoot(root),
+    final events = EventParser.dedupe([
+      // Direct parser events are limited to requests for user action. A
+      // terminal notification must wait for the complete session state.
+      ...EventParser.parseUserActionRoot(root),
       ...differ.apply(
         // Keep the native and WebView paths symmetrical: task-index deltas
         // are the update form used for sessions outside the active view.
         [...states, ...TaskIndexExtractor.parseRoot(root)],
         removed: removed,
       ),
-    ];
+    ]);
     if (events.isEmpty) return;
 
     final devices = ref.read(deviceListProvider);

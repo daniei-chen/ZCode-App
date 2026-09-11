@@ -170,13 +170,15 @@ class _SessionViewState extends ConsumerState<SessionView> {
       }
     }
 
-    final events = <ObservedEvent>[
-      ...EventParser.parseRoot(root),
+    final events = EventParser.dedupe([
+      // Do not promote nested streaming/tool `completed` or `error` values to
+      // notifications. StateDiffer is the terminal-state authority.
+      ...EventParser.parseUserActionRoot(root),
       ..._stateDiffer.apply([
         ...states,
         ...TaskIndexExtractor.parseRoot(root),
       ], removed: removed),
-    ];
+    ]);
     if (events.isEmpty) return;
     final devices = ref.read(deviceListProvider);
     final active = ref.read(activeTabProvider);

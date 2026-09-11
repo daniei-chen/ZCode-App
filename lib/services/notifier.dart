@@ -33,12 +33,12 @@ class NotificationSpec {
           (event.taskId?.hashCode ?? 0)) &
       0x7FFFFFFF;
 
-  // These channels are deliberately separate from the previous custom-sound
-  // channels. Android persists channel sound settings, so a new id guarantees
-  // that an outside-app alert starts with the system default sound.
-  static const _approvalChannel = 'zr_perm_alert_v5';
-  static const _failureChannel = 'zr_fail_alert_v5';
-  static const _completeChannel = 'zr_done_alert_v5';
+  // Android persists a channel's sound choice forever. Bump the channel ids so
+  // upgrades from the old silent/custom-sound experiments get a fresh channel
+  // whose `sound: null` + `playSound: true` resolves to the system default.
+  static const _approvalChannel = 'zr_perm_alert_v6';
+  static const _failureChannel = 'zr_fail_alert_v6';
+  static const _completeChannel = 'zr_done_alert_v6';
 
   static Set<int> cancellableIds(RemoteDevice device, String taskId) => {
     stableId(device, ObservedEvent(type: 'permission_request', taskId: taskId)),
@@ -191,8 +191,7 @@ class NotifierService {
 
   void setLockScreenRedact(bool value) => _lockScreenRedact = value;
 
-  Future<void> ensurePermission() =>
-      _permissionFuture ??= _requestPermission();
+  Future<void> ensurePermission() => _permissionFuture ??= _requestPermission();
 
   Future<void> _requestPermission() async {
     try {
@@ -271,7 +270,9 @@ class NotifierService {
             sound: null,
             enableVibration: true,
             silent: false,
-            onlyAlertOnce: true,
+            // A new terminal event must alert even when Android reuses the
+            // stable device/type/session notification id.
+            onlyAlertOnce: false,
             visibility: lockScreenVisibility(lockEnabled: _lockScreenRedact),
           ),
         ),
@@ -291,7 +292,7 @@ class NotifierService {
         body: l10nZh.notifTestBody,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            'zr_done_alert_v5',
+            'zr_done_alert_v6',
             l10nZh.notifChannelDone,
             icon: 'ic_notification',
             importance: Importance.high,
@@ -303,7 +304,7 @@ class NotifierService {
             sound: null,
             enableVibration: true,
             silent: false,
-            onlyAlertOnce: true,
+            onlyAlertOnce: false,
           ),
         ),
       );

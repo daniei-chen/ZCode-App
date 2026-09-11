@@ -104,9 +104,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (open == true) {
         final opened = await UpdateService.instance.openRelease(releaseUri);
         if (!opened && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.updateFailed)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(l10n.updateFailed)));
         }
       }
     } finally {
@@ -175,7 +175,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     final index = ref
         .read(deviceListProvider)
         .indexWhere((d) => d.id == deviceId);
-    if (index >= 0) ref.read(activeTabProvider.notifier).set(index);
+    if (index >= 0) {
+      ref.read(eventFeedProvider.notifier).markRead(deviceId);
+      ref.read(activeTabProvider.notifier).set(index);
+      if (_launcherVisible) setState(() => _launcherVisible = false);
+    }
     if (parts.length > 1 && parts[1].isNotEmpty) {
       ref
           .read(pendingSessionJumpProvider.notifier)
@@ -193,6 +197,11 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   void _openDevice(int index) {
     if (!mounted) return;
+    final devices = ref.read(deviceListProvider);
+    if (index < 0 || index >= devices.length) return;
+    // This also covers tapping the already-selected card: activeTabProvider
+    // does not emit in that case, but entering the card still means “read”.
+    ref.read(eventFeedProvider.notifier).markRead(devices[index].id);
     ref.read(activeTabProvider.notifier).set(index);
     if (_launcherVisible) {
       setState(() => _launcherVisible = false);
@@ -222,7 +231,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.listen(activeTabProvider, (_, next) {
       final list = ref.read(deviceListProvider);
       if (next < list.length) {
-        ref.read(eventFeedProvider.notifier).clear(list[next].id);
+        // Opening a device acknowledges its unread event count. Keep the
+        // actual pending permission state so the session itself can still
+        // show that it needs a decision.
+        ref.read(eventFeedProvider.notifier).markRead(list[next].id);
         if (_launcherVisible && mounted) {
           setState(() => _launcherVisible = false);
         }

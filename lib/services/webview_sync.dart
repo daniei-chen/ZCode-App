@@ -84,8 +84,11 @@ class WebViewSyncController {
       }
     }
 
-    final events = <ObservedEvent>[
-      ...EventParser.parseRoot(root),
+    final events = EventParser.dedupe([
+      // Only explicit user-action requests are safe to consume directly.
+      // Completion/failure notifications come from StateDiffer below, where
+      // the whole session has entered a terminal state.
+      ...EventParser.parseUserActionRoot(root),
       // The official page can publish a flat task delta for sessions that are
       // not currently open. Include that form in the same state differ so a
       // completion/approval in any conversation is monitored, not just the
@@ -94,7 +97,7 @@ class WebViewSyncController {
         ...states,
         ...TaskIndexExtractor.parseRoot(root),
       ], removed: removed),
-    ];
+    ]);
     if (events.isEmpty) return;
 
     final devices = ref.read(deviceListProvider);

@@ -57,6 +57,17 @@ void main() {
       expect(container.read(eventFeedProvider).containsKey('d1'), isFalse);
     });
 
+    test('markRead 进入设备后清未读，但保留待审批状态', () {
+      final notifier = container.read(eventFeedProvider.notifier);
+      notifier.ingest('d1', ev('permission_request'));
+      notifier.ingest('d1', ev('completed'));
+      notifier.markRead('d1');
+
+      final feed = container.read(eventFeedProvider)['d1'];
+      expect(feed?.unread, 0);
+      expect(feed?.permPending, isTrue);
+    });
+
     test('forget 移除条目；多设备互不影响', () {
       final notifier = container.read(eventFeedProvider.notifier);
       notifier.ingest('d1', ev('error'));
