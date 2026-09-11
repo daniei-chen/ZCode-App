@@ -23,6 +23,12 @@ ZCode App（当前版本 1.0.1）面向需要在手机或平板上管理 ZCode �
 
 应用采用原生 Flutter 外壳承载设备管理、设置和通知；进入设备后的任务与会话页面使用内置 WebView 加载 ZCode 桌面端移动远程控制页面，保持电脑端的页面、布局和交互体验。Android 安装标识为 `com.zcode.app`，应用显示名为 `ZCode`。
 
+<p align="center">
+  <img src="docs/doraemon-zcode.png" width="820" alt="ZCode App 介绍图" />
+</p>
+
+> 介绍图仅用于项目展示，其中的角色形象及相关素材权利归其各自权利人所有。
+
 ## 界面预览
 
 ### 设备管理
