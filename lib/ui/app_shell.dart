@@ -8,7 +8,6 @@ import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/event_feed.dart';
-import '../state/keepalive.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
@@ -138,8 +137,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(keepAliveControllerProvider);
-
     ref.listen<bool>(
       biometricProvider,
       (_, next) => NotifierService.instance.setLockScreenRedact(next),

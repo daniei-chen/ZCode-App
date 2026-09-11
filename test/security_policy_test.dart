@@ -45,7 +45,7 @@ void main() {
       );
       expect(
         keepAliveDecision(enabled: true, hasDevices: true),
-        KeepAliveDecision.run,
+        KeepAliveDecision.stop,
       );
       expect(
         keepAliveDecision(enabled: true, hasDevices: false),

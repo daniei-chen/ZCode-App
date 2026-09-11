@@ -3,15 +3,19 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="ZCode"
         android:name="${applicationName}"
         android:allowBackup="false"
         android:icon="@drawable/launcher_mark">
+        <!-- Keep the notification icon in release builds. The Flutter
+             notifications plugin receives this resource by name at runtime,
+             so a manifest reference prevents resource shrinking from
+             removing it. -->
+        <meta-data
+            android:name="com.zcode.app.notificationIcon"
+            android:resource="@drawable/ic_notification" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -30,15 +34,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <service
-            android:name=".KeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse"
-            android:stopWithTask="true">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="webview_session_observer"/>
-        </service>
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

@@ -1,6 +1,3 @@
-import 'dart:convert';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -8,25 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../models/device_label.dart';
-import 'device_store.dart';
 import 'event_observer.dart';
-
-class NotificationSoundOption {
-  const NotificationSoundOption({
-    required this.id,
-    required this.title,
-    this.uri,
-  });
-
-  const NotificationSoundOption.systemDefault()
-    : id = 'default',
-      title = '系统默认',
-      uri = null;
-
-  final String id;
-  final String title;
-  final String? uri;
-}
 
 class NotificationSpec {
   const NotificationSpec({
@@ -37,7 +16,6 @@ class NotificationSpec {
     required this.title,
     required this.body,
     required this.payload,
-    this.soundUri,
   });
 
   final String channelId;
@@ -48,7 +26,6 @@ class NotificationSpec {
   final String body;
 
   final String payload;
-  final String? soundUri;
 
   static int stableId(RemoteDevice device, ObservedEvent event) =>
       (device.id.hashCode ^
@@ -59,9 +36,9 @@ class NotificationSpec {
   // These channels are deliberately separate from the previous custom-sound
   // channels. Android persists channel sound settings, so a new id guarantees
   // that an outside-app alert starts with the system default sound.
-  static const _approvalChannel = 'zr_perm_alert_v4';
-  static const _failureChannel = 'zr_fail_alert_v4';
-  static const _completeChannel = 'zr_done_alert_v4';
+  static const _approvalChannel = 'zr_perm_alert_v5';
+  static const _failureChannel = 'zr_fail_alert_v5';
+  static const _completeChannel = 'zr_done_alert_v5';
 
   static Set<int> cancellableIds(RemoteDevice device, String taskId) => {
     stableId(device, ObservedEvent(type: 'permission_request', taskId: taskId)),
@@ -96,16 +73,6 @@ class NotificationSpec {
     };
   }
 
-  static String channelIdFor(String base, String? soundUri) {
-    final normalized = _clean(soundUri);
-    if (normalized.isEmpty) return base;
-    final token = sha1
-        .convert(utf8.encode(normalized))
-        .toString()
-        .substring(0, 10);
-    return '${base}_$token';
-  }
-
   static String _clean(String? value) =>
       (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
 
@@ -116,72 +83,55 @@ class NotificationSpec {
     RemoteDevice device,
     ObservedEvent event, [
     AppLocalizations? l10n,
-  ]) => _fromWithSound(device, event, l10n ?? l10nZh, null);
+  ]) => _from(device, event, l10n ?? l10nZh);
 
-  static NotificationSpec? fromWithSound(
-    RemoteDevice device,
-    ObservedEvent event, {
-    AppLocalizations? l10n,
-    String? soundUri,
-  }) => _fromWithSound(device, event, l10n ?? l10nZh, soundUri);
-
-  static NotificationSpec? _fromWithSound(
+  static NotificationSpec? _from(
     RemoteDevice device,
     ObservedEvent event,
     AppLocalizations l,
-    String? selectedSoundUri,
   ) {
-    final soundUri = _clean(selectedSoundUri).isEmpty
-        ? null
-        : _clean(selectedSoundUri);
     final title = titleFor(device, event.sessionTitle, l);
     final body = bodyFor(event.type, event.summary, l);
     switch (event.type) {
       case 'permission_request':
         return NotificationSpec(
-          // Android 会持久化通道的优先级；使用新的 id 让旧版静默通道
-          // 不会把新版的声音/悬浮提醒继续压掉。
-          channelId: channelIdFor(_approvalChannel, soundUri),
+          channelId: _approvalChannel,
           channelName: l.notifChannelApproval,
           importance: Importance.high,
           priority: Priority.high,
           title: title,
           body: body,
           payload: _payload(device, event.taskId),
-          soundUri: soundUri,
         );
       case 'elicitation_request':
         return NotificationSpec(
-          channelId: channelIdFor(_approvalChannel, soundUri),
+          channelId: _approvalChannel,
           channelName: l.notifChannelApproval,
           importance: Importance.high,
           priority: Priority.high,
           title: title,
           body: body,
           payload: _payload(device, event.taskId),
-          soundUri: soundUri,
         );
       case 'error':
         return NotificationSpec(
-          channelId: channelIdFor(_failureChannel, soundUri),
+          channelId: _failureChannel,
           channelName: l.notifChannelFail,
           importance: Importance.high,
           priority: Priority.high,
           title: title,
           body: body,
           payload: _payload(device, event.taskId),
-          soundUri: soundUri,
         );
       case 'completed':
         return NotificationSpec(
-          channelId: channelIdFor(_completeChannel, soundUri),
+          channelId: _completeChannel,
           channelName: l.notifChannelDone,
           importance: Importance.high,
           priority: Priority.high,
           title: title,
           body: body,
           payload: _payload(device, event.taskId),
-          soundUri: soundUri,
         );
       default:
         return null;
@@ -236,10 +186,8 @@ class NotifierService {
   );
 
   Future<void>? _initFuture;
-  Future<void>? _soundLoadFuture;
   bool _permissionAsked = false;
   bool _lockScreenRedact = false;
-  String? _soundUri;
 
   void setLockScreenRedact(bool value) => _lockScreenRedact = value;
 
@@ -263,7 +211,6 @@ class NotifierService {
 
   Future<void> _initialize() async {
     try {
-      await _loadSoundPreference();
       await _plugin.initialize(
         settings: const InitializationSettings(
           // flutter_local_notifications resolves the small notification icon
@@ -283,56 +230,9 @@ class NotifierService {
     }
   }
 
-  Future<void> _loadSoundPreference() async {
-    _soundLoadFuture ??= () async {
-      try {
-        final prefs = await DeviceStore.instance.notificationPrefs();
-        final value = prefs.soundUri.trim();
-        _soundUri = value.isEmpty ? null : value;
-      } catch (_) {}
-    }();
-    await _soundLoadFuture;
-  }
-
-  Future<List<NotificationSoundOption>> availableSounds() async {
-    try {
-      final raw = await _soundChannel.invokeMethod<List<dynamic>>('list');
-      final values = <NotificationSoundOption>[
-        const NotificationSoundOption.systemDefault(),
-      ];
-      for (final item in raw ?? const <dynamic>[]) {
-        if (item is! Map) continue;
-        final uri = (item['uri'] as String?)?.trim();
-        final title = (item['title'] as String?)?.trim();
-        if (uri == null || uri.isEmpty || title == null || title.isEmpty) {
-          continue;
-        }
-        if (values.any((option) => option.uri == uri)) continue;
-        values.add(
-          NotificationSoundOption(
-            id: (item['id'] as String?)?.trim() ?? uri,
-            title: title,
-            uri: uri,
-          ),
-        );
-      }
-      return values;
-    } catch (_) {
-      return const [NotificationSoundOption.systemDefault()];
-    }
-  }
-
-  /// Applies a choice immediately. The settings provider persists it; this
-  /// in-memory update makes the next foreground/background event use it too.
-  void setSound(NotificationSoundOption option) {
-    final uri = option.uri?.trim();
-    _soundUri = uri == null || uri.isEmpty ? null : uri;
-  }
-
   Future<void> playInAppSound() async {
-    await _loadSoundPreference();
     try {
-      await _soundChannel.invokeMethod<void>('play', _soundUri);
+      await _soundChannel.invokeMethod<void>('playDefault');
     } catch (_) {
       // Non-Android platforms and test environments still get a short alert
       // where Flutter exposes one.
@@ -347,9 +247,8 @@ class NotifierService {
     ObservedEvent event, {
     AppLocalizations? l10n,
   }) async {
-    // The selected sound is intentionally an in-app-only preference. Outside
-    // the app Android uses its own default notification sound; custom content
-    // URIs are not reliable across devices/ROMs.
+    // Both in-app and outside-app alerts intentionally use the Android system
+    // default notification sound. Custom sound choices are not stored.
     final spec = NotificationSpec.from(device, event, l10n);
     if (spec == null) return;
     try {
@@ -391,7 +290,7 @@ class NotifierService {
         body: l10nZh.notifTestBody,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            'zr_done_alert_v4',
+            'zr_done_alert_v5',
             l10nZh.notifChannelDone,
             icon: 'ic_notification',
             importance: Importance.high,

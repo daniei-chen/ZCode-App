@@ -10,7 +10,6 @@ import 'models/device_label.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
-import 'state/keepalive.dart';
 import 'state/session_pool.dart';
 import 'state/theme_mode.dart';
 import 'theme.dart';
@@ -27,7 +26,6 @@ Future<void> main() async {
   final devicesFuture = _safeDevices(store.loadAll());
   final lastDeviceFuture = _safeLastDevice(store.lastDeviceId());
   final biometricFuture = _safeBool(store.biometricEnabled());
-  final keepAliveFuture = _safeBool(store.keepAliveEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
 
   // Resolve the saved devices before the first Flutter frame. Otherwise the
@@ -36,7 +34,6 @@ Future<void> main() async {
   final initialDevices = await devicesFuture;
   final lastDeviceId = await lastDeviceFuture;
   final initialBiometric = await biometricFuture;
-  final initialKeepAlive = await keepAliveFuture;
   final initialThemeMode = await themeModeFuture;
   final recentIndex = lastDeviceId == null
       ? -1
@@ -55,9 +52,6 @@ Future<void> main() async {
         ),
         biometricProvider.overrideWith(
           () => BiometricNotifier(initial: initialBiometric),
-        ),
-        keepAliveEnabledProvider.overrideWith(
-          () => KeepAliveEnabledNotifier(initial: initialKeepAlive),
         ),
         themeModeProvider.overrideWith(
           () => ThemeModeNotifier(initial: initialThemeMode),

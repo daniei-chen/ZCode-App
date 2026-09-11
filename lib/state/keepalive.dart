@@ -6,9 +6,11 @@ import '../services/keepalive.dart';
 import 'app_lifecycle.dart';
 import 'session_pool.dart';
 
-/// Persistent-connection ("持续连接") mode.  Off by default: the quiet mode
-/// keeps no foreground-service notification and reconnects when the app is
-/// resumed.  The persisted value from [DeviceStore] wins once loaded.
+/// Legacy compatibility state for the removed persistent-connection switch.
+///
+/// Android requires a visible foreground-service notification for reliable
+/// long-running background work. ZCode App deliberately does not start that
+/// service, so this state is retained only for safe upgrades of old installs.
 class KeepAliveEnabledNotifier extends Notifier<bool> {
   KeepAliveEnabledNotifier({this.initial = false});
 
@@ -40,7 +42,7 @@ enum KeepAliveDecision { run, stop }
 KeepAliveDecision keepAliveDecision({
   required bool enabled,
   required bool hasDevices,
-}) => enabled && hasDevices ? KeepAliveDecision.run : KeepAliveDecision.stop;
+}) => KeepAliveDecision.stop;
 
 final keepAliveControllerProvider = Provider<void>((ref) {
   void sync() => _syncService(ref);

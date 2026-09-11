@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
@@ -35,7 +34,6 @@ class UpdateService {
   static final instance = UpdateService._();
 
   static const repositoryUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
-  static final latestReleaseApi = Uri.parse('$repositoryUrl/releases/latest');
   static final latestReleasePage = Uri.parse('$repositoryUrl/releases/latest');
 
   Future<UpdateCheckResult> checkForUpdate({
@@ -54,50 +52,46 @@ class UpdateService {
     final httpClient = client ?? http.Client();
     final ownsClient = client == null;
     try {
-      final response = await httpClient
-          .get(
-            Uri.parse(
-              'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
-            ),
-            headers: {
-              'Accept': 'application/vnd.github+json',
-              'User-Agent': 'ZCode-App/$current',
-            },
-          )
-          .timeout(timeout);
+      // The REST API is rate-limited for anonymous mobile clients. The public
+      // /releases/latest page is intentionally requested without following
+      // redirects; its Location header is the canonical latest release tag.
+      final request = http.Request('GET', latestReleasePage)
+        ..followRedirects = false
+        ..maxRedirects = 0
+        ..headers.addAll({
+          'Accept': 'text/html,application/xhtml+xml',
+          'User-Agent': 'ZCode-App/$current',
+        });
+      final response = await http.Response.fromStream(
+        await httpClient.send(request).timeout(timeout),
+      ).timeout(timeout);
 
-      // GitHub returns 404 when the repository has no published release yet.
       if (response.statusCode == 404) {
         return UpdateCheckResult(
           status: UpdateCheckStatus.noRelease,
           currentVersion: current,
         );
       }
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return UpdateCheckResult(
-          status: UpdateCheckStatus.failed,
-          currentVersion: current,
-        );
-      }
-
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) {
-        return UpdateCheckResult(
-          status: UpdateCheckStatus.failed,
-          currentVersion: current,
-        );
-      }
-      final rawTag = decoded['tag_name'] ?? decoded['name'];
-      final latest = rawTag is String ? normalizeVersion(rawTag) : null;
+      final releaseUri = response.statusCode >= 300 && response.statusCode < 400
+          ? _safeReleaseUri(response.headers['location'])
+          : _releaseUriFromHtml(response.body);
+      final latest = releaseUri == null
+          ? null
+          : normalizeVersion(releaseUri.pathSegments.last);
       if (latest == null) {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          // A 200 page with no /releases/tag/... link is GitHub's empty
+          // releases page, not a transient network error.
+          return UpdateCheckResult(
+            status: UpdateCheckStatus.noRelease,
+            currentVersion: current,
+          );
+        }
         return UpdateCheckResult(
-          status: UpdateCheckStatus.noRelease,
+          status: UpdateCheckStatus.failed,
           currentVersion: current,
         );
       }
-
-      final releaseUri =
-          _safeReleaseUri(decoded['html_url']) ?? latestReleasePage;
       final hasUpdate = compareVersions(latest, current) > 0;
       return UpdateCheckResult(
         status: hasUpdate
@@ -175,7 +169,12 @@ class UpdateService {
 
   static Uri? _safeReleaseUri(Object? raw) {
     if (raw is! String) return null;
-    final uri = Uri.tryParse(raw);
+    final parsed = Uri.tryParse(raw);
+    final uri = parsed == null
+        ? null
+        : parsed.hasScheme
+        ? parsed
+        : latestReleasePage.resolve(raw);
     if (uri == null ||
         uri.scheme.toLowerCase() != 'https' ||
         uri.host.toLowerCase() != 'github.com' ||
@@ -183,5 +182,13 @@ class UpdateService {
       return null;
     }
     return uri;
+  }
+
+  static Uri? _releaseUriFromHtml(String html) {
+    final match = RegExp(
+      r'https://github\.com/2421873411a-rgb/ZCode-App/releases/tag/[^"\s<]+',
+      caseSensitive: false,
+    ).firstMatch(html);
+    return _safeReleaseUri(match?.group(0));
   }
 }

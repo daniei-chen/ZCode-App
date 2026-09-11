@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../services/device_store.dart';
 import '../theme.dart';
@@ -8,6 +9,8 @@ import '../theme.dart';
 const kThemeSystem = 'system';
 const kThemeLight = 'light';
 const kThemeDark = 'dark';
+
+const _nativeThemeChannel = MethodChannel('zremote/theme');
 
 /// 界面主题模式（跟随系统 / 日间 / 夜间）。
 ///
@@ -36,6 +39,13 @@ class ThemeModeNotifier extends Notifier<String> {
   Future<void> set(String value) async {
     if (!_valid(value)) return;
     await DeviceStore.instance.setThemeModeSetting(value);
+    try {
+      // Android 12+ uses this persisted application night mode while it is
+      // creating the system splash, preventing a light/dark flash on launch.
+      await _nativeThemeChannel.invokeMethod<void>('setMode', value);
+    } catch (_) {
+      // Flutter tests and older platforms do not expose the native channel.
+    }
     state = value;
   }
 

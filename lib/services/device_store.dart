@@ -134,7 +134,6 @@ class DeviceStore {
   static const _notifApprovalKey = 'zremote.notify.approval';
   static const _notifCompleteKey = 'zremote.notify.complete';
   static const _notifFailKey = 'zremote.notify.fail';
-  static const _notifSoundUriKey = 'zremote.notify.soundUri';
 
   Future<NotificationPrefs> notificationPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -142,7 +141,6 @@ class DeviceStore {
       approval: prefs.getBool(_notifApprovalKey) ?? true,
       complete: prefs.getBool(_notifCompleteKey) ?? true,
       fail: prefs.getBool(_notifFailKey) ?? true,
-      soundUri: prefs.getString(_notifSoundUriKey) ?? '',
     );
   }
 
@@ -151,7 +149,6 @@ class DeviceStore {
     await prefs.setBool(_notifApprovalKey, value.approval);
     await prefs.setBool(_notifCompleteKey, value.complete);
     await prefs.setBool(_notifFailKey, value.fail);
-    await prefs.setString(_notifSoundUriKey, value.soundUri);
   }
 
   static String _warmupKey(String id) => 'zremote.warmup.$id';

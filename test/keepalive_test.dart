@@ -47,10 +47,10 @@ RemoteDevice _device(String id) => RemoteDevice(
 
 void main() {
   group('keepAliveDecision 策略表', () {
-    test('开关开 + 有设备 → 运行', () {
+    test('即使开关开 + 有设备也不启动常驻服务', () {
       expect(
         keepAliveDecision(enabled: true, hasDevices: true),
-        KeepAliveDecision.run,
+        KeepAliveDecision.stop,
       );
     });
 
@@ -179,15 +179,16 @@ void main() {
       ],
     );
 
-    test('开关开 + 有设备：激活即拉起服务', () async {
+    test('开关开 + 有设备：激活也只停止服务', () async {
       final c = container();
       addTearDown(c.dispose);
       c.read(keepAliveControllerProvider);
       await drain();
-      expect(log, contains('start'));
+      expect(log, contains('stop'));
+      expect(log, isNot(contains('start')));
     });
 
-    test('快速关→开：陈旧运行态吃不掉 start（TOCTOU 回归）', () async {
+    test('快速关→开：不会重新启动常驻服务', () async {
       final c = container();
       addTearDown(c.dispose);
       c.read(keepAliveControllerProvider);
@@ -196,7 +197,8 @@ void main() {
       await c.read(keepAliveEnabledProvider.notifier).set(false);
       await c.read(keepAliveEnabledProvider.notifier).set(true);
       await drain();
-      expect(log, ['stop', 'start']);
+      expect(log, isNot(contains('start')));
+      expect(log, isNotEmpty);
     });
 
     test('无设备：决策停，绝不拉起', () async {
@@ -222,7 +224,7 @@ void main() {
       expect(log, contains('stop'));
     });
 
-    test('回前台自愈：resumed 触发重拉', () async {
+    test('回前台自愈：resumed 也不会拉起常驻服务', () async {
       final c = container();
       addTearDown(c.dispose);
       c.read(keepAliveControllerProvider);
@@ -233,7 +235,8 @@ void main() {
       expect(log, isEmpty);
       c.read(appLifecycleProvider.notifier).set(AppLifecycleState.resumed);
       await drain();
-      expect(log, ['start']);
+      expect(log, contains('stop'));
+      expect(log, isNot(contains('start')));
     });
   });
 

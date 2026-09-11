@@ -1,6 +1,7 @@
 package com.zcode.app
 
 import android.app.NotificationManager
+import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -25,9 +26,15 @@ class MainActivity : FlutterFragmentActivity() {
         // Flutter's NormalTheme is selected from Android's system night
         // resources. Read the app-owned preference before that hand-off so a
         // saved "日间"/"夜间" choice does not flash through the opposite color.
+        val mode = savedThemeMode()
+        syncApplicationNightMode(mode)
         val dark = savedThemeIsDark()
-        applySavedSplashTheme(dark)
         applySavedLaunchSurface(dark)
+        // Stop the v1.0.0 foreground service if an older install had enabled
+        // it. v1.0.1 no longer declares or starts that service, so no
+        // background "ZCode running" notification can remain behind.
+        stopService(Intent(this, KeepAliveService::class.java))
+        clearLegacyKeepAliveNotification()
         super.onCreate(savedInstanceState)
         // FlutterActivity switches LaunchTheme to NormalTheme inside super.
         // Re-apply the saved surface after that switch and before the first
@@ -35,12 +42,13 @@ class MainActivity : FlutterFragmentActivity() {
         applySavedLaunchSurface(dark)
     }
 
+    private fun savedThemeMode(): String = getSharedPreferences(
+        "FlutterSharedPreferences",
+        Context.MODE_PRIVATE,
+    ).getString("flutter.zremote.themeMode", "system") ?: "system"
+
     private fun savedThemeIsDark(): Boolean {
-        val mode = getSharedPreferences(
-            "FlutterSharedPreferences",
-            Context.MODE_PRIVATE,
-        ).getString("flutter.zremote.themeMode", "system")
-        return when (mode) {
+        return when (savedThemeMode()) {
             "dark" -> true
             "light" -> false
             else -> isSystemDark()
@@ -48,15 +56,20 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     @Suppress("NewApi")
-    private fun applySavedSplashTheme(dark: Boolean) {
+    private fun syncApplicationNightMode(mode: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        // Android 12 creates a separate system splash surface before the
-        // Activity window. Select its light/dark theme from the same saved
-        // preference so it does not briefly use the system's opposite mode.
-        getSplashScreen().setSplashScreenTheme(
-            if (dark) R.style.SavedDarkSplashTheme
-            else R.style.SavedLightSplashTheme,
-        )
+        val uiModeManager = getSystemService(UiModeManager::class.java) ?: return
+        val requested = when (mode) {
+            "dark" -> UiModeManager.MODE_NIGHT_YES
+            "light" -> UiModeManager.MODE_NIGHT_NO
+            else -> UiModeManager.MODE_NIGHT_AUTO
+        }
+        try {
+            uiModeManager.setApplicationNightMode(requested)
+        } catch (_: Exception) {
+            // Older Android 12 builds may expose the API but reject an
+            // application-level override; the Flutter theme still works.
+        }
     }
 
     private fun applySavedLaunchSurface(dark: Boolean) {
@@ -90,6 +103,16 @@ class MainActivity : FlutterFragmentActivity() {
         (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES
 
+    private fun clearLegacyKeepAliveNotification() {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        // v1.0.0 used this fixed foreground-service id. Clear it during the
+        // first v1.0.1 launch so an upgrade cannot leave a stale resident row.
+        manager.cancel(901)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.deleteNotificationChannel("zr_keep_silent_v3")
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
@@ -98,19 +121,15 @@ class MainActivity : FlutterFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {
-                    try {
-                        KeepAliveService.start(this)
-                        result.success(null)
-                    } catch (e: Exception) {
-                        result.error("start_failed", e.message, null)
-                    }
+                    stopService(Intent(this, KeepAliveService::class.java))
+                    result.success(null)
                 }
                 "stop" -> {
                     stopService(Intent(this, KeepAliveService::class.java))
                     result.success(null)
                 }
-                "isRunning" -> result.success(KeepAliveService.isRunning)
-                "isBlocked" -> result.success(KeepAliveService.lastStartBlocked)
+                "isRunning" -> result.success(false)
+                "isBlocked" -> result.success(false)
                 "isBatteryIgnored" -> result.success(isBatteryIgnored())
                 "requestBatteryIgnore" -> {
                     if (requestBatteryIgnore()) result.success(null)
@@ -162,12 +181,24 @@ class MainActivity : FlutterFragmentActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "zremote/theme",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setMode" -> {
+                    syncApplicationNightMode(call.arguments as? String ?: "system")
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "zremote/notification_sound",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "list" -> result.success(notificationSoundOptions())
-                "play" -> {
-                    playNotificationSound(call.arguments as? String)
+                "playDefault" -> {
+                    playDefaultNotificationSound()
                     result.success(null)
                 }
                 "stop" -> {
@@ -180,45 +211,9 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    private fun notificationSoundOptions(): List<Map<String, String>> {
-        val options = mutableListOf<Map<String, String>>()
-        options += mapOf("id" to "default", "title" to "系统默认", "uri" to "")
-
-        val manager = RingtoneManager(this).apply {
-            setType(RingtoneManager.TYPE_NOTIFICATION)
-        }
-        val cursor = manager.cursor
-        val defaultUri = RingtoneManager
-            .getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ?.toString()
-        try {
-            while (cursor.moveToNext() && options.size < 6) {
-                val uri = manager.getRingtoneUri(cursor.position)?.toString() ?: continue
-                if (uri == defaultUri || options.any { it["uri"] == uri }) continue
-                val title = try {
-                    cursor.getString(RingtoneManager.TITLE_COLUMN_INDEX)
-                } catch (_: Exception) {
-                    null
-                }?.trim().orEmpty()
-                if (title.isEmpty()) continue
-                options += mapOf(
-                    "id" to "system_${uri.hashCode().toUInt().toString(16)}",
-                    "title" to title,
-                    "uri" to uri,
-                )
-            }
-        } finally {
-            cursor.close()
-        }
-        return options
-    }
-
-    private fun playNotificationSound(uriString: String?) {
+    private fun playDefaultNotificationSound() {
         previewRingtone?.stop()
-        val uri = uriString
-            ?.takeIf { it.isNotBlank() }
-            ?.let(Uri::parse)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         previewRingtone = uri?.let { RingtoneManager.getRingtone(this, it) }
         previewRingtone?.play()
     }

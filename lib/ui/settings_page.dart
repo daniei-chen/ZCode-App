@@ -10,7 +10,6 @@ import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/event_feed.dart';
-import '../state/keepalive.dart';
 import '../state/theme_mode.dart';
 import 'notifications_page.dart';
 import '../state/notification_prefs.dart';
@@ -152,8 +151,6 @@ class SettingsPage extends ConsumerWidget {
               // 原生设置只管理启动端本身；WebView 内部的 Agent、Hook、统计
               // 等选项留在远程页面自己的设置入口中。
               _SettingsSectionLabel(l10n.settingsGroupBasics),
-              const _KeepAliveTile(),
-              const _SettingsDivider(),
               const _BatteryTile(),
               _SettingsSectionLabel(l10n.settingsGroupNotifications),
               const _NotificationCenterTile(),
@@ -313,32 +310,6 @@ class ThemeSettingTile extends ConsumerWidget {
   }
 }
 
-class _KeepAliveTile extends ConsumerWidget {
-  const _KeepAliveTile();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(keepAliveEnabledProvider);
-    final l10n = AppLocalizations.of(context)!;
-    return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
-        child: SwitchListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-          secondary: const _SettingsIcon(Icons.shield_outlined),
-          title: Text(
-            l10n.keepAliveTitle,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-          ),
-          activeThumbColor: context.zt.accent,
-          value: enabled,
-          onChanged: (v) => ref.read(keepAliveEnabledProvider.notifier).set(v),
-        ),
-      ),
-    );
-  }
-}
-
 class _BatteryTile extends ConsumerStatefulWidget {
   const _BatteryTile();
 
@@ -384,7 +355,6 @@ class _BatteryTileState extends ConsumerState<_BatteryTile> {
     ref.listen(appLifecycleProvider, (prev, next) {
       if (next == AppLifecycleState.resumed) _refresh();
     });
-    ref.listen(keepAliveEnabledProvider, (_, _) => _refresh());
     final l10n = AppLocalizations.of(context)!;
     return Card(
       child: SizedBox(
@@ -429,25 +399,11 @@ class _NotificationCard extends ConsumerStatefulWidget {
 
 class _NotificationCardState extends ConsumerState<_NotificationCard> {
   bool? _systemEnabled;
-  List<NotificationSoundOption> _soundOptions = const [
-    NotificationSoundOption.systemDefault(),
-  ];
-  bool _loadingSounds = true;
 
   @override
   void initState() {
     super.initState();
     _refresh();
-    _loadSounds();
-  }
-
-  Future<void> _loadSounds() async {
-    final sounds = await NotifierService.instance.availableSounds();
-    if (!mounted) return;
-    setState(() {
-      _soundOptions = sounds;
-      _loadingSounds = false;
-    });
   }
 
   Future<void> _refresh() async {
@@ -467,62 +423,6 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
       await AppSettings.openNotifications();
     }
     _refresh();
-  }
-
-  String _soundLabel(String selectedUri, AppLocalizations l10n) {
-    if (_loadingSounds) return l10n.notifSoundLoading;
-    final selected = _soundOptions.where(
-      (option) => (option.uri ?? '') == selectedUri,
-    );
-    return selected.isEmpty
-        ? l10n.notifSoundSystemDefault
-        : selected.first.title;
-  }
-
-  Future<void> _pickSound() async {
-    final l10n = AppLocalizations.of(context)!;
-    final prefs = ref.read(notificationPrefsProvider);
-    final selectedUri = prefs.soundUri;
-    final choice = await showModalBottomSheet<NotificationSoundOption>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 10),
-              child: Text(
-                l10n.notifSoundTitle,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            for (final option in _soundOptions)
-              ListTile(
-                leading: Icon(
-                  option.uri == null
-                      ? Icons.notifications_none_outlined
-                      : Icons.music_note_outlined,
-                ),
-                title: Text(option.title),
-                trailing: (option.uri ?? '') == selectedUri
-                    ? Icon(Icons.check, color: sheetContext.zt.accent)
-                    : null,
-                onTap: () => Navigator.of(sheetContext).pop(option),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (choice == null || !mounted) return;
-    await ref
-        .read(notificationPrefsProvider.notifier)
-        .set(prefs.copyWith(soundUri: choice.uri ?? ''));
-    NotifierService.instance.setSound(choice);
-    await NotifierService.instance.playInAppSound();
   }
 
   @override
@@ -600,29 +500,6 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
             prefs.fail,
             (v) => notifier.set(prefs.copyWith(fail: v)),
             Icons.error_outline,
-          ),
-          const Divider(indent: 68, endIndent: 14, height: 1),
-          SizedBox(
-            height: _settingsRowHeight,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-              leading: const _SettingsIcon(Icons.volume_up_outlined),
-              title: Text(
-                l10n.notifSoundTitle,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                _soundLabel(prefs.soundUri, l10n),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
-              ),
-              trailing: Icon(Icons.chevron_right, color: context.zt.textLo),
-              onTap: _loadingSounds ? null : _pickSound,
-            ),
           ),
           const Divider(indent: 68, endIndent: 14, height: 1),
           SizedBox(

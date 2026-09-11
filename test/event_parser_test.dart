@@ -178,7 +178,7 @@ void main() {
           summary: '创建文件 zz-test.txt',
         ),
       )!;
-      expect(spec.channelId, 'zr_perm_alert_v4');
+      expect(spec.channelId, 'zr_perm_alert_v5');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, '修复登录页');
@@ -191,7 +191,7 @@ void main() {
         _device('公司MBP'),
         const ObservedEvent(type: 'error', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelId, 'zr_fail_alert_v4');
+      expect(spec.channelId, 'zr_fail_alert_v5');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, 'hi');
@@ -203,7 +203,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(done.channelId, 'zr_done_alert_v4');
+      expect(done.channelId, 'zr_done_alert_v5');
       expect(done.importance, Importance.high);
       expect(done.priority, Priority.high);
       expect(done.title, 'hi');
@@ -246,19 +246,12 @@ void main() {
       expect(spec.body, '需要你的批准，点击打开对话');
     });
 
-    test('选择提示音时使用稳定的新通知通道并保留 sound URI', () {
-      const sound = 'content://media/internal/audio/media/42';
-      final spec = NotificationSpec.fromWithSound(
+    test('通知固定使用系统默认提示音通道', () {
+      final spec = NotificationSpec.from(
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
-        soundUri: sound,
       )!;
-      expect(spec.soundUri, sound);
-      expect(spec.channelId, isNot('zr_done_alert_v4'));
-      expect(
-        spec.channelId,
-        NotificationSpec.channelIdFor('zr_done_alert_v4', sound),
-      );
+      expect(spec.channelId, 'zr_done_alert_v5');
     });
   });
 

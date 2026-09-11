@@ -17,7 +17,7 @@
 >
 > Engineering status: test counts and `flutter analyze` results come from CI output; before release, run analysis, tests, and both platform builds with Flutter 3.47.
 
-ZCode App 1.0.0 is a mobile companion app for ZCode desktop remote control. The desktop shows a QR code; scan it once with your phone to import the device and it stays usable long-term. Manage multiple machines in parallel and switch between them in a single UI.
+ZCode App 1.0.1 is a mobile companion app for ZCode desktop remote control. The desktop shows a QR code; scan it once with your phone to import the device and it stays usable long-term. Manage multiple machines in parallel and switch between them in a single UI.
 
 <p align="center">
   <img src="docs/screenshots/device-light.png" width="260" alt="ZCode device management in light mode" />
@@ -46,9 +46,9 @@ ZCode App 1.0.0 is a mobile companion app for ZCode desktop remote control. The 
 
 ### Notifications & background
 
-- **Task event notifications** — approval requests, task completions and failures use an in-app notice while the app is open, with an in-app selectable tone; Android heads-up notifications after leaving the app use the system default tone
+- **Task event notifications** — approval requests, task completions and failures use an in-app notice while the app is open; both in-app and outside-app alerts use the system default notification tone
 - **Notifications tab** — cross-device event timeline fed by the same event source as system pushes; opening it clears the unread count
-- **Background keep-alive** — Android's required foreground-service status is low-importance, soundless, vibration-free, and non-heads-up; it only adds a quiet item to the notification shade while keeping sessions alive
+- **Background alerts** — no persistent "ZCode running" notification is shown; the embedded WebView keeps listening while the app process remains alive, and only approval, completion, or failure events create an alert
 - **Session health indicator** — per-device connection state at a glance (loading / connected / error)
 - **One-tap refresh & auto recovery** — reload a broken session manually; repeated failures fall back to automatic reload
 
