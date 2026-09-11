@@ -30,14 +30,13 @@ ZCode App 1.0.0 is a mobile companion app for ZCode desktop remote control. The 
 ### Shell & navigation
 
 - **Import via QR / paste** — scan the remote-control QR code shown by the desktop, or paste the control link, to add a device
-- **Parallel multi-device sessions** — Relay-capable devices stay connected through the native channel; legacy or unsupported links use the WebView compatibility page
+- **Parallel multi-device sessions** — manage multiple devices and open each device's desktop-compatible session inside the bundled WebView
 - **Five-tab shell** — Tasks / Workbench / Notifications (unread badge) / Devices / Settings
 
-### Tasks & detail
+### Sessions
 
 - **Tasks tab** — cross-device task card stream: sessionIndex merged, grouped by today / yesterday / earlier, status capsules plus approval / input count badges
-- **Session overview panel** — cross-project task cards at a glance: project · relative time · status capsule; a live dot tracks the session currently being viewed, tap to jump straight to it
-- **Native conversation page** — history and realtime text, reasoning, tool calls, todos, and permission interactions are rendered natively; users can send a message or stop execution, while legacy devices retain an explicit WebView fallback
+- **Embedded WebView session page** — after selecting a device, the app loads ZCode desktop's remote-control page inside the bundled WebView, preserving the desktop page and interactions instead of replacing it with a native conversation screen
 
 ### Workbench (mobile-native desktop panels)
 
@@ -89,7 +88,7 @@ flutter build ios --release --no-codesign
 
 1. Open remote control in ZCode on the desktop and show the QR code
 2. Scan it with the app (or paste the link)
-3. The **Tasks** tab lists cross-device task cards; tap one to open the native conversation page, with an explicit WebView fallback only for legacy devices
+3. The **Tasks** tab lists cross-device task cards; tap a device or task to open the embedded WebView session page
 4. The **Workbench** tab shows native model / usage / subagents / skills / MCP / plugin / command / hook / memory data
 5. When a task awaits approval or completes, a system notification arrives instantly; preferences live in the Settings page
 
@@ -97,7 +96,7 @@ flutter build ios --release --no-codesign
 
 ```
 lib/
-  ui/            pages: Tasks / Workbench / Notifications / Devices / Settings + native session detail
+  ui/            pages: Tasks / Workbench / Notifications / Devices / Settings + WebView session entry
     panels/      native implementations of the workbench panels
   state/         state layer: session pool / session index / event feed / panel snapshot
   services/      data link: JS hooks / event observer / warm-up / notifications / device store
