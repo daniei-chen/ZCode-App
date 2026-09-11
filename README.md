@@ -36,12 +36,14 @@ ZCode App（当前版本 1.0.1）面向需要在手机或平板上管理 ZCode �
 <table>
   <tr>
     <td align="center"><strong>设备管理</strong></td>
+    <td width="24"></td>
     <td align="center"><strong>设置</strong></td>
   </tr>
   <tr>
     <td align="center">
       <img src="docs/screenshots/device-light.png" width="260" alt="ZCode 设备管理浅色模式" />
     </td>
+    <td width="24"></td>
     <td align="center">
       <img src="docs/screenshots/settings-light.png" width="260" alt="ZCode 设置浅色模式" />
     </td>
