@@ -14,6 +14,7 @@ import '../state/theme_mode.dart';
 import 'notifications_page.dart';
 import '../state/notification_prefs.dart';
 import '../theme.dart';
+import 'update_download_dialog.dart';
 
 const _settingsRowHeight = 64.0;
 
@@ -538,6 +539,7 @@ class UpdateSettingTile extends StatefulWidget {
 class _UpdateSettingTileState extends State<UpdateSettingTile> {
   String _version = '';
   bool _checking = false;
+  UpdateCheckResult? _result;
 
   @override
   void initState() {
@@ -557,24 +559,21 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
     setState(() => _checking = true);
     final result = await UpdateService.instance.checkForUpdate();
     if (!mounted) return;
-    setState(() => _checking = false);
+    setState(() {
+      _checking = false;
+      _result = result;
+    });
     final l10n = AppLocalizations.of(context)!;
     switch (result.status) {
       case UpdateCheckStatus.updateAvailable:
         final latest = result.latestVersion ?? '';
-        final opened = result.releaseUri == null
-            ? false
-            : await UpdateService.instance.openRelease(result.releaseUri!);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              opened
-                  ? l10n.updateAvailable(latest)
-                  : l10n.updateAvailableManual(latest),
-            ),
-          ),
-        );
+        if (result.canDownload) {
+          await showUpdateDownloadDialog(context, result);
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.updateAvailableManual(latest))),
+          );
+        }
       case UpdateCheckStatus.upToDate:
         ScaffoldMessenger.of(
           context,
@@ -608,6 +607,9 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
           subtitle: Text(
             _checking
                 ? l10n.updateChecking
+                : _result?.status == UpdateCheckStatus.updateAvailable &&
+                      _result?.latestVersion != null
+                ? l10n.updateAvailable(_result!.latestVersion!)
                 : _version.isEmpty
                 ? l10n.updateSubtitle
                 : l10n.updateCurrentVersion(_version),
@@ -622,8 +624,17 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
                     color: context.zt.accent,
                   ),
                 )
-              : Icon(Icons.refresh_outlined, color: context.zt.textLo),
-          onTap: _checking ? null : _check,
+              : Icon(
+                  _result?.canDownload == true
+                      ? Icons.download_outlined
+                      : Icons.refresh_outlined,
+                  color: context.zt.textLo,
+                ),
+          onTap: _checking
+              ? null
+              : _result?.canDownload == true
+              ? () => showUpdateDownloadDialog(context, _result!)
+              : _check,
         ),
       ),
     );

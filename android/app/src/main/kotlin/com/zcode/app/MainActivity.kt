@@ -15,6 +15,8 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
+import androidx.core.content.FileProvider
+import java.io.File
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -209,6 +211,48 @@ class MainActivity : FlutterFragmentActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "zremote/update",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installApk" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null || !installApk(path)) {
+                        result.error(
+                            "install_failed",
+                            "Unable to open the Android package installer",
+                            null,
+                        )
+                    } else {
+                        result.success(true)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun installApk(path: String): Boolean {
+        val apk = File(path)
+        if (!apk.exists() || !apk.isFile) return false
+        return try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                apk,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 

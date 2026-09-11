@@ -13,6 +13,7 @@ import '../state/session_pool.dart';
 import '../theme.dart';
 import 'manage_page.dart';
 import 'official_remote_page.dart';
+import 'update_download_dialog.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, this.startAtLauncher = false});
@@ -67,8 +68,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
     final result = _pendingUpdate!;
     final version = result.latestVersion;
-    final releaseUri = result.releaseUri;
-    if (version == null || releaseUri == null) return;
+    if (version == null) return;
     _pendingUpdate = null;
 
     // Mark before displaying so a repeated rebuild or a second resume cannot
@@ -82,33 +82,10 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     _updateDialogShowing = true;
     try {
-      final l10n = AppLocalizations.of(context)!;
-      final open = await showDialog<bool>(
-        context: context,
-        barrierDismissible: true,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.updateDialogTitle),
-          content: Text(l10n.updateDialogMessage(version)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(l10n.updateDialogLater),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(l10n.updateDialogDownload),
-            ),
-          ],
-        ),
-      );
-      if (open == true) {
-        final opened = await UpdateService.instance.openRelease(releaseUri);
-        if (!opened && mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(l10n.updateFailed)));
-        }
-      }
+      // The update surface stays in the current app. It fetches the exact APK
+      // asset URL from GitHub, shows device-page styled progress, then hands
+      // the downloaded file to Android's installer.
+      await showUpdateDownloadDialog(context, result);
     } finally {
       _updateDialogShowing = false;
     }
