@@ -44,11 +44,17 @@
 - [x] main Ruleset：Require PR + Required checks（check、android）
 - [x] 发布后 soak 流程写入 `docs/RELEASE-CHECKLIST.md`
 
-## 下一步（v1.0.9 候选）
+## v1.0.9 累积中（不发布，全部并入此版本）
 
-- 真机 benchmark 数据录入（BENCHMARKS.md）
-- 依遥测结果收紧 WebSocket URL allowlist
-- flutter_inappwebview 版本评估（由 Dependabot PR 驱动）
-- 诊断中心导出诊断包（zip：日志 + 状态快照）
+- [x] WS/SSE 白名单（W2）：只观察官方 relay（host + /ws 路径），其余透明计数
+- [x] Renderer 崩溃恢复（v1.2.0 D）：onRenderProcessGone → generation 重建
+- [x] SBOM（CycloneDX）+ release-manifest.json + attestation 自验证（v1.4.0 A/B/C）
+- [x] emulator API 矩阵 [30, 34]（v1.2.0 C）
+- [x] THREAT-MODEL / SECURITY / PRIVACY / OPERATIONS-RUNBOOK（密钥灾备 + 回滚制度）
+- [x] Bridge/解析器模糊测试电池（v1.3.0 D）
+- [ ] 真机矩阵与 soak 数据录入（BENCHMARKS-RESULTS，需真机）
+- [ ] 诊断包导出（zip：日志 + 状态快照，下一版候选）
+
+历史规划与原生时代迭代记录已清理，可从 git 历史找回。
 
 历史规划与原生时代迭代记录已清理，可从 git 历史找回。
