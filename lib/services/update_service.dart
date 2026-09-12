@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21,6 +23,8 @@ class UpdateCheckResult {
     this.downloadUri,
     this.downloadFileName,
     this.downloadSize,
+    this.releaseBody,
+    this.assetDigest,
   });
 
   final UpdateCheckStatus status;
@@ -30,6 +34,12 @@ class UpdateCheckResult {
   final Uri? downloadUri;
   final String? downloadFileName;
   final int? downloadSize;
+
+  /// Release 说明原文（Markdown），供更新弹窗展示"本次更新内容"。
+  final String? releaseBody;
+
+  /// GitHub 提供的资产校验和（形如 `sha256:...`），下载完成后比对。
+  final String? assetDigest;
 
   bool get hasUpdate =>
       status == UpdateCheckStatus.updateAvailable && releaseUri != null;
@@ -221,9 +231,12 @@ class UpdateService {
           _safeReleaseUri(decoded['html_url']) ?? _releaseUriForTag(tag);
       if (releaseUri == null) return null;
 
+      final releaseBody =
+          decoded['body'] is String ? decoded['body'] as String : null;
       Uri? downloadUri;
       String? downloadFileName;
       int? downloadSize;
+      String? assetDigest;
       final assets = decoded['assets'];
       if (assets is List) {
         Map? selected;
@@ -244,6 +257,10 @@ class UpdateService {
               : null;
           final size = selected['size'];
           downloadSize = size is num ? size.toInt() : null;
+          final digestValue = selected['digest'];
+          if (digestValue is String && digestValue.isNotEmpty) {
+            assetDigest = digestValue;
+          }
         }
       }
 
@@ -254,6 +271,8 @@ class UpdateService {
         downloadUri: downloadUri,
         downloadFileName: downloadFileName,
         downloadSize: downloadSize,
+        releaseBody: releaseBody,
+        assetDigest: assetDigest,
       );
     } catch (_) {
       return null;
@@ -267,6 +286,8 @@ class UpdateService {
     Uri? downloadUri,
     String? downloadFileName,
     int? downloadSize,
+    String? releaseBody,
+    String? assetDigest,
   }) {
     final hasUpdate = compareVersions(latest, current) > 0;
     return UpdateCheckResult(
@@ -279,18 +300,26 @@ class UpdateService {
       downloadUri: downloadUri,
       downloadFileName: downloadFileName,
       downloadSize: downloadSize,
+      releaseBody: releaseBody,
+      assetDigest: assetDigest,
     );
   }
 
   /// Downloads the APK into the app cache and reports byte progress. The
   /// caller can then invoke [UpdateInstaller.installApk] with the returned
   /// file path; no browser or GitHub page is opened.
+  ///
+  /// 网络健壮性：数据流间隔超过 [stallTimeout] 判为停顿；失败保留 `.part`
+  /// 并用 `Range` 断点续传（最多 [maxAttempts] 次）；提供 `assetDigest`
+  /// 时下载完成后强制 SHA256 比对。
   Future<File> downloadApk(
     UpdateCheckResult result, {
     http.Client? client,
     Directory? directory,
     void Function(int received, int? total)? onProgress,
-    Duration timeout = const Duration(minutes: 2),
+    Duration timeout = const Duration(seconds: 8),
+    Duration stallTimeout = const Duration(seconds: 30),
+    int maxAttempts = 4,
   }) async {
     final uri = result.downloadUri;
     if (uri == null) {
@@ -299,7 +328,6 @@ class UpdateService {
 
     final httpClient = client ?? http.Client();
     final ownsClient = client == null;
-    File? partial;
     try {
       final baseDirectory = directory ?? await getTemporaryDirectory();
       // 与 FileProvider 的 file_paths（updates/ 子目录）保持一致，避免
@@ -312,50 +340,125 @@ class UpdateService {
       final target = File(
         '${targetDirectory.path}${Platform.pathSeparator}ZCode-$version.apk',
       );
-      partial = File('${target.path}.part');
-      if (await partial.exists()) await partial.delete();
+      final partial = File('${target.path}.part');
 
-      final request = http.Request('GET', uri)
-        ..headers['User-Agent'] = 'ZCode-App/${result.currentVersion}'
-        ..headers['Accept'] = 'application/vnd.android.package-archive';
-      final response = await httpClient.send(request).timeout(timeout);
-      if (response.statusCode != 200) {
-        throw UpdateDownloadException('下载服务器返回 HTTP ${response.statusCode}');
+      // 断点续传：`.part` 保留已下载字节，失败后从断点继续。
+      var received = 0;
+      if (await partial.exists()) {
+        received = await partial.length();
       }
 
-      final total = response.contentLength ?? result.downloadSize;
-      var received = 0;
-      final sink = partial.openWrite();
-      try {
-        await for (final chunk in response.stream.timeout(timeout)) {
-          sink.add(chunk);
-          received += chunk.length;
-          onProgress?.call(received, total);
+      for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          // 每次尝试前按 `.part` 的真实字节数续传：上一次失败可能发生在
+          // 已写入若干字节之后（此时 received 尚未回传）。
+          received = await partial.exists() ? await partial.length() : 0;
+          received = await _downloadChunk(
+            result: result,
+            httpClient: httpClient,
+            uri: uri,
+            partial: partial,
+            received: received,
+            onProgress: onProgress,
+            timeout: timeout,
+            stallTimeout: stallTimeout,
+          );
+          break;
+        } catch (e) {
+          if (attempt >= maxAttempts) rethrow;
+          // 退避后重试：`.part` 保留，下一次从断点继续。
+          await Future<void>.delayed(Duration(seconds: 2 * attempt));
         }
-        await sink.flush();
-      } finally {
-        await sink.close();
       }
 
       if (await target.exists()) await target.delete();
       final file = await partial.rename(target.path);
-      onProgress?.call(received, total);
+
+      // 完整性校验：GitHub 提供 sha256 digest 时强制比对，坏包不进安装器。
+      final expected = result.assetDigest;
+      if (expected != null && expected.isNotEmpty) {
+        final expectedHex = expected.replaceFirst('sha256:', '').toLowerCase();
+        final actual = (await sha256.bind(file.openRead()).first).toString();
+        if (actual != expectedHex) {
+          try {
+            await file.delete();
+          } catch (_) {
+            // Windows 上刚读完的文件句柄可能短暂残留；下一次下载会覆盖
+            // 同名文件，不因删除失败而阻塞报错。
+          }
+          throw const UpdateDownloadException(
+            '安装包校验失败（SHA256 不匹配），请重新下载',
+          );
+        }
+      }
+      onProgress?.call(received, received);
       return file;
     } on UpdateDownloadException {
       rethrow;
-    } on TimeoutException catch (error) {
-      throw UpdateDownloadException('下载更新超时', error);
-    } catch (error) {
-      throw UpdateDownloadException('下载更新失败', error);
+    } catch (e) {
+      // `.part` 保留：用户点重试时从断点继续，不从头再来。
+      throw UpdateDownloadException('网络下载失败，已保留下载进度', e);
     } finally {
-      if (partial != null && await partial.exists()) {
-        try {
-          await partial.delete();
-        } catch (_) {}
-      }
       if (ownsClient) httpClient.close();
     }
   }
+
+  Future<int> _downloadChunk({
+    required UpdateCheckResult result,
+    required http.Client httpClient,
+    required Uri uri,
+    required File partial,
+    required int received,
+    required void Function(int, int?)? onProgress,
+    required Duration timeout,
+    required Duration stallTimeout,
+  }) async {
+    final request = http.Request('GET', uri)
+      ..headers['User-Agent'] = 'ZCode-App/${result.currentVersion}'
+      ..headers['Accept'] = 'application/vnd.android.package-archive';
+    final resume = received > 0;
+    if (resume) {
+      request.headers['Range'] = 'bytes=$received-';
+    }
+    final response = await httpClient.send(request).timeout(timeout);
+
+    // 服务器不支持 Range（整包 200）→ 从头开始；416 → 断点已到文件尾。
+    var offset = received;
+    if (response.statusCode == 416) {
+      final expected = result.downloadSize;
+      if (expected != null && received >= expected) return received;
+      throw UpdateDownloadException(
+        '下载服务器返回 HTTP ${response.statusCode}',
+      );
+    }
+    if (response.statusCode == 200) {
+      offset = 0;
+      if (await partial.exists()) await partial.delete();
+    } else if (response.statusCode != 206) {
+      throw UpdateDownloadException(
+        '下载服务器返回 HTTP ${response.statusCode}',
+      );
+    }
+
+    final remaining = response.contentLength;
+    final total = remaining != null ? offset + remaining : result.downloadSize;
+    final sink = partial.openWrite(
+      mode: offset > 0 ? FileMode.append : FileMode.write,
+    );
+    var local = offset;
+    try {
+      await for (final chunk in response.stream.timeout(stallTimeout)) {
+        sink.add(chunk);
+        local += chunk.length;
+        onProgress?.call(local, total);
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
+    return local;
+  }
+
 
   Future<bool> openRelease(Uri uri) async {
     if (uri.scheme.toLowerCase() != 'https' ||

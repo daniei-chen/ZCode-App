@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -15,6 +16,19 @@ class _StreamingClient extends http.BaseClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) =>
       handler(request);
+}
+
+
+/// Windows 下新文件可能被杀软短暂占用，删除临时目录时重试几次。
+Future<void> deleteDirEventually(Directory dir) async {
+  for (var i = 0; i < 6; i++) {
+    try {
+      await dir.delete(recursive: true);
+      return;
+    } on FileSystemException {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    }
+  }
 }
 
 void main() {
@@ -143,7 +157,121 @@ void main() {
       expect(progress.last, 5);
       expect(file.path, endsWith('ZCode-1.0.2.apk'));
     } finally {
-      await directory.delete(recursive: true);
+      await deleteDirEventually(directory);
     }
+  });
+
+  group('downloadApk 断点续传与完整性校验', () {
+    test('中断后重试带 Range 续传，最终文件完整', () async {
+      final directory = await Directory.systemTemp.createTemp('zcode-update-');
+      final result = UpdateCheckResult(
+        status: UpdateCheckStatus.updateAvailable,
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.2',
+        releaseUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+        ),
+        downloadUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+        ),
+        downloadFileName: 'ZCode.apk',
+        downloadSize: 5,
+      );
+      final rangeHeaders = <String?>[];
+      var calls = 0;
+      final client = _StreamingClient((request) async {
+        calls++;
+        rangeHeaders.add(request.headers['Range']);
+        if (calls == 1) {
+          // 第一次：给了 2 字节后流中断。
+          return http.StreamedResponse(
+            () async* {
+              yield [1, 2];
+              throw StateError('reset');
+            }(),
+            200,
+            contentLength: 5,
+          );
+        }
+        // 第二次：带 Range 的续传请求 → 206 返回剩余字节。
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable([
+            [3, 4, 5],
+          ]),
+          206,
+          contentLength: 3,
+        );
+      });
+
+      try {
+        final file = await UpdateService.instance.downloadApk(
+          result,
+          client: client,
+          directory: directory,
+          maxAttempts: 2,
+        );
+        expect(await file.readAsBytes(), [1, 2, 3, 4, 5]);
+        expect(rangeHeaders.last, 'bytes=2-');
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
+    test('assetDigest 匹配时通过，不匹配时删除文件并报错', () async {
+      final directory = await Directory.systemTemp.createTemp('zcode-update-');
+      final bytes = [1, 2, 3, 4, 5];
+      final good = sha256.convert(bytes).toString();
+      final result = UpdateCheckResult(
+        status: UpdateCheckStatus.updateAvailable,
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.2',
+        releaseUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+        ),
+        downloadUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+        ),
+        downloadFileName: 'ZCode.apk',
+        downloadSize: 5,
+        assetDigest: 'sha256:$good',
+      );
+      final client = _StreamingClient((request) async {
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable([bytes]),
+          200,
+          contentLength: 5,
+        );
+      });
+      try {
+        final file = await UpdateService.instance.downloadApk(
+          result,
+          client: client,
+          directory: directory,
+        );
+        expect(await file.readAsBytes(), bytes);
+
+        // 不匹配 → 删除文件并抛出校验失败。
+        final bad = UpdateCheckResult(
+          status: UpdateCheckStatus.updateAvailable,
+          currentVersion: '1.0.0',
+          latestVersion: '1.0.2',
+          releaseUri: result.releaseUri,
+          downloadUri: result.downloadUri,
+          downloadFileName: 'ZCode.apk',
+          downloadSize: 5,
+          assetDigest: 'sha256:${'0' * 64}',
+        );
+        await expectLater(
+          UpdateService.instance.downloadApk(
+            bad,
+            client: client,
+            directory: directory,
+          ),
+          throwsA(isA<UpdateDownloadException>()),
+        );
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
   });
 }

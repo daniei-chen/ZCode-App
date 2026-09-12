@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/update_installer.dart';
@@ -35,6 +36,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
   int? _total;
   File? _file;
   String? _error;
+  String? _errorDetail;
 
   @override
   void initState() {
@@ -73,11 +75,12 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
         _file = file;
         _stage = _DownloadStage.downloaded;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _stage = _DownloadStage.failed;
         _error = 'download';
+        _errorDetail = e is UpdateDownloadException ? e.message : null;
       });
     }
   }
@@ -104,6 +107,29 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
   void _close() {
     if (_busy) return;
     Navigator.of(context).pop(false);
+  }
+
+  /// 跳转 GitHub 最新发布页（逃生通道：直连下载失败时用浏览器兜底）。
+  Future<void> _openReleasePage() async {
+    final uri =
+        widget.result.releaseUri ?? UpdateService.latestReleasePage;
+    if (uri.scheme != 'https' || uri.host != 'github.com') return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  /// Release 说明精简：去掉标题行与空行，保留条目，最多 6 行。
+  static String _shortNotes(String? body, String fallback) {
+    if (body == null || body.trim().isEmpty) return fallback;
+    final lines = body
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty && !l.startsWith('#'))
+        .map((l) => l.startsWith('- ') ? '· ${l.substring(2)}' : l)
+        .toList();
+    if (lines.isEmpty) return fallback;
+    return lines.take(6).join('\n');
   }
 
   @override
@@ -175,17 +201,12 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
               ),
               const SizedBox(height: 16),
               Text(
-                l10n.updateDialogMessage(version),
+                l10n.updateDialogHint,
                 style: TextStyle(
                   fontSize: 14,
                   height: 1.4,
                   color: palette.textHi,
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                l10n.updateDownloadFromGithub,
-                style: TextStyle(fontSize: 12, color: palette.textLo),
               ),
               if (widget.result.downloadFileName != null) ...[
                 const SizedBox(height: 4),
@@ -194,7 +215,23 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
                   style: TextStyle(fontSize: 12, color: palette.textLo),
                 ),
               ],
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
+              Text(
+                l10n.updateNotesTitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: palette.textHi,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _shortNotes(widget.result.releaseBody, l10n.updateNotesFallback),
+                maxLines: 6,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, height: 1.35, color: palette.textLo),
+              ),
+              const SizedBox(height: 14),
               if (_stage == _DownloadStage.downloading) ...[
                 LinearProgressIndicator(
                   value: progress,
@@ -261,7 +298,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
                         ? l10n.updateNoApk
                         : _error == 'install'
                         ? l10n.updateInstallFailed
-                        : l10n.updateDownloadFailed,
+                        : (_errorDetail ?? l10n.updateDownloadFailed),
                     style: TextStyle(fontSize: 13, color: palette.danger),
                   ),
                 ),
@@ -272,8 +309,8 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
                 children: [
                   if (!_busy)
                     TextButton(
-                      onPressed: _close,
-                      child: Text(l10n.updateDialogLater),
+                      onPressed: _openReleasePage,
+                      child: Text(l10n.updateDialogGithub),
                     ),
                   const SizedBox(width: 8),
                   if (_stage == _DownloadStage.ready ||
