@@ -5,6 +5,7 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.media.AudioAttributes
@@ -16,8 +17,10 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.View
+import android.view.WindowManager
 import androidx.core.content.FileProvider
 import java.io.File
+import java.security.MessageDigest
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -44,6 +47,23 @@ class MainActivity : FlutterFragmentActivity() {
         // Re-apply the saved surface after that switch and before the first
         // Flutter frame is visible.
         applySavedLaunchSurface(dark)
+    }
+
+    // 最近任务隐私遮罩（P1）：生物识别开启时，切后台瞬间用 FLAG_SECURE 遮住
+    // 应用快照（最近任务/多任务卡片看不到 WebView 内容），回前台立即恢复，
+    // 前台截图不受影响。与生物识别的 10 秒重锁是两个独立概念。
+    private var recentsCoverEnabled = false
+
+    override fun onPause() {
+        super.onPause()
+        if (recentsCoverEnabled) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     private fun savedThemeMode(): String = getSharedPreferences(
@@ -179,6 +199,13 @@ class MainActivity : FlutterFragmentActivity() {
                     val nm = getSystemService(NotificationManager::class.java)
                     result.success(nm?.areNotificationsEnabled() ?: true)
                 }
+                "setRecentsCover" -> {
+                    recentsCoverEnabled = call.arguments as? Boolean ?: false
+                    if (!recentsCoverEnabled) {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -244,6 +271,18 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(info)
                     }
                 }
+                "installedSignerSha256" -> result.success(installedSignerSha256())
+                "canRequestInstall" -> result.success(canRequestPackageInstalls())
+                "requestInstallPermission" -> {
+                    if (requestUnknownSourceSettings()) result.success(null)
+                    else {
+                        result.error(
+                            "open_failed",
+                            "Unable to open install-permission settings",
+                            null,
+                        )
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -270,15 +309,23 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    // 应用内更新的安装前预校验：读 APK 归档元数据（包名 + versionCode），
-    // Dart 侧据此在人话界面里拦下"无法降级安装(-25)"之类的系统错误。
+    // 应用内更新的安装前预校验：读 APK 归档元数据（包名 + versionCode + 签名
+    // 证书），Dart 侧据此在人话界面里拦下"无法降级安装(-25)"、签名不符之类
+    // 的错误，而不是让系统安装器弹裸错误。
     private fun inspectApk(path: String): Map<String, Any?>? = try {
         val pm = packageManager
+        val api28 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        val flags =
+            if (api28) PackageManager.GET_SIGNING_CERTIFICATES
+            else @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
         val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.getPackageArchiveInfo(path, PackageManager.PackageInfoFlags.of(0))
+            pm.getPackageArchiveInfo(
+                path,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
         } else {
             @Suppress("DEPRECATION")
-            pm.getPackageArchiveInfo(path, 0)
+            pm.getPackageArchiveInfo(path, flags)
         }
         info?.let {
             mapOf(
@@ -286,16 +333,72 @@ class MainActivity : FlutterFragmentActivity() {
                 "versionName" to it.versionName,
                 // longVersionCode 需要 API 28+；minSdk 24 的低版本设备退回旧字段，
                 // 否则 Android 8.1 及以下在预校验时抛 NoSuchMethodError。
-                "versionCode" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                "versionCode" to if (api28) {
                     it.longVersionCode
                 } else {
                     @Suppress("DEPRECATION")
                     it.versionCode.toLong()
                 },
+                "signerSha256" to signerSha256Of(
+                    if (api28) it.signingInfo?.apkContentsSigners
+                    else @Suppress("DEPRECATION") it.signatures,
+                ),
             )
         }
     } catch (_: Exception) {
         null
+    }
+
+    // 已安装应用自身的签名证书 SHA256，供 Dart 侧与下载包比对（U3）。
+    private fun installedSignerSha256(): String? = try {
+        val pm = packageManager
+        val api28 = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        val flags =
+            if (api28) PackageManager.GET_SIGNING_CERTIFICATES
+            else @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(flags.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(packageName, flags)
+        }
+        signerSha256Of(
+            if (api28) info.signingInfo?.apkContentsSigners
+            else @Suppress("DEPRECATION") info.signatures,
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun signerSha256Of(signers: Array<Signature>?): String? {
+        val first = signers?.firstOrNull() ?: return null
+        return try {
+            MessageDigest.getInstance("SHA-256")
+                .digest(first.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun canRequestPackageInstalls(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.canRequestPackageInstalls()
+        } else true
+
+    private fun requestUnknownSourceSettings(): Boolean = try {
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            ),
+        )
+        true
+    } catch (_: Exception) {
+        false
     }
 
     private fun playDefaultNotificationSound() {

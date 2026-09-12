@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/app_settings.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
@@ -46,6 +47,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     _launcherVisible = widget.startAtLauncher;
     NotificationTap.bind((payload) => _jumpTo(payload));
     NotifierService.instance.setLockScreenRedact(ref.read(biometricProvider));
+    AppSettings.setRecentsCover(ref.read(biometricProvider));
     NotifierService.instance.setAlertMode(
       ref.read(notificationPrefsProvider).alertMode,
     );
@@ -218,7 +220,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     });
     ref.listen<bool>(
       biometricProvider,
-      (_, next) => NotifierService.instance.setLockScreenRedact(next),
+      (_, next) {
+        NotifierService.instance.setLockScreenRedact(next);
+        AppSettings.setRecentsCover(next);
+      },
     );
     ref.listen<NotificationPrefs>(notificationPrefsProvider, (_, next) {
       NotifierService.instance.setAlertMode(next.alertMode);

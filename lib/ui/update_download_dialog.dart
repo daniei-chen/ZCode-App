@@ -38,6 +38,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
   File? _file;
   String? _error;
   String? _errorDetail;
+  bool _cancelRequested = false;
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
       _received = 0;
       _total = widget.result.downloadSize;
       _error = null;
+      _cancelRequested = false;
     });
     try {
       final file = await UpdateService.instance.downloadApk(
@@ -70,9 +72,10 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
             _total = total;
           });
         },
+        isCancelled: () => _cancelRequested,
       );
       if (!mounted) return;
-      // 安装前预校验：包名/versionCode 不对时直接在人话界面拦下，
+      // 安装前预校验：包名/versionCode/签名不对时直接在人话界面拦下，
       // 不让系统安装器弹"无法降级安装(-25)"之类的裸错误。
       final precheckError = await _precheckDownload(file);
       if (!mounted) return;
@@ -88,6 +91,14 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
         _file = file;
         _stage = _DownloadStage.downloaded;
       });
+    } on UpdateDownloadCancelled {
+      if (!mounted) return;
+      // 取消不是失败：回到可重新下载的状态，断点已清理。
+      setState(() {
+        _stage = _DownloadStage.ready;
+        _error = null;
+        _errorDetail = null;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -98,20 +109,28 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
     }
   }
 
-  /// 读 APK 元数据并与已装版本比对；返回人话错误文案，null = 通过。
+  void _cancelDownload() {
+    if (!_busy) return;
+    setState(() => _cancelRequested = true);
+  }
+
+  /// 读 APK 元数据并与已装版本/签名比对；返回人话错误文案，null = 通过。
   Future<String?> _precheckDownload(File file) async {
     final l10n = AppLocalizations.of(context)!;
     final info = await PackageInfo.fromPlatform();
     final archive = await UpdateInstaller.inspectApk(file.path);
+    final installedSigner = await UpdateInstaller.installedSignerSha256();
     return switch (precheckApk(
       archive: archive,
       expectedPackage: info.packageName,
       // Android 上 buildNumber 就是 versionCode（pubspec 的 +N 部分）。
       installedVersionCode: int.tryParse(info.buildNumber) ?? 0,
+      installedSignerSha256: installedSigner,
     )) {
       ApkPrecheckIssue.unreadable => l10n.updatePrecheckUnreadable,
       ApkPrecheckIssue.wrongPackage => l10n.updatePrecheckWrongPackage,
       ApkPrecheckIssue.downgrade => l10n.updatePrecheckDowngrade,
+      ApkPrecheckIssue.signerMismatch => l10n.updatePrecheckSignerMismatch,
       null => null,
     };
   }
@@ -119,6 +138,12 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
   Future<void> _install() async {
     final file = _file;
     if (_busy || file == null) return;
+    // Android 8+ 未授予"安装未知应用"时先去授权页（U4），授权返回后再点
+    // 安装；直接拉起安装器只会得到系统的一句话错误。
+    if (!await UpdateInstaller.canRequestInstall()) {
+      await UpdateInstaller.requestInstallPermission();
+      return;
+    }
     setState(() {
       _stage = _DownloadStage.installing;
       _error = null;
@@ -338,6 +363,11 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (_stage == _DownloadStage.downloading)
+                    TextButton(
+                      onPressed: _cancelDownload,
+                      child: Text(l10n.commonCancel),
+                    ),
                   if (!_busy)
                     TextButton(
                       onPressed: _openReleasePage,

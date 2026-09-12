@@ -256,6 +256,64 @@ void main() {
       expect(result.canDownload, isFalse);
     });
 
+    test('请求取消后中止下载并清理 .part（U5）', () async {
+      final directory = await Directory.systemTemp.createTemp('zcode-update-');
+      final result = UpdateCheckResult(
+        status: UpdateCheckStatus.updateAvailable,
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.2',
+        releaseUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+        ),
+        downloadUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
+        ),
+        downloadFileName: 'ZCode-v1.0.2.apk',
+        downloadSize: 1000,
+        assetDigest: 'sha256:${'0' * 64}',
+      );
+      final client = _StreamingClient((request) async {
+        return http.StreamedResponse(
+          Stream<List<int>>.fromIterable([
+            List.filled(100, 1),
+            List.filled(100, 2),
+            List.filled(100, 3),
+            List.filled(100, 4),
+            List.filled(100, 5),
+            List.filled(100, 6),
+            List.filled(100, 7),
+            List.filled(100, 8),
+            List.filled(100, 9),
+            List.filled(100, 10),
+          ]),
+          200,
+          contentLength: 1000,
+        );
+      });
+      var cancelled = false;
+      try {
+        await expectLater(
+          UpdateService.instance.downloadApk(
+            result,
+            client: client,
+            directory: directory,
+            onProgress: (_, _) => cancelled = true,
+            isCancelled: () => cancelled,
+          ),
+          throwsA(isA<UpdateDownloadCancelled>()),
+        );
+        expect(
+          await File(
+            '${directory.path}${Platform.pathSeparator}updates'
+            '${Platform.pathSeparator}ZCode-1.0.2.apk.part',
+          ).exists(),
+          isFalse,
+        );
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
     test('assetDigest 匹配时通过，不匹配时删除文件并报错', () async {
       final directory = await Directory.systemTemp.createTemp('zcode-update-');
       final bytes = [1, 2, 3, 4, 5];

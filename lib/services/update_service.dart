@@ -63,6 +63,14 @@ class UpdateDownloadException implements Exception {
   String toString() => cause == null ? message : '$message: $cause';
 }
 
+/// 用户主动取消下载；不是错误，弹窗应回到可重新下载的状态。
+class UpdateDownloadCancelled implements Exception {
+  const UpdateDownloadCancelled();
+
+  @override
+  String toString() => '下载已取消';
+}
+
 /// 安装前预校验发现的问题类型。
 enum ApkPrecheckIssue {
   /// APK 读不出元数据（下载不完整或文件损坏）。
@@ -74,14 +82,19 @@ enum ApkPrecheckIssue {
   /// 设备上已装更高 versionCode——系统会拒绝并报
   /// INSTALL_FAILED_VERSION_DOWNGRADE(-25)，必须在交给系统前拦下。
   downgrade,
+
+  /// 下载包签名证书与已装应用不一致（U3）——放给系统安装器只会得到一句
+  /// "签名不一致"，这里提前用人话拦下。
+  signerMismatch,
 }
 
-/// 安装前预校验（纯函数，三个输入都是普通值，可直接单测）。
+/// 安装前预校验（纯函数，输入都是普通值，可直接单测）。
 /// 返回 null 表示通过，允许交给系统安装器。
 ApkPrecheckIssue? precheckApk({
   required ApkArchiveInfo? archive,
   required String expectedPackage,
   required int installedVersionCode,
+  String? installedSignerSha256,
 }) {
   if (archive == null) return ApkPrecheckIssue.unreadable;
   if (archive.packageName != expectedPackage) {
@@ -89,6 +102,13 @@ ApkPrecheckIssue? precheckApk({
   }
   if (archive.versionCode < installedVersionCode) {
     return ApkPrecheckIssue.downgrade;
+  }
+  // 双方签名都读到且不一致 → 拦下；任一缺失时保留系统安装器兜底。
+  final archiveSigner = archive.signerSha256?.toLowerCase();
+  if (installedSignerSha256 != null && archiveSigner != null) {
+    if (archiveSigner != installedSignerSha256.toLowerCase()) {
+      return ApkPrecheckIssue.signerMismatch;
+    }
   }
   return null;
 }
@@ -364,6 +384,7 @@ class UpdateService {
     http.Client? client,
     Directory? directory,
     void Function(int received, int? total)? onProgress,
+    bool Function()? isCancelled,
     Duration timeout = const Duration(seconds: 8),
     Duration stallTimeout = const Duration(seconds: 30),
     int maxAttempts = 4,
@@ -403,6 +424,9 @@ class UpdateService {
 
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
+          if (isCancelled?.call() ?? false) {
+            throw const UpdateDownloadCancelled();
+          }
           // 每次尝试前按 `.part` 的真实字节数续传：上一次失败可能发生在
           // 已写入若干字节之后（此时 received 尚未回传）。
           received = await partial.exists() ? await partial.length() : 0;
@@ -413,10 +437,19 @@ class UpdateService {
             partial: partial,
             received: received,
             onProgress: onProgress,
+            isCancelled: isCancelled,
             timeout: timeout,
             stallTimeout: stallTimeout,
           );
           break;
+        } on UpdateDownloadCancelled {
+          // 用户取消：清理半成品，避免留下永远续不上的断点。
+          if (await partial.exists()) {
+            try {
+              await partial.delete();
+            } catch (_) {}
+          }
+          rethrow;
         } catch (e) {
           if (attempt >= maxAttempts) rethrow;
           // 退避后重试：`.part` 保留，下一次从断点继续。
@@ -446,6 +479,8 @@ class UpdateService {
       }
       onProgress?.call(received, received);
       return file;
+    } on UpdateDownloadCancelled {
+      rethrow;
     } on UpdateDownloadException {
       rethrow;
     } catch (e) {
@@ -463,6 +498,7 @@ class UpdateService {
     required File partial,
     required int received,
     required void Function(int, int?)? onProgress,
+    required bool Function()? isCancelled,
     required Duration timeout,
     required Duration stallTimeout,
   }) async {
@@ -513,10 +549,15 @@ class UpdateService {
     );
     var local = offset;
     var oversized = false;
+    var cancelled = false;
     IOSink? openSink;
     try {
       openSink = sink;
       await for (final chunk in response.stream.timeout(stallTimeout)) {
+        if (isCancelled?.call() ?? false) {
+          cancelled = true;
+          break;
+        }
         sink.add(chunk);
         local += chunk.length;
         if (local > _maxApkBytes) {
@@ -528,6 +569,10 @@ class UpdateService {
       await sink.flush();
     } finally {
       await openSink?.close();
+    }
+    if (cancelled) {
+      if (await partial.exists()) await partial.delete();
+      throw const UpdateDownloadCancelled();
     }
     if (oversized) {
       if (await partial.exists()) await partial.delete();

@@ -14,12 +14,12 @@
 - [x] 安装前预校验：包名 + versionCode，"无法降级安装(-25)"在人话界面拦截
 - [x] 移除 iOS：ios/ 目录、IPA 发布、iOS CI 巡检全部删除（I1/I2 随之消失）
 - [x] DeviceStore 自愈重写：排除索引键自身、只信任解析成功且键值 id 一致的设备（D1）
-- [ ] inspectApk 增加签名证书校验（signingInfo 对比已装应用，U3）
-- [ ] canRequestPackageInstalls 未授权时引导系统设置的安装 UX（U4）
-- [ ] Android 最近任务隐私遮罩，与生物识别 10 秒重锁解耦（P1）
-- [ ] 更新下载可取消（U5）
-- [ ] security_invariants_test：导航白名单 flag、kDebugMode console、FileProvider scope 等硬不变量（T2）
-- [ ] 模拟器 E2E 扩充：通知初始化、MethodChannel、APK inspect、生命周期（T1）
+- [x] inspectApk 增加签名证书校验（signingInfo 对比已装应用，U3）
+- [x] canRequestPackageInstalls 未授权时引导系统设置的安装 UX（U4）
+- [x] Android 最近任务隐私遮罩，与生物识别 10 秒重锁解耦（P1）
+- [x] 更新下载可取消（U5）
+- [x] security_invariants_test：导航白名单 flag、kDebugMode console、FileProvider scope 等硬不变量（T2）
+- [x] 模拟器 E2E 扩充：通知初始化、MethodChannel、APK inspect、生命周期（T1）
 - [ ] v1.0.7 发布走完整 workflow，全程无手工上传文件（R1 验收）
 
 ## v1.0.8 — WebView Hardening（候选）

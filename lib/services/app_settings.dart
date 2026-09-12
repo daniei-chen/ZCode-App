@@ -25,4 +25,12 @@ abstract final class AppSettings {
       return true;
     }
   }
+
+  /// 最近任务隐私遮罩开关（FLAG_SECURE）：生物识别开启时置 true，
+  /// 切后台瞬间遮蔽应用快照，回前台由原生侧自动恢复。
+  static Future<void> setRecentsCover(bool enabled) async {
+    try {
+      await _channel.invokeMethod<void>('setRecentsCover', enabled);
+    } catch (_) {}
+  }
 }

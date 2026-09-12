@@ -74,5 +74,67 @@ void main() {
         isNull,
       );
     });
+
+    test('签名证书与已装应用不一致 → signerMismatch（U3）', () {
+      const signed = ApkArchiveInfo(
+        packageName: 'com.zcode.app',
+        versionName: '1.0.7',
+        versionCode: 8,
+        signerSha256: 'aaaa',
+      );
+      expect(
+        precheckApk(
+          archive: signed,
+          expectedPackage: 'com.zcode.app',
+          installedVersionCode: 7,
+          installedSignerSha256: 'bbbb',
+        ),
+        ApkPrecheckIssue.signerMismatch,
+      );
+    });
+
+    test('hex 大小写不同但同证书 → 通过', () {
+      const signed = ApkArchiveInfo(
+        packageName: 'com.zcode.app',
+        versionName: '1.0.7',
+        versionCode: 8,
+        signerSha256: 'AABB',
+      );
+      expect(
+        precheckApk(
+          archive: signed,
+          expectedPackage: 'com.zcode.app',
+          installedVersionCode: 7,
+          installedSignerSha256: 'aabb',
+        ),
+        isNull,
+      );
+    });
+
+    test('任一方签名读不到 → 不在客户端拦截，交系统安装器兜底', () {
+      const noSigner = ApkArchiveInfo(
+        packageName: 'com.zcode.app',
+        versionName: '1.0.7',
+        versionCode: 8,
+      );
+      expect(
+        precheckApk(
+          archive: noSigner,
+          expectedPackage: 'com.zcode.app',
+          installedVersionCode: 7,
+          installedSignerSha256: 'bbbb',
+        ),
+        isNull,
+      );
+      expect(
+        precheckApk(
+          archive: good,
+          expectedPackage: 'com.zcode.app',
+          installedVersionCode: 7,
+          installedSignerSha256: null,
+        ),
+        isNull,
+      );
+    });
   });
 }
