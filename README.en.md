@@ -27,7 +27,7 @@ ZCode App (v1.0.6) is a mobile companion app for ZCode desktop's mobile remote-c
 Grab a build from [Releases](https://github.com/2421873411a-rgb/ZCode-App/releases):
 
 - **Android** — `ZCode-v<version>.apk` (arm64), application ID `com.zcode.app`
-- **iOS** — unsigned IPA; sideload it with your own Apple ID via [AltStore](https://altstore.io), [Sideloadly](https://sideloadly.io), TrollStore or similar (free-account signatures last 7 days)
+- **iOS** — not supported; this is an Android-only project and no IPA is published
 
 ## Building
 

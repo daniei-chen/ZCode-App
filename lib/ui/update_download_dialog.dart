@@ -345,7 +345,8 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
                     ),
                   const SizedBox(width: 8),
                   if (_stage == _DownloadStage.ready ||
-                      _stage == _DownloadStage.failed && _error == 'download')
+                      _stage == _DownloadStage.failed &&
+                          (_error == 'download' || _error == 'precheck'))
                     FilledButton.icon(
                       onPressed: _download,
                       icon: const Icon(Icons.download_outlined, size: 18),

@@ -70,19 +70,3 @@ jobs:
           target: google_apis
           arch: x86_64
           script: flutter test integration_test
-
-  # iOS 可构建性巡检：macOS 出未签名包，防 iOS 侧悄悄烂掉
-  # 这是阻断检查：iOS 不能构建时 CI 必须明确失败。
-  ios:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
-        with:
-          flutter-version: 3.47.3
-          channel: stable
-          cache: true
-
-      - run: flutter pub get
-      - run: flutter build ios --release --no-codesign

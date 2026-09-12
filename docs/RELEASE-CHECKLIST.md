@@ -4,8 +4,7 @@
 
 - 使用 Flutter 3.47+、Dart 3.10+、JDK 17。
 - 执行 `flutter pub get`、`flutter analyze`、`flutter test`。
-- 执行 `flutter build apk --release`；没有正式 `android/key.properties` 和对应 keystore 时，构建必须失败。
-- 在 macOS 上执行 `flutter build ios --release --no-codesign`，确认 iOS 检查不是允许失败的旁路任务。
+- 执行 `flutter build apk --release --target-platform=android-arm64`；没有正式 `android/key.properties` 和对应 keystore 时，构建必须失败。
 - 在真机上验证：生物识别门禁、后台回前台、WebView 导航白名单、通知权限和应用内更新全链路。
 
 ## 源码包

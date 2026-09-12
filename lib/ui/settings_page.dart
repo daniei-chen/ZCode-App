@@ -670,7 +670,10 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
     if (_checking) return;
     setState(() => _checking = true);
     if (!Platform.isAndroid) {
+      // 应用内更新链路仅 Android；iOS 侧载用户跳转 GitHub 后立即复位，
+      // 否则 _checking 永久卡住，检查更新入口失效。
       await UpdateService.openReleasePage();
+      if (mounted) setState(() => _checking = false);
       return;
     }
     final result = await UpdateService.instance.checkForUpdate();

@@ -24,17 +24,37 @@ class DeviceStore {
       try {
         ids = (jsonDecode(indexRaw) as List).cast<String>();
       } catch (_) {
-        // 索引损坏自愈：凭据本体仍在 secure storage，按设备键前缀重建
-        // 索引，而不是把“数据损坏”伪装成“用户没有设备”。
+        // 索引损坏自愈：凭据本体仍在 secure storage，逐个解析重建索引，
+        // 而不是把"数据损坏"伪装成"用户没有设备"。注意排除索引键自身
+        // （它同样匹配设备键前缀），并拒绝解析失败或键值 id 不符的坏数据（D1）。
         try {
           final all = await _secure.readAll();
-          ids = all.keys
-              .where((k) => k.startsWith(_deviceKeyPrefix))
-              .map((k) => k.substring(_deviceKeyPrefix.length))
-              .toList();
-          if (ids.isNotEmpty) {
-            await _secure.write(key: _indexKey, value: jsonEncode(ids));
+          final recovered = <RemoteDevice>[];
+          final seen = <String>{};
+          for (final entry in all.entries) {
+            if (entry.key == _indexKey) continue;
+            if (!entry.key.startsWith(_deviceKeyPrefix)) continue;
+            final id = entry.key.substring(_deviceKeyPrefix.length);
+            if (id.isEmpty || seen.contains(id)) continue;
+            try {
+              final device = RemoteDevice.fromJson(
+                jsonDecode(entry.value) as Map<String, dynamic>,
+              );
+              if (device.id != id) continue;
+              recovered.add(device);
+              seen.add(id);
+            } catch (_) {}
           }
+          if (recovered.isEmpty) return [];
+          recovered.sort((a, b) {
+            final byTime = a.createdAt.compareTo(b.createdAt);
+            return byTime != 0 ? byTime : a.id.compareTo(b.id);
+          });
+          await _secure.write(
+            key: _indexKey,
+            value: jsonEncode([for (final d in recovered) d.id]),
+          );
+          return recovered;
         } catch (_) {
           return [];
         }

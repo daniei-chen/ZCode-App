@@ -50,7 +50,20 @@ jobs:
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=zcode-app\nstoreFile=zcode-app-release.jks\n' \
             "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > android/key.properties
 
-      - run: flutter build apk --release
+      # R2：发布契约是 arm64 单包，构建必须钉死目标 ABI。
+      - run: flutter build apk --release --target-platform=android-arm64
+
+      # R2：自动验证产物只含 arm64-v8a，不靠文件名装样子。
+      - name: Verify arm64-only ABI
+        run: |
+          python3 - <<'PY'
+          import zipfile, sys
+          names = zipfile.ZipFile('build/app/outputs/flutter-apk/app-release.apk').namelist()
+          abis = {n.split('/')[1] for n in names if n.startswith('lib/')}
+          print('ABIs in APK:', sorted(abis))
+          if abis != {'arm64-v8a'}:
+              sys.exit(f'unexpected ABIs: {sorted(abis)}')
+          PY
 
       # 资产名遵循应用内更新器的确定性契约：ZCode-v<version>.apk。
       - name: Rename Android package and generate checksum
@@ -84,46 +97,3 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/ZCode-v*.apk
             build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
-
-  # iOS 出未签名 IPA：无 Apple 开发者账号也可分发，用户自行签名侧载。
-  # iOS 构建是发布产物的一部分，失败必须让发布任务失败，不能伪装成成功。
-  ipa:
-    needs: apk
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
-        with:
-          flutter-version: 3.47.3
-          channel: stable
-          cache: true
-
-      - run: flutter pub get
-      - run: flutter build ios --release --no-codesign
-
-      - name: Package unsigned IPA
-        run: |
-          mkdir -p build/Payload
-          cp -R build/ios/iphoneos/Runner.app build/Payload/Runner.app
-          ditto -c -k --keepParent build/Payload zcode-app-ios-unsigned.ipa
-          shasum -a 256 zcode-app-ios-unsigned.ipa > zcode-app-ios-unsigned.ipa.sha256
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: zcode-app-ios-unsigned-ipa
-          path: |
-            zcode-app-ios-unsigned.ipa
-            zcode-app-ios-unsigned.ipa.sha256
-
-      - name: Attach unsigned IPA to Release
-        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
-        with:
-          append_body: true
-          body: |
-            > **iOS 包 `zcode-app-ios-unsigned.ipa` 为未签名包，无法直接安装。**
-            > 请使用 [AltStore](https://altstore.io) / [Sideloadly](https://sideloadly.io) / TrollStore 等工具，
-            > 用自己的 Apple ID 签名后侧载（免费账号 7 天需重新签名）。
-          files: |
-            zcode-app-ios-unsigned.ipa
-            zcode-app-ios-unsigned.ipa.sha256

@@ -113,12 +113,12 @@ test/           Dart 单元测试与 Widget 测试
 
 ## 测试状态
 
-当前工程已完成：
+质量门禁以 CI 为准（不手工维护测试数字）：
 
-- `flutter analyze`：无问题
-- `flutter test`：299 项通过
-- Android Release APK：已构建并在模拟器安装启动验证
-- 包名：`com.zcode.app`
+[![ci](https://github.com/2421873411a-rgb/ZCode-App/actions/workflows/ci.yml/badge.svg)](https://github.com/2421873411a-rgb/ZCode-App/actions/workflows/ci.yml)
+
+- `flutter analyze` + `flutter test`：每次 push / PR 在 CI 执行
+- 包名：`com.zcode.app`（Android 专用，不支持 iOS）
 
 ## 声明与许可证
 

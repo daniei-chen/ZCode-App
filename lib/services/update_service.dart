@@ -44,7 +44,13 @@ class UpdateCheckResult {
   bool get hasUpdate =>
       status == UpdateCheckStatus.updateAvailable && releaseUri != null;
 
-  bool get canDownload => hasUpdate && downloadUri != null;
+  /// 仅当拿到可校验的资产摘要时才允许应用内下载（fail-closed）：没有
+  /// digest 就没有完整性结论，此时只引导用户到 GitHub Release 页手动下载。
+  bool get canDownload =>
+      hasUpdate &&
+      downloadUri != null &&
+      assetDigest != null &&
+      assetDigest!.isNotEmpty;
 }
 
 class UpdateDownloadException implements Exception {
@@ -108,7 +114,6 @@ class UpdateService {
     'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
   );
   static const _promptedVersionKey = 'zremote.update.promptedVersion';
-  static const _apkName = 'ZCode.apk';
 
   /// 安装包体积硬上限：正常 release 约 30-70 MB，超限视为异常响应。
   static const int _maxApkBytes = 200 * 1024 * 1024;
@@ -285,19 +290,11 @@ class UpdateService {
           if (entry is! Map) continue;
           final name = entry['name'];
           if (name is! String) continue;
-          final lower = name.toLowerCase();
-          // 命名契约：正式资产为 ZCode-v<版本>.apk，精确匹配优先；
-          // 其余 .apk 仅作兜底，避免多架构/误传包产生歧义。
-          if (lower == 'zcode-v$latest.apk') {
+          // 命名契约：只认 ZCode-v<版本>.apk 精确名。不回退到 ZCode.apk
+          // 或任意 .apk——多资产发布时选错包比选不到更危险（U2）。
+          if (name.toLowerCase() == 'zcode-v$latest.apk') {
             selected = entry;
             break;
-          }
-          if (lower == _apkName.toLowerCase()) {
-            selected ??= entry;
-            continue;
-          }
-          if (lower.endsWith('.apk')) {
-            selected ??= entry;
           }
         }
         if (selected != null) {

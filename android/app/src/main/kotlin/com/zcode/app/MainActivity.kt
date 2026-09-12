@@ -284,7 +284,14 @@ class MainActivity : FlutterFragmentActivity() {
             mapOf(
                 "packageName" to it.packageName,
                 "versionName" to it.versionName,
-                "versionCode" to it.longVersionCode,
+                // longVersionCode 需要 API 28+；minSdk 24 的低版本设备退回旧字段，
+                // 否则 Android 8.1 及以下在预校验时抛 NoSuchMethodError。
+                "versionCode" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    it.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    it.versionCode.toLong()
+                },
             )
         }
     } catch (_: Exception) {

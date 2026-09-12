@@ -46,9 +46,10 @@ void main() {
       return http.Response(
         '{"tag_name":"v1.0.2",'
         '"html_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2",'
-        '"assets":[{"name":"ZCode.apk",'
+        '"assets":[{"name":"ZCode-v1.0.2.apk",'
         '"size":1234,'
-        '"browser_download_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk"}]}',
+        '"browser_download_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk",'
+        '"digest":"sha256:abc"}]}',
         200,
       );
     });
@@ -63,10 +64,31 @@ void main() {
     expect(result.canDownload, isTrue);
     expect(
       result.downloadUri.toString(),
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
     );
-    expect(result.downloadFileName, 'ZCode.apk');
+    expect(result.downloadFileName, 'ZCode-v1.0.2.apk');
     expect(result.downloadSize, 1234);
+  });
+
+  test('资产不符合命名契约 → 有更新但不自动下载（U2 fail-closed）', () async {
+    final client = MockClient((request) async {
+      return http.Response(
+        '{"tag_name":"v1.0.2",'
+        '"html_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2",'
+        '"assets":[{"name":"ZCode.apk",'
+        '"size":1234,'
+        '"browser_download_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk"}]}',
+        200,
+      );
+    });
+
+    final result = await UpdateService.instance.checkForUpdate(
+      client: client,
+      currentVersion: '1.0.0',
+    );
+
+    expect(result.status, UpdateCheckStatus.updateAvailable);
+    expect(result.canDownload, isFalse);
   });
 
   test('API 限流时从公开发布页获取版本并构造 APK 下载地址', () async {
@@ -216,6 +238,22 @@ void main() {
       } finally {
         await deleteDirEventually(directory);
       }
+    });
+
+    test('assetDigest 缺失 → canDownload 为 false（fail-closed，不自动下载）', () {
+      final result = UpdateCheckResult(
+        status: UpdateCheckStatus.updateAvailable,
+        currentVersion: '1.0.6',
+        latestVersion: '1.0.7',
+        releaseUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.7',
+        ),
+        downloadUri: Uri.parse(
+          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.7/ZCode-v1.0.7.apk',
+        ),
+        downloadFileName: 'ZCode-v1.0.7.apk',
+      );
+      expect(result.canDownload, isFalse);
     });
 
     test('assetDigest 匹配时通过，不匹配时删除文件并报错', () async {

@@ -71,10 +71,9 @@ Flutter 单 Activity（`FlutterFragmentActivity`）应用，无底部 Tab、无�
 
 ## 平台门控
 
-- 应用内更新仅 Android（`Platform.isAndroid` 门控）；iOS 走 GitHub Release 的
-  未签名 IPA，用户自行签名侧载。
-- CI：`ci.yml` 跑 analyze/test、Android 构建、模拟器冒烟和 iOS 构建巡检；
-  `release.yml` 推 tag 自动出签名 APK + 未签名 IPA（密钥走 GitHub Secrets）。
+- 本项目仅支持 Android，不支持 iOS（仓库不含 ios/ 目录，不发布 IPA）。
+- CI：`ci.yml` 跑 analyze/test、Android 构建与模拟器冒烟；`release.yml` 推 tag
+  自动出 arm64 签名 APK + SHA256（密钥走 GitHub Secrets，tag 版本与 ABI 自动校验）。
 
 ## 目录
 
