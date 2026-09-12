@@ -51,7 +51,8 @@ abstract final class EventObserver {
   // 核对白名单命中率；通道就绪时每 15 秒上报一次非空增量。
   var stats = window.__zrStats = window.__zrStats || {
     fetch200: 0, fetchCloned: 0, fetchSkipped: 0,
-    sseMessages: 0, wsMessages: 0, wsSkippedSize: 0,
+    sseMessages: 0, sseIgnored: 0, wsMessages: 0, wsIgnored: 0,
+    wsSkippedSize: 0,
     framesDecoded: 0, invalidFragments: 0, expiredFragments: 0,
     queueDropped: 0, seenDropped: 0
   };
@@ -244,10 +245,38 @@ abstract final class EventObserver {
       });
     };
   }
+  // W2 WS/SSE 白名单（依据实测协议记录：relay 端点为
+  // wss://zcode.z.ai/ws?mid=…）。只有官方 relay 的 WS 会被观察；其他
+  // WebSocket（第三方/诊断）完全透明——不挂监听、不读正文、不上报，
+  // 只计入 wsIgnored。SSE 同理先只限官方 host（路径待遥测确认）。
+  // 重要：过滤只影响"观测"，绝不改变页面自身的连接与功能。
+  var allowedHost = function(urlStr, scheme) {
+    try {
+      var u = new URL(urlStr, location.href);
+      return u.protocol === scheme && u.hostname.toLowerCase() === 'zcode.z.ai';
+    } catch (e) { return false; }
+  };
+  var wsAllowed = function(urlStr) {
+    try {
+      var u = new URL(urlStr, location.href);
+      if (u.protocol !== 'wss:' || u.hostname.toLowerCase() !== 'zcode.z.ai') {
+        return false;
+      }
+      return u.pathname === '/ws' || u.pathname.indexOf('/ws/') === 0;
+    } catch (e) { return false; }
+  };
+  var ssAllowed = function(urlStr) { return allowedHost(urlStr, 'https:'); };
   var OrigES = window.EventSource;
   if (OrigES) {
     var Wrapped = function(url, cfg) {
       var es = new OrigES(url, cfg);
+      try {
+        var esUrl = (url && url.href) ? url.href : String(url);
+        if (!ssAllowed(esUrl)) {
+          bump('sseIgnored');
+          return es;
+        }
+      } catch (e) {}
       es.addEventListener('message', function(ev) {
         bump('sseMessages');
         sendWithDecode(ev.data);
@@ -272,6 +301,11 @@ abstract final class EventObserver {
           : new OrigWS(url, protocols);
       try {
         var urlStr = (url && url.href) ? url.href : String(url);
+        // W2：非官方 relay 的 WS 一律透明（不挂监听、不读正文）。
+        if (!wsAllowed(urlStr)) {
+          bump('wsIgnored');
+          return ws;
+        }
         ws.addEventListener('open', function() {
           wsSend(JSON.stringify({s: 'open', u: urlStr}));
         });
