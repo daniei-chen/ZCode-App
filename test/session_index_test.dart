@@ -120,9 +120,9 @@ void main() {
       expect(SessionRanking.compareSessions(a, a), isZero);
     });
 
-    // UX-NATIVE-REBUILD-SPEC §3.2: sessions waiting for approval rank with
-    // running ones, ahead of plain recency, so an approval is never buried
-    // under newer idle sessions.  (Changed 2026-09-11 from "不置頂".)
+    // Sessions waiting for approval rank with running ones, ahead of plain
+    // recency, so an approval is never buried under newer idle sessions.
+    // (Changed 2026-09-11 from "不置頂".)
     test('待審批與 running 同組置頂，先於純時間序', () {
       final pendingOld = sess(
         'old_pending',

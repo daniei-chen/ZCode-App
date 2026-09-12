@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/device.dart';
 import '../services/device_store.dart';
-import 'root_tabs.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   DeviceListNotifier({List<RemoteDevice>? seed})
@@ -120,7 +119,8 @@ class ActiveTabNotifier extends Notifier<int> {
   int build() => initialIndex;
 
   void set(int index) {
-    final maxIndex = RootTabs.children(ref.read(deviceListProvider).length) - 1;
+    // v1.0.6 纯 WebView 化后根部只剩设备会话栈：合法索引就是 0..设备数-1。
+    final maxIndex = ref.read(deviceListProvider).length - 1;
     if (index < 0 || index > maxIndex) return;
     state = index;
     if (index < ref.read(deviceListProvider).length) {

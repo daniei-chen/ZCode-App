@@ -119,7 +119,6 @@ $state = @"
 - `project/lib/relay/` — relay protocol, frames, request/response assembly and service calls
 - `project/lib/state/` — session, panel, plugin, skill, MCP and runtime state
 - `project/docs/ZCODE-PROTOCOL.md` — protocol notes
-- `project/docs/MOBILE-WEB-COVERAGE-20260911.md` — WebView/native coverage notes
 
 The project directory is the current working tree, including the latest uncommitted development changes.
 The reference directory is copied from the locally installed ZCode 3.11.2 desktop frontend.

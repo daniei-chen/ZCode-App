@@ -1,100 +1,88 @@
-# ZCode Control 架构（当前实现）
+# ZCode App 架构（v1.0.6 起 · 纯 WebView）
+
+> 本文描述当前真实实现。v1.0.6 起应用只保留"原生外壳 + 内置 WebView"一条数据链路，
+> 此前的原生 relay / 原生面板架构已整体移除；被清理的历史文档可从 git 历史找回。
 
 ## 总体形态
 
-Flutter App（Android 优先），单进程，原生主流程 + 明确的兼容渲染：
+Flutter 单 Activity（`FlutterFragmentActivity`）应用，无底部 Tab、无原生会话面板：
 
+- **无设备**：整个屏幕是 `ManagePage`（设备中心）——扫码/粘贴导入、排序、改名、删除、
+  检查更新入口、设置。
+- **有设备**：`Stack` 三层
+  1. `IndexedStack`：每台设备一个 `OfficialRemotePage`（内置 WebView，加载 ZCode
+     桌面端移动远程控制页）。设备常驻挂载，切换不重建、不重连。
+  2. `ManagePage` 作为 launcher 覆盖层（`_launcherVisible`）：系统返回键先从 WebView
+     摘要回到设备中心，再返回才退出应用。
+  3. `_FloatingNoticeCard`：前台事件悬浮通知（5 秒自动消失，点击跳转到对应设备/会话）。
+
+`activeTabProvider` 的语义是"当前前台的设备索引"，不再是 Tab 索引。
+
+## WebView 信任边界
+
+- 导航白名单只在 `useShouldOverrideUrlLoading: true` 时生效（插件默认 false，回调
+  永远不会触发——这是踩过的坑）。
+- 三个注入 UserScript 均带 `allowedOriginRules: {'https://zcode.z.ai'}`。
+- `link_builder.dart` 负责控制链接解析：host 校验、拒绝环回/私网/保留地址、URL 重建。
+- `sid`/`hash` 等凭证只进 secure storage；日志、测试、文档不得出现真实凭证。
+
+## 更新链（Android 专属）
+
+`app_shell` 启动时后台检查，仅确认有新版时弹一次应用内更新弹窗：
+
+1. **检查**：`api.github.com releases/latest`（匿名限额 60 次/h/IP）→ 失败回退
+   `github.com/releases/latest` 302 页面解析；回退路径**不伪造资产 URL**
+   （`canDownload=false` + GitHub 入口兜底）。
+2. **下载**：确定性资产名 `ZCode-v<version>.apk`；Range 断点续传（206 校验
+   Content-Range 起点、416 严格判定已完成）；200MB 上限；SHA256 摘要校验；
+   最多 4 次尝试。
+3. **安装**：交给系统安装器（FileProvider + `ACTION_VIEW`）。安装前先做**预校验**
+   （包名 + versionCode），把"无法降级安装(-25)"之类系统错误提前翻译成人话。
+4. `markPrompted` 在弹窗真实展示之后落盘，避免生命周期竞争吞掉提示（U07）。
+
+## 通知
+
+- 事件源：`DeviceFeed`（审批请求 / 完成 / 失败）。
+- 前台：悬浮卡 + 应用内提示音；后台/锁屏：系统通知（标题=会话标题，正文=任务摘要，
+  点击直达对应设备/会话）。
+- 通知 ID：`SHA256(deviceId\0type\0taskId)` 前 31 bit（Dart `hashCode` 跨进程不稳定，
+  已弃用）。
+- 提醒方式三选：系统音 / 静音 / 强提醒；通知通道 id 带版本后缀，升级时重建通道，
+  避免旧的声音配置残留。
+
+## 存储
+
+- `flutter_secure_storage`：设备凭证、warmup 录制存档。索引损坏时用 `readAll()`
+  前缀扫描自愈重建。
+- `SharedPreferences`：主题、通知偏好、启动目标、最近设备。
+- `MainActivity.onCreate` 清理 v1.0.0 遗留的常驻通知与通道（升级垫片）。
+
+## Android 原生面
+
+`MainActivity` 注册 5 个 MethodChannel：
+
+| 通道 | 用途 |
+|---|---|
+| `zremote/keepalive` | 电池优化白名单（isBatteryIgnored / requestBatteryIgnore / MIUI 豁免） |
+| `zremote/app` | 应用设置、系统通知开关状态 |
+| `zremote/theme` | 夜间模式同步 |
+| `zremote/notification_sound` | 默认通知音预览 |
+| `zremote/update` | APK 预校验（inspectApk）与安装 |
+
+## 平台门控
+
+- 应用内更新仅 Android（`Platform.isAndroid` 门控）；iOS 走 GitHub Release 的
+  未签名 IPA，用户自行签名侧载。
+- CI：`ci.yml` 跑 analyze/test、Android 构建、模拟器冒烟和 iOS 构建巡检；
+  `release.yml` 推 tag 自动出签名 APK + 未签名 IPA（密钥走 GitHub Secrets）。
+
+## 目录
+
+```text
+lib/
+  models/       设备、通知偏好数据模型
+  services/     设备存储、WebView、通知、更新、电池优化
+  state/        设备池、会话栈、事件流、页面状态
+  ui/           设备中心、WebView 会话、更新弹窗、设置
+android/        MainActivity、通知、升级清理垫片
 ```
-AppShell (IndexedStack)
-├── NativeDeviceView × N   ← 支持 Relay 的设备主界面（不创建 WebView）
-├── SessionView × N        ← 仅旧版/不支持 Relay 的设备兼容页面
-├── TasksPage              ← 任务 Tab（跨设备任务卡流）
-├── PanelsPage             ← 工作台 Tab（桌面端设置面板的移动原生版）
-├── NotificationsPage      ← 通知中心 Tab（跨设备事件时间线）
-├── ManagePage             ← 设备 Tab（扫码/粘贴导入、拖拽排序）
-└── SettingsPage(embedded) ← 设置 Tab
-```
-
-- 底部 `NavigationBar` 索引 = `设备数 + Tab 序`（`RootTabs` 统一换算）
-- `ActiveTabNotifier`：切换即落盘 lastDeviceId；`clampTo` 在设备增删时兜底
-- 支持 Relay 的设备只建立一条 native bridge；同一份 remote/v4 sid/hash 不再被
-  WebView 与 Relay 同时占用，避免 `session-conflict` / “其他设备接管”
-- WebView 保留为旧版设备与用户明确选择的兼容入口；不参与原生设备的默认主流程
-
-## 数据链路（核心）
-
-原生设备的数据来自 remote/v4 的 Relay 协议；兼容设备才从 WebView 页面桥接：
-
-```
-EventObserver.hookScript（AT_DOCUMENT_START 注入）
-├── 包装 window.fetch      → 响应体 / mobile-view-state 请求体
-├── 包装 WebSocket         → WS 帧（含 base64 rpc-frame 解码、分片重组）
-├── 包装 EventSource       → SSE 消息
-└── 通道：zrEvents / zrViewState / zrWs / zrSeen（面板请求录制）
-        ↓ (RelayBridge / JS handler)
-RelaySourceNotifier._ingestNativePayload / SessionView._onBridgeMessage
-├── PanelDataNotifier.ingest        ← 模型/额度/子代理/技能等面板快照（关键词预筛 512KB 上限）
-├── SessionStateExtractor           ← 会话状态（标题/阶段/待交互计数/工作区/时间戳）
-├── TaskIndexExtractor              ← task.upserted / removed / archived / snapshot
-├── StateDiffer                     ← 状态差分 → 事件（approval/completed/error/resolved）
-├── EventFeedNotifier               ← 未读徽标 + 等待批准红点 + 事件历史（通知中心数据源）
-└── NotifierService                 ← 系统推送（NotificationGate 判定：前台可见会话不推）
-```
-
-原生会话正文链路：
-
-```
-RelayBridge
-├── helloConversationV4 → initializeConversationV4
-├── conversationRowsRangeV4       ← 历史分页
-├── subscribeConversationV4       ← 实时更新
-└── sendConversationCommandV4     ← 用户明确触发的 sendText / stop / resolveInteraction / 配置切换
-        ↓
-ConversationNotifier → ConversationPage（消息、思考、工具、待办、授权、输入框）
-```
-
-支持 Relay 的设备进入原生会话页后先展示“新对话”编辑器；历史会话由抽屉按工作区
-归类。发送使用官方 `sendText` 命令并等待 `accepted/noop` 回执，附件先经
-`attachmentBeginV4` / `attachmentChunkV4` / `attachmentCommitV4` 上传后再随消息发送。
-
-设置里的 Agent 能力不再依赖“先打开网页面板”：
-`skills.list`、`mcp-sync.listLocalUserMcpCandidates`、
-`plugin-management.getPluginsOverview`、`subagents.list`、`hooks.loadHooks`、
-`memory.listProjectMemories`、`usage-stats.getAppUsageStats` 和 `setting.get`
-均通过原生 service RPC 按需读取。未核验的写接口不显示假开关，也不自动执行。
-
-### 面板预热（warmup.dart）
-
-- `zrSeen` 通道只录制明确面板路径的 GET/HEAD（拒绝 POST、body 和未知 origin；去重、48 条上限）
-- 按设备持久化到 secure storage（`zremote.warmup.<id>`）
-- 仅兼容 WebView 页面在 onLoadStop 后重放（1.8s 后启动、140ms 间隔、credentials: include）
-- 重放脚本再次检查当前 origin，并且只发 GET/HEAD；链接更换或删除设备时清空旧记录
-- 响应被既有 fetch 拦截接住 → panel_state 自然吃饱 → 工作台"进 App 即有数据"
-
-### 会话跳转（PendingSessionJump）
-
-- 任务卡 → 直接进入 `ConversationPage`；消息/工具/授权/输入框都在原生页完成
-- 只有不支持 Relay 的旧设备才通过明确的 WebView 兼容入口写入 `PendingSessionJump`
-
-## 通知链路
-
-- 四类通知统一使用 `*_quiet_v2` 低优先级通道；关闭声音、震动与 ticker，避免 heads-up
-- 通知只新增到通知栏并保留角标；Android 8+ 通道设置持久化，因此升级使用新 channel id
-- 后台前台服务保留 Android 合规所需的常驻通知，但为 `IMPORTANCE_LOW`、静默、无角标，
-  文案不再显示“正在后台守护中”
-- `NotificationGate`：App 在前台且事件属于当前可见会话 → 不推送
-- `resolved` 事件自动撤回对应待审批通知（stableId 由 device.id+type+taskId 哈希）
-- 设置页：系统权限告警条（OS 权限关闭时直达系统设置）+ 测试通知入口（链路自检）
-- MainActivity MethodChannel（zremote/app）：openNotificationSettings / areNotificationsEnabled / MIUI 白名单引导
-
-## 关键模型
-
-- `SessionState`：sessionId / title / phase / sessionEnded / permissionCount / userInputCount / interactionKind / toolName / description / lastActivityAt / workspace / workspacePath / pinned
-- `PanelSnapshot`：providers（含 isCurrent）+ plan + quotas + usage + subagents + listPanels（skills/mcp/plugins/commands/hooks/memory）
-- `FeedEvent`：type / at / taskId / sessionTitle / summary（每设备 50 条上限）
-- 双语：`app_zh.arb` / `app_en.arb`，gen-l10n 生成（`lib/l10n/*.dart` 不入库）
-
-## 构建
-
-- Flutter ≥ 3.47；JDK 17；AGP 8.11.1 / Kotlin 2.2.20 / compileSdk 36 / minSdk 24
-- `flutter build apk --release` 产物在 `build/app/outputs/flutter-apk/`

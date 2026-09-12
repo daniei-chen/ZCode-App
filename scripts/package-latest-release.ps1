@@ -100,7 +100,7 @@ try {
 - `lib/services/link_builder.dart` — remote link parsing, trusted-origin checks and URL reconstruction
 - `lib/relay/` — relay protocol, frames, request/response assembly and service calls
 - `lib/state/` — session, panel, plugin, skill, MCP and runtime state
-- `docs/ZCODE-PROTOCOL.md` and `docs/MOBILE-WEB-COVERAGE-20260911.md` — protocol and coverage notes
+- `docs/ZCODE-PROTOCOL.md` — desktop protocol notes
 
 The source ZIP contains the complete current working tree required to continue development.
 The reference directory contains the locally extracted desktop frontend and its original app.asar.

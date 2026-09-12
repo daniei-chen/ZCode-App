@@ -116,7 +116,7 @@ test/           Dart 单元测试与 Widget 测试
 当前工程已完成：
 
 - `flutter analyze`：无问题
-- `flutter test`：316 项通过
+- `flutter test`：299 项通过
 - Android Release APK：已构建并在模拟器安装启动验证
 - 包名：`com.zcode.app`
 
@@ -124,4 +124,4 @@ test/           Dart 单元测试与 Widget 测试
 
 本软件为个人开发的非官方软件，如有侵权，请联系作者处理。软件仅通过 ZCode 桌面端公开的移动远程控制链路接入，不伪造请求、不绕过鉴权。
 
-本项目使用 [MIT License](LICENSE)。
+本项目基于上游开源项目 [pjpv/zremote](https://github.com/pjpv/zremote) 改造，遵循 MIT License 发布。

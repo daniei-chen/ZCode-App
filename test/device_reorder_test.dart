@@ -160,18 +160,21 @@ void main() {
       expect(c.read(activeTabProvider), 0);
     });
 
-    test('活动 tab 是管理页 → 重排不动它', () async {
+    test('超出设备栈的索引被拒绝（根部只剩设备会话）', () async {
       await seedStore([_device('a'), _device('b')]);
       final c = _container([_device('a'), _device('b')]);
       addTearDown(c.dispose);
       c.read(activeTabProvider.notifier).set(2);
 
+      expect(c.read(activeTabProvider), 0);
+
       await c.read(deviceListProvider.notifier).reorder(0, 1);
 
-      expect(c.read(activeTabProvider), 2);
+      // reorder 跟随活动设备：a 从 0 挪到 1，active 也应到 1。
+      expect(c.read(activeTabProvider), 1);
     });
 
-    test('管理页下标 = 设备数，重排后仍合法', () async {
+    test('活动设备重排后跟随设备到新下标', () async {
       await seedStore([_device('a'), _device('b')]);
       final c = _container([_device('a'), _device('b')]);
       addTearDown(c.dispose);

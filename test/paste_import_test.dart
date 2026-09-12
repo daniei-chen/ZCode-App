@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zremote/l10n/app_localizations.dart';
 import 'package:zremote/models/device.dart';
-import 'package:zremote/state/keepalive.dart';
 import 'package:zremote/state/session_pool.dart';
 import 'package:zremote/ui/manage_page.dart';
 
@@ -21,11 +20,6 @@ class _FakeDeviceListNotifier extends DeviceListNotifier {
   }
 }
 
-class _FakeKeepAliveNotifier extends KeepAliveEnabledNotifier {
-  @override
-  bool build() => false;
-}
-
 RemoteDevice _device(String sid) => RemoteDevice(
   id: 'id-$sid',
   baseUrl: 'https://zcode.z.ai/remote/v4',
@@ -39,7 +33,6 @@ Future<void> _pumpManage(WidgetTester tester, List<RemoteDevice> devices) {
     ProviderScope(
       overrides: [
         deviceListProvider.overrideWith(() => _FakeDeviceListNotifier(devices)),
-        keepAliveEnabledProvider.overrideWith(() => _FakeKeepAliveNotifier()),
       ],
       child: MaterialApp(
         locale: const Locale('zh'),

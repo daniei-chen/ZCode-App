@@ -110,21 +110,6 @@ class DeviceStore {
     await prefs.setBool(_biometricKey, value);
   }
 
-  static const _keepAliveKey = 'zremote.keepalive';
-
-  Future<bool> keepAliveEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Background keep-alive is opt-in: a permanently resident foreground
-    // service/wakelock has a direct battery cost and should never surprise a
-    // newly installed user.
-    return prefs.getBool(_keepAliveKey) ?? false;
-  }
-
-  Future<void> setKeepAliveEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keepAliveKey, value);
-  }
-
   static const _themeModeKey = 'zremote.themeMode';
 
   /// 主题模式：`system` / `light` / `dark`。
@@ -185,20 +170,6 @@ class DeviceStore {
   Future<void> setStartupTarget(String value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_startupTargetKey, value);
-  }
-
-  static const _nativeChannelKey = 'zremote.nativeChannel';
-
-  /// 原生 Relay 增强层总开关（内部开关，默认关）。关闭时 App 行为与
-  /// 历史版本一致：全部设备 WebView 常驻，无原生桥。
-  Future<bool> nativeChannelEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_nativeChannelKey) ?? false;
-  }
-
-  Future<void> setNativeChannelEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_nativeChannelKey, value);
   }
 
   static String _warmupKey(String id) => 'zremote.warmup.$id';

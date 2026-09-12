@@ -64,6 +64,7 @@ reference/
 .mimosa/
 
 android/.gradle/
+android/.kotlin/
 android/local.properties
 android/key.properties
 **/*.jks

@@ -6,7 +6,7 @@
 - 执行 `flutter pub get`、`flutter analyze`、`flutter test`。
 - 执行 `flutter build apk --release`；没有正式 `android/key.properties` 和对应 keystore 时，构建必须失败。
 - 在 macOS 上执行 `flutter build ios --release --no-codesign`，确认 iOS 检查不是允许失败的旁路任务。
-- 在真机上验证：生物识别门禁、后台回前台、Relay 断线重连、正文请求过滤和通知权限。
+- 在真机上验证：生物识别门禁、后台回前台、WebView 导航白名单、通知权限和应用内更新全链路。
 
 ## 源码包
 
@@ -27,9 +27,10 @@ pwsh -File scripts/package-source.ps1
 
 ## 发布凭证
 
-- Android release keystore 只通过 CI secret 恢复；不允许 debug key fallback。
+- Android release keystore 只通过 CI secret 恢复（`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD`，已在仓库配置）；不允许 debug key fallback。
+- 新包的 versionCode 必须大于 GitHub 上最新已发布资产的 versionCode，否则用户会碰到"无法降级安装(-25)"；发布前用 `aapt dump badging` 核对，不要用 `--split-per-abi` 产物对外分发（其 versionCode 带 ABI×1000 偏移）。
 - 二维码中的 `sid`、`hash`、`remoteControlToken` 等同于密码，不进入日志、截图、issue 或交付包。
-- 发布包的 Android/iOS bundle identifier 为 `com.zcode.control`。
+- 发布包的 Android bundle identifier 为 `com.zcode.app`。
 
 ## CI 结果记录
 

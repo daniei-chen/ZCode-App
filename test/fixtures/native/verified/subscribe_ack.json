@@ -1,7 +1,0 @@
-{
-  "ack": {
-    "subscriptionId": "sub_fixture_0001",
-    "mode": "snapshot",
-    "logEpoch": "1"
-  }
-}

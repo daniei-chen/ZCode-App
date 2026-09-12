@@ -1,6 +1,0 @@
-{
-  "commandId": "cmd_fixture_switch_0002",
-  "status": "stale",
-  "reasonCode": "revision_mismatch",
-  "revisionAtDecision": 9
-}

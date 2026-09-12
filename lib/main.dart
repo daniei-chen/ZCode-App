@@ -288,7 +288,7 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     final l10n = AppLocalizations.of(context) ?? l10nZh;
     if (!locked) return widget.child;
     // Do not keep the protected subtree as a sibling under a visual overlay.
-    // Returning only the lock screen disposes AppShell and its relay/WebView
+    // Returning only the lock screen disposes AppShell and its WebView
     // resources until authentication succeeds.
     return BlockSemantics(
       blocking: true,
