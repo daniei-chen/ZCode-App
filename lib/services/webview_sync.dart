@@ -10,7 +10,6 @@ import '../state/active_session.dart';
 import '../state/app_lifecycle.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
-import '../state/panel_state.dart';
 import '../state/session_index.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -40,10 +39,6 @@ class WebViewSyncController {
     // 单次 decode：面板、状态、任务索引与事件提取共用同一 root（评审 A2）。
     final root = BridgeMessagePipeline.decode(body);
     if (root == null) return;
-
-    // Panel responses and task/session events share the official page's
-    // existing bridge stream. Each device is stored independently.
-    ref.read(panelDataProvider.notifier).ingestRoot(device.id, body, root);
 
     final frameStatus = RelayLedPolicy.onFrameRoot(root);
     if (frameStatus != null) {

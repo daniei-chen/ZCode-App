@@ -7,10 +7,8 @@ import '../l10n/app_localizations.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
-import '../state/device_relay_coordinator.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
-import '../state/native_channel.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
@@ -276,10 +274,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       return const ManagePage();
     }
 
-    // 激活通道仲裁器（autoDispose 跟随本组件生命周期）。
-    ref.watch(deviceRelayCoordinatorProvider);
-    final nativeChannel = ref.watch(nativeChannelProvider);
-
     final active = ref.watch(activeTabProvider);
     final index = active.clamp(0, devices.length - 1);
     _remotePageControllers.removeWhere(
@@ -292,24 +286,6 @@ class _AppShellState extends ConsumerState<AppShell> {
       );
     }
     final activeBackController = _remotePageControllers[devices[index].id]!;
-    // 仲裁模式：只有活动设备挂 WebView（原生桥为其余设备供数，也省掉
-    // N 台设备 N 个浏览器内核的启动内存）；关闭时与历史版本完全一致。
-    final stackChildren = nativeChannel
-        ? [
-            OfficialRemotePage(
-              key: ValueKey(devices[index].id),
-              device: devices[index],
-              backController: _remotePageControllers[devices[index].id],
-            ),
-          ]
-        : [
-            for (final device in devices)
-              OfficialRemotePage(
-                key: ValueKey(device.id),
-                device: device,
-                backController: _remotePageControllers[device.id],
-              ),
-          ];
     return PopScope<void>(
       // Back from the official page returns to the launcher. Back from the
       // launcher is allowed to leave the app normally.
@@ -322,8 +298,15 @@ class _AppShellState extends ConsumerState<AppShell> {
         fit: StackFit.expand,
         children: [
           IndexedStack(
-            index: nativeChannel ? 0 : index,
-            children: stackChildren,
+            index: index,
+            children: [
+              for (final device in devices)
+                OfficialRemotePage(
+                  key: ValueKey(device.id),
+                  device: device,
+                  backController: _remotePageControllers[device.id],
+                ),
+            ],
           ),
           if (_launcherVisible)
             Positioned.fill(child: ManagePage(onOpenDevice: _openDevice)),

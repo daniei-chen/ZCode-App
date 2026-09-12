@@ -11,7 +11,6 @@ import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
 import 'state/session_pool.dart';
-import 'state/native_channel.dart';
 import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
 import 'theme.dart';
@@ -30,7 +29,6 @@ Future<void> main() async {
   final biometricFuture = _safeBool(store.biometricEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
   final startupTargetFuture = _safeString(store.startupTarget(), 'lastDevice');
-  final nativeChannelFuture = _safeBool(store.nativeChannelEnabled());
 
   // Resolve the saved devices before the first Flutter frame. Otherwise the
   // provider briefly reports an empty list and paints the import launcher
@@ -40,7 +38,6 @@ Future<void> main() async {
   final initialBiometric = await biometricFuture;
   final initialThemeMode = await themeModeFuture;
   final startupTarget = await startupTargetFuture;
-  final nativeChannel = await nativeChannelFuture;
   final recentIndex = lastDeviceId == null
       ? -1
       : initialDevices.indexWhere((d) => d.id == lastDeviceId);
@@ -68,9 +65,6 @@ Future<void> main() async {
         ),
         startupTargetProvider.overrideWith(
           () => StartupTargetNotifier(initial: startupTarget),
-        ),
-        nativeChannelProvider.overrideWith(
-          () => NativeChannelNotifier(initial: nativeChannel),
         ),
       ],
       child: ZCodeControlApp(startAtLauncher: startAtLauncher),

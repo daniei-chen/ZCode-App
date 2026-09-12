@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/device.dart';
 import '../services/device_store.dart';
-import 'relay_source.dart';
 import 'root_tabs.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
@@ -93,10 +92,6 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
       label: target.label.isNotEmpty ? target.label : parsed.label,
       createdAt: target.createdAt,
     );
-    // Stop the old credential-bound native bridge before the new device
-    // record becomes visible. AppShell will connect the replacement on its
-    // next device-list update; no old socket may survive a link swap.
-    await ref.read(relaySourceProvider.notifier).disconnect(id);
     await DeviceStore.instance.update(updated);
     // 旧链接对应的请求签名可能指向另一台桌面端，不能在新凭证下重放。
     await DeviceStore.instance.setWarmupScript(id, null);
