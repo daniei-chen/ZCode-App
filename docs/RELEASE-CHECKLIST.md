@@ -31,6 +31,7 @@ pwsh -File scripts/package-source.ps1
 - 新包的 versionCode 必须大于 GitHub 上最新已发布资产的 versionCode，否则用户会碰到"无法降级安装(-25)"；发布前用 `aapt dump badging` 核对，不要用 `--split-per-abi` 产物对外分发（其 versionCode 带 ABI×1000 偏移）。
 - 二维码中的 `sid`、`hash`、`remoteControlToken` 等同于密码，不进入日志、截图、issue 或交付包。
 - 发布包的 Android bundle identifier 为 `com.zcode.app`。
+- 发布后同步仓库门面：About 描述里的"当前版本"（`gh repo edit --description`）、README/README.en 的版本与测试数。
 
 ## CI 结果记录
 
