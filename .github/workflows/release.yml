@@ -13,6 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      # R01：tag 与 pubspec 版本不一致时直接失败，避免发出错误版本号的安装包。
+      - name: Verify tag matches pubspec version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PUBSPEC_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\+.*//')
+          if [ -z "$PUBSPEC_VERSION" ] || [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "tag ${GITHUB_REF_NAME} (version '${TAG_VERSION}') does not match pubspec.yaml version '${PUBSPEC_VERSION}'" >&2
+            exit 1
+          fi
+
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
@@ -42,19 +52,38 @@ jobs:
 
       - run: flutter build apk --release
 
-      - name: Rename Android package
-        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/ZCode.apk
+      # 资产名遵循应用内更新器的确定性契约：ZCode-v<version>.apk。
+      - name: Rename Android package and generate checksum
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/ZCode-v${VERSION}.apk"
+          cd build/app/outputs/flutter-apk
+          sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
+
+      # 发布说明：优先使用 docs/releases/<tag>.md；缺失时退回自动生成。
+      - name: Prepare release notes
+        run: |
+          if [ -f "docs/releases/${GITHUB_REF_NAME}.md" ]; then
+            cp "docs/releases/${GITHUB_REF_NAME}.md" release-notes.md
+          else
+            echo "> 本次未提供 docs/releases/${GITHUB_REF_NAME}.md，以下条目由 GitHub 自动生成。" > release-notes.md
+          fi
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zcode-app-apk
-          path: build/app/outputs/flutter-apk/ZCode.apk
+          path: |
+            build/app/outputs/flutter-apk/ZCode-v*.apk
+            build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
 
       - name: GitHub Release
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
         with:
+          body_path: release-notes.md
           generate_release_notes: true
-          files: build/app/outputs/flutter-apk/ZCode.apk
+          files: |
+            build/app/outputs/flutter-apk/ZCode-v*.apk
+            build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
 
   # iOS 出未签名 IPA：无 Apple 开发者账号也可分发，用户自行签名侧载。
   # iOS 构建是发布产物的一部分，失败必须让发布任务失败，不能伪装成成功。
@@ -78,11 +107,14 @@ jobs:
           mkdir -p build/Payload
           cp -R build/ios/iphoneos/Runner.app build/Payload/Runner.app
           ditto -c -k --keepParent build/Payload zcode-app-ios-unsigned.ipa
+          shasum -a 256 zcode-app-ios-unsigned.ipa > zcode-app-ios-unsigned.ipa.sha256
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zcode-app-ios-unsigned-ipa
-          path: zcode-app-ios-unsigned.ipa
+          path: |
+            zcode-app-ios-unsigned.ipa
+            zcode-app-ios-unsigned.ipa.sha256
 
       - name: Attach unsigned IPA to Release
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
@@ -92,4 +124,6 @@ jobs:
             > **iOS 包 `zcode-app-ios-unsigned.ipa` 为未签名包，无法直接安装。**
             > 请使用 [AltStore](https://altstore.io) / [Sideloadly](https://sideloadly.io) / TrollStore 等工具，
             > 用自己的 Apple ID 签名后侧载（免费账号 7 天需重新签名）。
-          files: zcode-app-ios-unsigned.ipa
+          files: |
+            zcode-app-ios-unsigned.ipa
+            zcode-app-ios-unsigned.ipa.sha256
