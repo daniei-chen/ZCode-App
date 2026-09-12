@@ -22,7 +22,7 @@
 - [x] 更新下载可取消（U5）
 - [x] security_invariants_test：导航白名单 flag、kDebugMode console、FileProvider scope 等硬不变量（T2）
 - [x] 模拟器 E2E 扩充：通知初始化、MethodChannel、APK inspect、生命周期（T1）
-- [ ] v1.0.7 发布走完整 workflow，全程无手工上传文件（R1 验收）
+- [x] v1.0.7 发布走完整 workflow，全程无手工上传文件（R1 验收 ✅ tag→签名→ABI 校验→SHA256→Release 全自动）
 
 ## v1.0.8 — WebView Hardening（候选）
 
