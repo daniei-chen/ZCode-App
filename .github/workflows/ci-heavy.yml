@@ -13,15 +13,9 @@ on:
       - "pubspec.yaml"
       - "pubspec.lock"
       - "l10n.yaml"
+  # PR 上不过滤路径：android 是 main 的必需检查，PR 必须始终上报结论，
+  # 否则纯文档 PR 会因必需检查缺席被永久 BLOCKED（首次治理实跑发现）。
   pull_request:
-    paths:
-      - "lib/**"
-      - "android/**"
-      - "test/**"
-      - "integration_test/**"
-      - "pubspec.yaml"
-      - "pubspec.lock"
-      - "l10n.yaml"
   workflow_dispatch:
 
 permissions:

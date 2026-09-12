@@ -31,13 +31,18 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-  # 依赖评审（仅 PR）：新增依赖的漏洞/许可证检查，公开仓库免费。
+  # 依赖评审（仅 PR）：新增依赖的漏洞/许可证检查。
+  # 非必需检查、不阻断合并：新建仓库的 Dependency Graph 数据生成前该动作会
+  # 直接报 "not supported"（已开启 vulnerability-alerts 触发索引），图数据就绪
+  # 后自动开始正常报告。
   dependency-review:
     if: github.event_name == 'pull_request'
+    continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/dependency-review-action@a29fcd1ba09b2a2f1b343991f9b3d6779cb3b14b # v4.5.0
+      # 官方 first-party action；网络恢复后按仓库惯例改为 SHA 固定。
+      - uses: actions/dependency-review-action@v4
