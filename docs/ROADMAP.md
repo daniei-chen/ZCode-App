@@ -2,7 +2,9 @@
 
 当前版本线：v1.0.8（纯 WebView，Android-only；三版内容一次性收口）。
 
-## v1.0.8 — WebView Hardening & Architecture Cleanup（已交付，待真机 smoke 后发布）
+## v1.0.8 — WebView Hardening & Architecture Cleanup（已发布 ✅）
+
+- [x] 发布走完整 workflow：tag → 签名构建 → arm64 ABI 校验 → SHA256 → attestation → Release（versionCode 9，28.1MB）
 
 ### W1 页面级信任
 
