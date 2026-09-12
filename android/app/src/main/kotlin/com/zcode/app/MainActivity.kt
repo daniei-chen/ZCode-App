@@ -191,6 +191,22 @@ class MainActivity : FlutterFragmentActivity() {
                     val nm = getSystemService(NotificationManager::class.java)
                     result.success(nm?.areNotificationsEnabled() ?: true)
                 }
+                "androidInfo" -> {
+                    val ua = try {
+                        android.webkit.WebSettings.getDefaultUserAgent(this)
+                    } catch (_: Exception) {
+                        ""
+                    }
+                    val chrome = Regex("Chrome/([0-9.]+)")
+                        .find(ua)?.groupValues?.get(1) ?: ""
+                    result.success(
+                        mapOf(
+                            "release" to Build.VERSION.RELEASE,
+                            "sdkInt" to Build.VERSION.SDK_INT,
+                            "webViewChrome" to chrome,
+                        ),
+                    )
+                }
                 "setRecentsCover" -> {
                     recentsCoverEnabled = call.arguments as? Boolean ?: false
                     if (!recentsCoverEnabled) {

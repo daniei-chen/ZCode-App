@@ -20,6 +20,7 @@ abstract final class EventObserver {
       }
       if (q.length >= qMaxEntries) {
         qBytes -= q.shift().b.length;
+        if (window.__zrStats) window.__zrStats.queueDropped++;
       }
       q.push({ n: name, b: body });
       qBytes += body.length;
@@ -46,6 +47,25 @@ abstract final class EventObserver {
     if (flush() || ++flushTries > 250) clearInterval(flushTimer);
   }, 120);
   var send = function(body) { post('zrEvents', body); };
+  // 观测遥测（W2）：只累计数字，绝不记录 query/cookie/正文。供诊断页
+  // 核对白名单命中率；通道就绪时每 15 秒上报一次非空增量。
+  var stats = window.__zrStats = window.__zrStats || {
+    fetch200: 0, fetchCloned: 0, fetchSkipped: 0,
+    sseMessages: 0, wsMessages: 0, wsSkippedSize: 0,
+    framesDecoded: 0, invalidFragments: 0, expiredFragments: 0,
+    queueDropped: 0, seenDropped: 0
+  };
+  var statsDirty = false;
+  var bump = function(k) {
+    if (stats[k] == null) stats[k] = 0;
+    stats[k]++;
+    statsDirty = true;
+  };
+  var statsFlush = setInterval(function() {
+    if (!statsDirty || !window.flutter_inappwebview) return;
+    statsDirty = false;
+    try { post('zrStats', JSON.stringify(stats)); } catch (e) {}
+  }, 15000);
   var seenQ = [];
   var seenFlush = setInterval(function() {
     if (seenQ.length === 0 || !window.flutter_inappwebview) return;
@@ -54,7 +74,10 @@ abstract final class EventObserver {
   }, 900);
   var recordSeen = function(url, method, body) {
     try {
-      if (seenQ.length >= 64) return;
+      if (seenQ.length >= 64) {
+        if (window.__zrStats) window.__zrStats.seenDropped++;
+        return;
+      }
       if (typeof url !== 'string' || url.length > 2048) return;
       var b = null;
       if (typeof body === 'string') b = body;
@@ -67,6 +90,19 @@ abstract final class EventObserver {
   };
   var asm = {};
   var asmOrder = [];
+  // 过期 assembler 清理（W2）：60 秒内没有新分片的逻辑帧视为坏帧，周期
+  // 清扫，防止异常页面让 assembler 无限滞留。
+  var asmSweep = setInterval(function() {
+    var now = Date.now();
+    for (var k2 = asmOrder.length - 1; k2 >= 0; k2--) {
+      var key = asmOrder[k2];
+      if (asm[key] && now - asm[key].t > 60000) {
+        delete asm[key];
+        asmOrder.splice(k2, 1);
+        bump('expiredFragments');
+      }
+    }
+  }, 5000);
   var b64Bytes = function(b64) {
     var bin = atob(b64);
     var bytes = new Uint8Array(bin.length);
@@ -83,14 +119,23 @@ abstract final class EventObserver {
       if (p.kind === 'fragment' && p.fragmentCount > 1) {
         var id = p.logicalFrameId;
         if (!id) return;
+        var fc = p.fragmentCount;
+        var fi = p.fragmentIndex;
+        // 分片边界检查（W2）：count 上限与 index 范围不合法直接丢弃计数。
+        if (typeof fc !== 'number' || fc > 64 ||
+            typeof fi !== 'number' || fi < 0 || fi >= fc) {
+          bump('invalidFragments');
+          return;
+        }
         var slot = asm[id];
         if (!slot) {
           if (asmOrder.length > 32) { delete asm[asmOrder.shift()]; }
-          slot = asm[id] = { parts: {}, got: 0, total: p.fragmentCount };
+          slot = asm[id] = { parts: {}, got: 0, total: fc, t: Date.now() };
           asmOrder.push(id);
         }
-        if (!(p.fragmentIndex in slot.parts)) slot.got++;
-        slot.parts[p.fragmentIndex] = b64Bytes(p.dataBase64);
+        slot.t = Date.now();
+        if (!(fi in slot.parts)) slot.got++;
+        slot.parts[fi] = b64Bytes(p.dataBase64);
         if (slot.got < slot.total) return;
         delete asm[id];
         var idx = asmOrder.indexOf(id);
@@ -116,7 +161,10 @@ abstract final class EventObserver {
         if (first > 0 && last > first) {
           text = text.slice(first, last + 1);
         }
-        if (text && text.length > 0) send(text);
+        if (text && text.length > 0) {
+          bump('framesDecoded');
+          send(text);
+        }
       }
     } catch (e) {}
   };
@@ -162,6 +210,7 @@ abstract final class EventObserver {
       return p.then(function(res) {
         try {
           if (res.status !== 200) return res;
+          bump('fetch200');
           var ct = (res.headers && res.headers.get)
               ? (res.headers.get('content-type') || '')
               : '';
@@ -170,6 +219,23 @@ abstract final class EventObserver {
               ? res.headers.get('content-length')
               : null;
           if (cl && +cl > $kMaxListenBytes) return res;
+          // W2 fetch 白名单：只 clone 可能携带 relay 事件/会话索引的响应；
+          // 其余（静态资源、无关 REST）完全不 clone，降低内存/CPU/隐私面。
+          // 未命中的路径由 zrStats.fetchSkipped 计数，诊断页可核对是否有
+          // 误伤；WS/SSE 是事件主通道，不受此表影响。
+          var cloneAllow = [
+            '/mobile-view-state', '/session', '/task', '/workspace',
+            '/conversation', '/broadcast', '/event'
+          ];
+          var urlOk = false;
+          for (var ai = 0; ai < cloneAllow.length; ai++) {
+            if (url && url.indexOf(cloneAllow[ai]) >= 0) { urlOk = true; break; }
+          }
+          if (!urlOk) {
+            bump('fetchSkipped');
+            return res;
+          }
+          bump('fetchCloned');
           res.clone().text().then(function(t) {
             if (t && t.length > 0 && t.length < $kMaxListenBytes) sendWithDecode(t);
           }).catch(function() {});
@@ -182,7 +248,10 @@ abstract final class EventObserver {
   if (OrigES) {
     var Wrapped = function(url, cfg) {
       var es = new OrigES(url, cfg);
-      es.addEventListener('message', function(ev) { sendWithDecode(ev.data); });
+      es.addEventListener('message', function(ev) {
+        bump('sseMessages');
+        sendWithDecode(ev.data);
+      });
       return es;
     };
     Wrapped.prototype = OrigES.prototype;
@@ -211,15 +280,20 @@ abstract final class EventObserver {
         });
         ws.addEventListener('message', function(ev) {
           try {
+            bump('wsMessages');
             var d = ev.data;
             if (typeof d === 'string') {
               sendWithDecode(d);
             } else if (d && typeof d.size === 'number') {
               if (d.size > 0 && d.size < $kMaxListenBytes) {
                 d.text().then(function(t) { sendWithDecode(t); }).catch(function() {});
+              } else {
+                bump('wsSkippedSize');
               }
             } else if (d && d.byteLength > 0 && d.byteLength < $kMaxListenBytes) {
               try { sendWithDecode(new TextDecoder('utf-8', {fatal: false}).decode(d)); } catch (e2) {}
+            } else if (d && d.byteLength >= $kMaxListenBytes) {
+              bump('wsSkippedSize');
             }
           } catch (e) {}
         });

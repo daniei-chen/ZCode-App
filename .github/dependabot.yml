@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Dart 依赖：每周一次，major 需要人工审（不自动合并任何更新）。
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+
+  # GitHub Actions：每周一次，保持 action 版本可跟进（仍按 SHA 锁定使用）。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies

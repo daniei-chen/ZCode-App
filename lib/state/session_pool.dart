@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/device.dart';
 import '../services/device_store.dart';
+import '../services/app_log.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   DeviceListNotifier({List<RemoteDevice>? seed})
@@ -129,7 +129,7 @@ class ActiveTabNotifier extends Notifier<int> {
         DeviceStore.instance
             .setLastDeviceId(ref.read(deviceListProvider)[index].id)
             .catchError((e) {
-              debugPrint('[ZR] lastDevice 落盘失败: $e');
+              AppLog.warn('[ZR] lastDevice 落盘失败: $e');
             }),
       );
     }

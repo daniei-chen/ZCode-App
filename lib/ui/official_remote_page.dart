@@ -15,11 +15,13 @@ import '../services/session_jump.dart';
 import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
+import '../state/observer_stats.dart';
 import '../state/root_tabs.dart';
 import '../state/session_index.dart';
 import '../state/session_status.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
+import '../services/app_log.dart';
 
 /// Bridge used by the app shell to give a mounted WebView the first chance
 /// to handle Android back.  The WebView remains in the IndexedStack, so this
@@ -42,7 +44,7 @@ class OfficialRemotePageController {
     try {
       return await handler();
     } catch (error, stackTrace) {
-      debugPrint('[ZR][WebView] back handling failed: $error\n$stackTrace');
+      AppLog.warn('[ZR][WebView] back handling failed: $error\n$stackTrace');
       return false;
     }
   }
@@ -517,7 +519,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   Future<void> _silentReloadOnce(String reason) async {
     if (_silentRetried || !mounted || _failed) return;
     _silentRetried = true;
-    debugPrint('[ZR][WebView] silent reload: $reason');
+    AppLog.debug('[ZR][WebView] silent reload: $reason');
     _firstLoadSettled = false;
     _armFirstLoadWatchdog();
     await _controller?.reload();
@@ -681,7 +683,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       // knows whether a real back entry exists.
       if (result == true) return true;
     } catch (error, stackTrace) {
-      debugPrint(
+      AppLog.warn(
         '[ZR][WebView] mobile back script failed: $error\n$stackTrace',
       );
     }
@@ -694,7 +696,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         return true;
       }
     } catch (error, stackTrace) {
-      debugPrint('[ZR][WebView] browser back failed: $error\n$stackTrace');
+      AppLog.warn('[ZR][WebView] browser back failed: $error\n$stackTrace');
     }
     return false;
   }
@@ -903,6 +905,30 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           },
                         );
                         controller.addJavaScriptHandler(
+                          handlerName: 'zrStats',
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
+                            final body = args.isNotEmpty ? args.first : null;
+                            if (body is String) {
+                              try {
+                                final decoded = jsonDecode(body);
+                                if (decoded is Map) {
+                                  ref
+                                      .read(observerStatsProvider.notifier)
+                                      .update({
+                                        for (final e in decoded.entries)
+                                          if (e.value is num)
+                                            '${e.key}':
+                                                (e.value as num).toInt(),
+                                      });
+                                  AppLog.debug('[ZR][Observer] stats $body');
+                                }
+                              } catch (_) {}
+                            }
+                            return null;
+                          },
+                        );
+                        controller.addJavaScriptHandler(
                           handlerName: 'zrWs',
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
@@ -915,7 +941,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                       },
                       onLoadStart: (_, uri) {
-                        debugPrint('[ZR][WebView] load start ${uri?.path}');
+                        AppLog.debug('[ZR][WebView] load start ${uri?.path}');
                         if (!mounted) return;
                         setState(() {
                           _loading = true;
@@ -927,7 +953,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         unawaited(_applyWebTheme(_currentDark(context)));
                       },
                       onLoadStop: (_, uri) {
-                        debugPrint('[ZR][WebView] load stop ${uri?.path}');
+                        AppLog.debug('[ZR][WebView] load stop ${uri?.path}');
                         if (!mounted) return;
                         // Android fires onLoadStop even when the main document
                         // failed (the error page still "finishes"). Only
@@ -962,7 +988,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         // query/fragment（凭证都在 query 里）。
                         final trusted = LinkBuilder.isTrustedRemotePage(uri);
                         if (!trusted) {
-                          debugPrint(
+                          AppLog.debug(
                             '[ZR][WebView] nav blocked '
                             '${uri?.scheme}://${uri?.host}${uri?.path}',
                           );
@@ -973,7 +999,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       },
                       onReceivedError: (_, request, error) {
                         if (request.isForMainFrame != true || !mounted) return;
-                        debugPrint(
+                        AppLog.debug(
                           '[ZR][WebView] load error ${error.type}: '
                           '${error.description}',
                         );
@@ -982,7 +1008,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       onReceivedHttpError: (_, request, response) {
                         if (request.isForMainFrame != true || !mounted) return;
                         if ((response.statusCode ?? 0) >= 400) {
-                          debugPrint(
+                          AppLog.debug(
                             '[ZR][WebView] http error ${response.statusCode}',
                           );
                           _onLoadError();
@@ -993,7 +1019,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         // release 构建不把页面 console 透传到 logcat（可能
                         // 带会话内容片段）。
                         if (kDebugMode && text.isNotEmpty) {
-                          debugPrint('[ZR][WebView] console $text');
+                          AppLog.debug('[ZR][WebView] console $text');
                         }
                       },
                     ),

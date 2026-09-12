@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -10,6 +9,7 @@ import '../models/device.dart';
 import '../models/device_label.dart';
 import '../models/notification_prefs.dart';
 import 'event_observer.dart';
+import 'app_log.dart';
 
 class NotificationSpec {
   const NotificationSpec({
@@ -245,7 +245,7 @@ class NotifierService {
         NotificationTap.route(details?.notificationResponse?.payload);
       }
     } catch (e) {
-      debugPrint('[ZR] notification init failed: $e');
+      AppLog.warn('[ZR] notification init failed: $e');
     }
   }
 
@@ -300,7 +300,7 @@ class NotifierService {
         payload: spec.payload,
       );
     } catch (e) {
-      debugPrint('[ZR] notification show failed: $e');
+      AppLog.warn('[ZR] notification show failed: $e');
     }
   }
 
@@ -330,7 +330,7 @@ class NotifierService {
       );
       return true;
     } catch (e) {
-      debugPrint('[ZR] notification test failed: $e');
+      AppLog.warn('[ZR] notification test failed: $e');
       return false;
     }
   }

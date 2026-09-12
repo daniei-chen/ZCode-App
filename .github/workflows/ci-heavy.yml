@@ -1,0 +1,74 @@
+name: ci-heavy
+
+# 重 CI（v1.1.0 CI 分层）：Android 构建与模拟器 E2E 只在相关路径变更时
+# 触发；纯文档/说明提交只跑 fast check（ci.yml），不再烧十几分钟。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lib/**"
+      - "android/**"
+      - "test/**"
+      - "integration_test/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "l10n.yaml"
+  pull_request:
+    paths:
+      - "lib/**"
+      - "android/**"
+      - "test/**"
+      - "integration_test/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "l10n.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Android 可构建性巡检：出 debug 包，防 Android 侧悄悄烂掉（阻断检查）。
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: 3.47.3
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build apk --debug
+
+  # Android 模拟器冒烟：真机环境跑 integration_test（阻断检查）。
+  android-emulator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e # v2.21.0
+        with:
+          flutter-version: 3.47.3
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808 # v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          script: flutter test integration_test

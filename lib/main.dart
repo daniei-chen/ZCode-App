@@ -7,14 +7,15 @@ import 'package:flutter/services.dart';
 import 'l10n/app_localizations.dart';
 import 'models/device.dart';
 import 'models/device_label.dart';
+import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
+import 'state/app_lifecycle.dart';
 import 'state/session_pool.dart';
 import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
 import 'theme.dart';
-import 'state/app_lifecycle.dart';
 import 'ui/app_shell.dart';
 
 Future<void> main() async {
@@ -265,7 +266,7 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
         setState(() => _unavailable = true);
       }
     } catch (e) {
-      debugPrint('[ZR] biometric authentication failed: $e');
+      AppLog.warn('[ZR] biometric authentication failed: $e');
     } finally {
       _authenticating = false;
     }

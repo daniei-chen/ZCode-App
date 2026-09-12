@@ -1,0 +1,279 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../l10n/app_localizations.dart';
+import '../services/app_log.dart';
+import '../services/app_settings.dart';
+import '../services/battery_optimization.dart';
+import '../services/update_service.dart';
+import '../state/observer_stats.dart';
+import '../state/session_pool.dart';
+import '../state/session_status.dart';
+import '../theme.dart';
+
+/// 诊断中心（v1.1.0）：只读状态页 + 用户主动导出日志。
+///
+/// 硬规则：不显示 sid/hash/remoteControlToken、控制链接、会话标题与正文、
+/// 网络 payload（含 query）。只呈现版本号/枚举状态/数字计数。
+class DiagnosticsPage extends ConsumerStatefulWidget {
+  const DiagnosticsPage({super.key});
+
+  @override
+  ConsumerState<DiagnosticsPage> createState() => _DiagnosticsPageState();
+}
+
+class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
+  String _version = '';
+  String _buildNumber = '';
+  Map<String, Object?> _android = const {};
+  bool? _notifEnabled;
+  bool? _batteryIgnored;
+  String? _updateStatus;
+  bool _checkingUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _version = info.version;
+      _buildNumber = info.buildNumber;
+    } catch (_) {}
+    final android = await AppSettings.androidInfo();
+    final notif = await AppSettings.notificationsEnabled();
+    final battery =
+        await BatteryOptimizationService.isIgnoringBatteryOptimizations();
+    if (!mounted) return;
+    setState(() {
+      _android = android;
+      _notifEnabled = notif;
+      _batteryIgnored = battery;
+    });
+  }
+
+  Future<void> _checkUpdate() async {
+    setState(() => _checkingUpdate = true);
+    final result = await UpdateService.instance.checkForUpdate();
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    setState(() {
+      _checkingUpdate = false;
+      final latest = result.latestVersion ?? '';
+      _updateStatus = switch (result.status) {
+        UpdateCheckStatus.upToDate => l10n.diagnosticsUpdateUpToDate,
+        UpdateCheckStatus.updateAvailable =>
+          result.canDownload
+              ? l10n.diagnosticsUpdateDownloadable(latest)
+              : l10n.diagnosticsUpdateManual(latest),
+        UpdateCheckStatus.noRelease => l10n.diagnosticsUpdateNoRelease,
+        UpdateCheckStatus.failed => l10n.diagnosticsUpdateFailed,
+      };
+    });
+  }
+
+  Future<void> _copyLogs() async {
+    final l10n = AppLocalizations.of(context)!;
+    await Clipboard.setData(ClipboardData(text: AppLog.export()));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.diagnosticsCopied)));
+  }
+
+  String _statusLabel(AppLocalizations l10n, SessionStatus? status) =>
+      switch (status) {
+        SessionStatus.live => l10n.diagnosticsStatusLive,
+        SessionStatus.loading => l10n.diagnosticsStatusLoading,
+        SessionStatus.error => l10n.diagnosticsStatusError,
+        null => '—',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final palette = context.zt;
+    final devices = ref.watch(deviceListProvider);
+    final active = ref.watch(activeTabProvider);
+    final statuses = ref.watch(sessionStatusProvider);
+    final stats = ref.watch(observerStatsProvider);
+    final biometric = ref.watch(biometricProvider);
+    final logs = AppLog.snapshot().reversed.take(120).toList();
+    final sortedStats = stats.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return Scaffold(
+      backgroundColor: palette.bg,
+      appBar: AppBar(
+        backgroundColor: palette.bg,
+        elevation: 0,
+        centerTitle: false,
+        iconTheme: IconThemeData(color: palette.textLo),
+        title: Text(
+          l10n.diagnosticsTitle,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: palette.textHi,
+          ),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 40),
+        children: [
+          _section(palette, l10n.diagnosticsSectionApp),
+          _row(
+            palette,
+            l10n.diagnosticsAppVersion,
+            _version.isEmpty ? '…' : 'v$_version+$_buildNumber',
+          ),
+          _section(palette, l10n.diagnosticsSectionEnvironment),
+          _row(
+            palette,
+            'Android',
+            '${_android['release'] ?? '?'}（API ${_android['sdkInt'] ?? '?'}）',
+          ),
+          _row(
+            palette,
+            'WebView Chromium',
+            '${_android['webViewChrome'] ?? '?'}',
+          ),
+          _section(palette, l10n.diagnosticsSectionDevices),
+          _row(palette, l10n.diagnosticsDeviceCount, '${devices.length}'),
+          _row(
+            palette,
+            l10n.diagnosticsActiveDevice,
+            devices.isEmpty
+                ? l10n.diagnosticsNoDevices
+                : (active >= 0 && active < devices.length
+                      ? devices[active].label
+                      : '—'),
+          ),
+          for (final d in devices)
+            _row(palette, d.label, _statusLabel(l10n, statuses[d.id])),
+          _section(palette, l10n.diagnosticsSectionNotifications),
+          _row(
+            palette,
+            l10n.diagnosticsNotifPermission,
+            _notifEnabled == null
+                ? '…'
+                : (_notifEnabled!
+                      ? l10n.diagnosticsEnabled
+                      : l10n.diagnosticsDisabled),
+          ),
+          _section(palette, l10n.diagnosticsSectionBackground),
+          _row(
+            palette,
+            l10n.diagnosticsBatteryIgnored,
+            _batteryIgnored == null
+                ? '…'
+                : (_batteryIgnored!
+                      ? l10n.diagnosticsEnabled
+                      : l10n.diagnosticsDisabled),
+          ),
+          _section(palette, l10n.diagnosticsSectionSecurity),
+          _row(
+            palette,
+            l10n.diagnosticsBiometric,
+            biometric ? l10n.diagnosticsEnabled : l10n.diagnosticsDisabled,
+          ),
+          _row(
+            palette,
+            l10n.diagnosticsRecentsCover,
+            biometric ? l10n.diagnosticsEnabled : l10n.diagnosticsDisabled,
+          ),
+          _section(palette, l10n.diagnosticsSectionUpdate),
+          _row(
+            palette,
+            l10n.diagnosticsUpdateStatus,
+            _updateStatus ?? l10n.diagnosticsUpdateNotChecked,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonal(
+                onPressed: _checkingUpdate ? null : _checkUpdate,
+                child: Text(l10n.diagnosticsCheckUpdateNow),
+              ),
+            ),
+          ),
+          _section(palette, l10n.diagnosticsSectionObserver),
+          if (sortedStats.isEmpty)
+            _row(palette, l10n.diagnosticsSectionObserver, '—')
+          else
+            for (final e in sortedStats) _row(palette, e.key, '${e.value}'),
+          _section(palette, l10n.diagnosticsSectionLogs),
+          if (logs.isEmpty)
+            _row(palette, l10n.diagnosticsSectionLogs, l10n.diagnosticsLogsEmpty)
+          else
+            for (final line in logs)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.3,
+                    color: palette.textLo,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: _copyLogs,
+                icon: const Icon(Icons.copy_all_outlined, size: 18),
+                label: Text(l10n.diagnosticsCopyLogs),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _section(ZTPalette palette, String label) => Padding(
+    padding: const EdgeInsets.fromLTRB(2, 14, 2, 6),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: palette.textHi,
+      ),
+    ),
+  );
+
+  Widget _row(ZTPalette palette, String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13, color: palette.textLo),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(fontSize: 13, color: palette.textHi),
+          ),
+        ),
+      ],
+    ),
+  );
+}

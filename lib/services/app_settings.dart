@@ -26,6 +26,20 @@ abstract final class AppSettings {
     }
   }
 
+  /// 诊断页用：Android 版本 / API / WebView Chromium 版本。
+  static Future<Map<String, Object?>> androidInfo() async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'androidInfo',
+      );
+      return {
+        for (final e in (raw ?? const {}).entries) '${e.key}': e.value,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// 最近任务隐私遮罩开关（FLAG_SECURE）：生物识别开启时置 true，
   /// 切后台瞬间遮蔽应用快照，回前台由原生侧自动恢复。
   static Future<void> setRecentsCover(bool enabled) async {

@@ -10,6 +10,11 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    # v1.1.0：产物来源证明（attestation）需要 id-token 与 attestations 写权限。
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -72,6 +77,13 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/ZCode-v${VERSION}.apk"
           cd build/app/outputs/flutter-apk
           sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
+
+      # v1.1.0：APK 产物来源证明——用户可用 `gh attestation verify` 验证
+      # 这个 APK 确实由本仓库的 GitHub Actions 构建。
+      - name: Attest APK build provenance
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: build/app/outputs/flutter-apk/ZCode-v*.apk
 
       # 发布说明：优先使用 docs/releases/<tag>.md；缺失时退回自动生成。
       - name: Prepare release notes

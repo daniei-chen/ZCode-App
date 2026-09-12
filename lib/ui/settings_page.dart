@@ -15,6 +15,7 @@ import '../state/notification_prefs.dart';
 import '../state/startup_target.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
+import 'diagnostics_page.dart';
 import 'section_label.dart';
 import 'update_download_dialog.dart';
 
@@ -116,6 +117,7 @@ class SettingsPage extends ConsumerWidget {
               const _StartupTargetTile(),
               const _FeedbackTile(),
               const _AuthorTile(),
+              const _DiagnosticsTile(),
               SectionLabel(l10n.settingsGroupNotifications),
               const _NotificationCard(),
             ],
@@ -351,6 +353,33 @@ class _BatteryTile extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<_BatteryTile> createState() => _BatteryTileState();
+}
+
+/// 诊断信息入口：只读状态页 + 用户主动导出日志（v1.1.0）。
+class _DiagnosticsTile extends StatelessWidget {
+  const _DiagnosticsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      child: SizedBox(
+        height: _settingsRowHeight,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          leading: const _DeviceStyleSettingIcon(Icons.monitor_heart_outlined),
+          title: Text(
+            l10n.diagnosticsTitle,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          trailing: Icon(Icons.chevron_right, color: context.zt.textLo),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const DiagnosticsPage()),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _BatteryTileState extends ConsumerState<_BatteryTile> {
