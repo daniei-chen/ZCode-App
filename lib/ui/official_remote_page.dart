@@ -520,7 +520,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   Future<void> _silentReloadOnce(String reason) async {
     if (_silentRetried || !mounted || _failed) return;
     _silentRetried = true;
-    AppLog.debug('[ZR][WebView] silent reload: $reason');
+    // release 可见：黑屏守卫触发是真实故障信号，需要在诊断页/日志可查。
+    AppLog.warn('[ZR][WebView] silent reload: $reason');
     _firstLoadSettled = false;
     _armFirstLoadWatchdog();
     await _controller?.reload();
@@ -1000,7 +1001,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         // query/fragment（凭证都在 query 里）。
                         final trusted = LinkBuilder.isTrustedRemotePage(uri);
                         if (!trusted) {
-                          AppLog.debug(
+                          // release 可见（AppLog.warn）：真机 smoke 需要靠这条
+                          // 日志发现被误拦的合法导航，再把路由加进策略。
+                          // 只记 scheme/host/path——凭证都在 query 里。
+                          AppLog.warn(
                             '[ZR][WebView] nav blocked '
                             '${uri?.scheme}://${uri?.host}${uri?.path}',
                           );
