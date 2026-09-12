@@ -40,6 +40,19 @@ android {
         versionName = flutter.versionName
     }
 
+    // 发布契约是 arm64 单包。`--target-platform` 只过滤 Flutter 自家库
+    // （libflutter/libapp），插件 AAR 的原生库（ML Kit、camera 等）仍会按
+    // 三 ABI 打进去，且新 gradle 插件无视 ndk.abiFilters——只能在 AGP
+    // packaging 层强制剔除（v1.0.7 CI 实测）。
+    packaging {
+        jniLibs {
+            excludes += listOf(
+                "lib/armeabi-v7a/**",
+                "lib/x86_64/**",
+            )
+        }
+    }
+
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {

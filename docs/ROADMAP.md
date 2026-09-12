@@ -9,6 +9,8 @@
 - [x] GitHub Secrets（KEYSTORE_BASE64 / KEYSTORE_PASSWORD）配置完成
 - [x] release.yml：tag↔pubspec 校验、确定性资产名 ZCode-v<version>.apk、SHA256 资产、发布说明文件
 - [x] release.yml：钉死 arm64 单包并自动验证产物 ABI（R2）
+- [x] 打包层钉死 ABI：packaging.jniLibs.excludes 剔除非 arm64 库（`--target-platform` 只过滤 Flutter 自家库、插件 AAR 不受限；v1.0.6 起资产实为 fat APK，此前被体积误判为 arm64 单包）
+- [x] WebView 黑屏守卫：首载超时或空白帧自动静默刷新一次（用户上报，只自动重试一次）
 - [x] 应用内更新 fail-closed：资产必须带合法 SHA256 digest 才自动下载（U1）
 - [x] 资产选择只认 ZCode-v<version>.apk 精确名，删除 ZCode.apk / 任意 .apk 回退（U2）
 - [x] 安装前预校验：包名 + versionCode，"无法降级安装(-25)"在人话界面拦截

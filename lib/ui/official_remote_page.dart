@@ -470,9 +470,29 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 })();
 ''';
 
+  /// 首帧空白探测：body 没有子元素，或既无可见文本也无任何媒体/框架根节点，
+  /// 视为页面未绘制成功。
+  static const String _blankProbeScript = '''
+(() => {
+  const body = document.body;
+  if (!body || body.childElementCount === 0) return "empty";
+  const text = (body.innerText || "").trim();
+  if (text.length > 0) return "ok";
+  if (body.querySelector("canvas,svg,img,video,iframe,app-root,#root,#app")) return "ok";
+  return "empty";
+})();
+''';
+
   InAppWebViewController? _controller;
   bool _failed = false;
   bool _loading = true;
+  // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
+  // 首次加载 20s 内没有 onLoadStop，或 stop 后页面持续空白，就静默 reload
+  // 一次；只自动重试一次，之后交给错误卡与手动重试。
+  bool _firstLoadSettled = false;
+  bool _silentRetried = false;
+  bool _firstPaintProbed = false;
+  Timer? _firstLoadWatchdog;
   Timer? _warmupTimer;
   String? _pendingSessionId;
   WebViewSyncController? _sync;
@@ -483,6 +503,48 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.backController?.attach(_handleBack);
+    _armFirstLoadWatchdog();
+  }
+
+  void _armFirstLoadWatchdog() {
+    _firstLoadWatchdog?.cancel();
+    _firstLoadWatchdog = Timer(const Duration(seconds: 20), () {
+      if (!mounted || _firstLoadSettled || _failed) return;
+      unawaited(_silentReloadOnce('first load timeout'));
+    });
+  }
+
+  Future<void> _silentReloadOnce(String reason) async {
+    if (_silentRetried || !mounted || _failed) return;
+    _silentRetried = true;
+    debugPrint('[ZR][WebView] silent reload: $reason');
+    _firstLoadSettled = false;
+    _armFirstLoadWatchdog();
+    await _controller?.reload();
+  }
+
+  /// onLoadStop 后复核首帧：Chromium 可能已 stop 但页面持续空白。静默刷新
+  /// 一次，避免用户对着黑屏。
+  Future<void> _verifyFirstPaint() async {
+    if (_silentRetried || _failed || _firstPaintProbed) return;
+    _firstPaintProbed = true;
+    if (!await _probeBlank()) return;
+    // SPA 可能仍在挂载：3 秒后复核，仍空白才刷新。
+    await Future<void>.delayed(const Duration(seconds: 3));
+    if (!mounted || _failed || !await _probeBlank()) return;
+    await _silentReloadOnce('blank first frame');
+  }
+
+  Future<bool> _probeBlank() async {
+    try {
+      final result = await _controller?.evaluateJavascript(
+        source: _blankProbeScript,
+      );
+      // 不同插件版本对字符串返回值的 JSON 编码不一致，统一剥引号比较。
+      return result?.toString().replaceAll('"', '') == 'empty';
+    } catch (_) {
+      return false; // 探测失败不触发刷新，交给超时/错误路径。
+    }
   }
 
   @override
@@ -674,6 +736,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     widget.backController?.detach();
     WidgetsBinding.instance.removeObserver(this);
     _warmupTimer?.cancel();
+    _firstLoadWatchdog?.cancel();
     _sync?.forget();
     super.dispose();
   }
@@ -851,6 +914,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         setState(() {
                           _loading = false;
                         });
+                        _firstLoadSettled = true;
+                        _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {
@@ -859,6 +924,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                               .report(widget.device.id, SessionStatus.live);
                           _scheduleWarmupReplay();
                           _applyPendingJump();
+                          unawaited(_verifyFirstPaint());
                         }
                       },
                       shouldOverrideUrlLoading: (_, action) async {
