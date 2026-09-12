@@ -26,6 +26,45 @@ void main() {
       expect(read('lib/ui/official_remote_page.dart').contains('kDebugMode'), isTrue);
     });
 
+    test('主框架导航必须使用页面级信任 isTrustedRemotePage（W1）', () {
+      expect(
+        read('lib/ui/official_remote_page.dart').contains(
+          'LinkBuilder.isTrustedRemotePage',
+        ),
+        isTrue,
+      );
+      expect(
+        read('lib/services/link_builder.dart').contains(
+          'static bool isTrustedRemotePage',
+        ),
+        isTrue,
+      );
+    });
+
+    test('信任模型拒绝显式非 443 端口（W1）', () {
+      expect(
+        read('lib/services/link_builder.dart').contains('uri.port != 443'),
+        isTrue,
+      );
+    });
+
+    test('高权限 bridge 回调必须经过 _bridgeAllowed 守卫（W1 纵深防御）', () {
+      final src = read('lib/ui/official_remote_page.dart');
+      expect(
+        RegExp(r'await _bridgeAllowed\(\)').allMatches(src).length,
+        greaterThanOrEqualTo(5),
+      );
+    });
+
+    test('第三方 Cookie 保持最小化关闭（W3）', () {
+      expect(
+        read('lib/ui/official_remote_page.dart').contains(
+          'thirdPartyCookiesEnabled: false',
+        ),
+        isTrue,
+      );
+    });
+
     test('控制链接只接受 https 官方 host（拒绝明文与任意域）', () {
       final src = read('lib/services/link_builder.dart');
       expect(src.contains("scheme.toLowerCase() != 'https'"), isTrue);
@@ -92,11 +131,18 @@ void main() {
       expect(paths.contains('path="."'), isFalse);
     });
 
-    test('KeepAliveService 必须保持未注册（升级清理垫片，不得复活常驻服务）', () {
+    test('KeepAlive 历史实现必须已删除，且不得复活常驻服务（K1）', () {
       expect(
         read('android/app/src/main/AndroidManifest.xml').contains('<service'),
         isFalse,
       );
+      expect(
+        File(
+          '$root/android/app/src/main/kotlin/com/zcode/app/KeepAliveService.kt',
+        ).existsSync(),
+        isFalse,
+      );
+      expect(File('$root/lib/services/keepalive.dart').existsSync(), isFalse);
     });
 
     test('Release 构建禁止 debug 签名回退（缺 keystore 即失败）', () {

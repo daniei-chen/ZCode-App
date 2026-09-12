@@ -7,7 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/app_settings.dart';
-import '../services/keepalive.dart';
+import '../services/battery_optimization.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
@@ -364,10 +364,9 @@ class _BatteryTileState extends ConsumerState<_BatteryTile> {
   }
 
   Future<void> _refresh() async {
-    final service = KeepAliveService.instance;
     final results = await Future.wait([
-      service.isBatteryIgnored,
-      service.isBlocked,
+      BatteryOptimizationService.isIgnoringBatteryOptimizations(),
+      BatteryOptimizationService.isVendorBlocked(),
     ]);
     if (mounted) {
       setState(() {
@@ -378,11 +377,10 @@ class _BatteryTileState extends ConsumerState<_BatteryTile> {
   }
 
   Future<void> _request() async {
-    final service = KeepAliveService.instance;
     if (_blocked) {
-      await service.requestVendorExemption();
+      await BatteryOptimizationService.requestVendorExemption();
     } else {
-      await service.requestBatteryExemption();
+      await BatteryOptimizationService.requestIgnoreBatteryOptimizations();
     }
   }
 

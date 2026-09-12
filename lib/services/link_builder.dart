@@ -17,23 +17,51 @@ class LinkBuilder {
   /// 用户可触发的扫码/粘贴入口获得同等的高权限 WebView bridge。
   static const trustedHosts = <String>{'zcode.z.ai'};
 
-  static bool isTrustedUri(Uri? uri) {
+  /// 官方远控页面的 path 命名空间：/remote/v4、/remote/v5…（允许版本递进，
+  /// 但不接受该命名空间以外的任何官方页面）。
+  static final _remotePagePath = RegExp(r'^/remote/v\d+(/|$)');
+
+  /// Level 1：是否属于官方 origin。
+  ///
+  /// https + 官方 host + 无 userInfo + 默认端口（443；显式 :443 等价）。
+  /// 只回答"是不是官方站点"，**不代表它可以拥有原生 bridge**。
+  static bool isTrustedOrigin(Uri? uri) {
     if (uri == null || uri.scheme.toLowerCase() != 'https') return false;
     if (uri.host.isEmpty || uri.userInfo.isNotEmpty) return false;
-    return trustedHosts.contains(uri.host.toLowerCase());
+    if (!trustedHosts.contains(uri.host.toLowerCase())) return false;
+    // 拒绝显式非 443 端口；https 未写端口时 Uri.port 归一为 443。
+    if (uri.port != 443) return false;
+    return true;
   }
 
-  static bool isTrustedOrigin(String raw) {
+  /// 兼容旧调用名：Level 1 origin 检查。
+  static bool isTrustedUri(Uri? uri) => isTrustedOrigin(uri);
+
+  static bool isTrustedOriginString(String raw) {
     final uri = Uri.tryParse(raw.trim());
-    return isTrustedUri(uri);
+    return isTrustedOrigin(uri);
+  }
+
+  /// Level 2：是否是可以拥有原生 bridge 的官方远控页面（W1）。
+  ///
+  /// origin 合法 + path 落在 /remote/v<数字> 命名空间。官方站其他页面
+  /// （首页、登录、帮助等）不得进入高权限容器——即使它们同属一个域。
+  static bool isTrustedRemotePage(Uri? uri) {
+    if (!isTrustedOrigin(uri)) return false;
+    final path = uri!.path;
+    // 防 path 归一化绕过：点段/空段一律拒绝（Uri 已做一次归一化，
+    // 这里再兜一层防御）。
+    if (path.contains('..') || path.contains('//')) return false;
+    return _remotePagePath.hasMatch(path);
   }
 
   static bool isTrustedDevice(RemoteDevice device) {
     final base = Uri.tryParse(device.baseUrl);
-    if (!isTrustedUri(base)) return false;
+    // 设备必须指向官方远控页面本身，而不只是官方 origin。
+    if (!isTrustedRemotePage(base)) return false;
     for (final key in const ['origin', 'relayOrigin']) {
       final value = device.params[key];
-      if (value != null && value.isNotEmpty && !isTrustedOrigin(value)) {
+      if (value != null && value.isNotEmpty && !isTrustedOriginString(value)) {
         return false;
       }
     }
@@ -110,7 +138,7 @@ class LinkBuilder {
     if (uri == null) return null;
     if (uri.scheme != 'http' && uri.scheme != 'https') return null;
     if (uri.host.isEmpty) return null;
-    if (!allowCustomOrigin && !isTrustedUri(uri)) return null;
+    if (!allowCustomOrigin && !isTrustedRemotePage(uri)) return null;
 
     final params = <String, String>{};
     uri.queryParameters.forEach((k, v) {

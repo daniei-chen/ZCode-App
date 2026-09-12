@@ -547,6 +547,18 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     }
   }
 
+  /// W1 defense-in-depth：高权限 bridge 回调在被信任前，Dart 侧再次确认
+  /// 当前主文档仍位于官方远控页面——不能只依赖"能调用 handler 的页面
+  /// 一定可信"（UserScript origin 限制之外的第二道防线）。
+  Future<bool> _bridgeAllowed() async {
+    try {
+      final url = await _controller?.getUrl();
+      return LinkBuilder.isTrustedRemotePage(url);
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void didChangePlatformBrightness() {
     super.didChangePlatformBrightness();
@@ -822,7 +834,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         javaScriptEnabled: true,
                         domStorageEnabled: true,
                         cacheEnabled: true,
-                        thirdPartyCookiesEnabled: true,
+                        // W3：没有证据表明需要第三方 Cookie，先最小化关闭；
+                        // 真机全流程 smoke（导入/重连/切换/发送/刷新/前后台）
+                        // 通过后永久保持 false，失败则记录依赖流程再评估。
+                        thirdPartyCookiesEnabled: false,
                         userAgent: _desktopUserAgent,
                         useWideViewPort: true,
                         supportZoom: false,
@@ -850,7 +865,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         unawaited(_applyWebTheme(_currentDark(context)));
                         controller.addJavaScriptHandler(
                           handlerName: 'zrTheme',
-                          callback: (args) {
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             _onWebThemeChange(body);
                             return null;
@@ -858,9 +874,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                         controller.addJavaScriptHandler(
                           handlerName: 'zrEvents',
-                          callback: (args) {
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
+                            if (!context.mounted) return null;
                             final body = args.isNotEmpty ? args.first : null;
-                            if (mounted && body is String) {
+                            if (body is String) {
                               _sync?.ingestMessage(body, context);
                             }
                             return null;
@@ -868,7 +886,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                         controller.addJavaScriptHandler(
                           handlerName: 'zrViewState',
-                          callback: (args) {
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is String) _sync?.ingestViewState(body);
                             return null;
@@ -876,7 +895,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                         controller.addJavaScriptHandler(
                           handlerName: 'zrSeen',
-                          callback: (args) {
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is String) _sync?.ingestSeen(body);
                             return null;
@@ -884,7 +904,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                         controller.addJavaScriptHandler(
                           handlerName: 'zrWs',
-                          callback: (args) {
+                          callback: (args) async {
+                            if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is String) {
                               _sync?.ingestWebSocketEvent(body);
@@ -929,7 +950,24 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       },
                       shouldOverrideUrlLoading: (_, action) async {
                         final uri = action.request.url;
-                        return LinkBuilder.isTrustedUri(uri)
+                        final isMainFrame = action.isForMainFrame;
+                        if (!isMainFrame) {
+                          // 子 frame 只需官方 origin，不要求远控路径。
+                          return LinkBuilder.isTrustedOrigin(uri)
+                              ? NavigationActionPolicy.ALLOW
+                              : NavigationActionPolicy.CANCEL;
+                        }
+                        // W1：只有官方远控页面可以留在高权限容器里；官方站
+                        // 其他页面与外站一律拦截。只记录 path，不记录
+                        // query/fragment（凭证都在 query 里）。
+                        final trusted = LinkBuilder.isTrustedRemotePage(uri);
+                        if (!trusted) {
+                          debugPrint(
+                            '[ZR][WebView] nav blocked '
+                            '${uri?.scheme}://${uri?.host}${uri?.path}',
+                          );
+                        }
+                        return trusted
                             ? NavigationActionPolicy.ALLOW
                             : NavigationActionPolicy.CANCEL;
                       },

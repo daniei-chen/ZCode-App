@@ -18,12 +18,27 @@ Flutter 单 Activity（`FlutterFragmentActivity`）应用，无底部 Tab、无�
 
 `activeTabProvider` 的语义是"当前前台的设备索引"，不再是 Tab 索引。
 
-## WebView 信任边界
+## WebView 信任边界（W1 页面级模型）
+
+信任分三层，不再用一个"域名判断"包打天下：
+
+1. **Level 1 `isTrustedOrigin`**：https + host 精确等于 `zcode.z.ai` + 无 userInfo +
+   端口为 443（显式非默认端口拒绝）。只回答"是不是官方站点"，不代表可拥有
+   原生 bridge；子 frame 导航、warmup 重放等只需这一层。
+2. **Level 2 `isTrustedRemotePage`**：origin 合法 + path 落在 `/remote/v<数字>`
+   命名空间（覆盖 `/remote/v4`、`/remote/v4/`、`/remote/v4/xxx`，并为 v5+ 留出
+   版本递进）。官方站其他页面（首页、登录等）即使同域也不得进入高权限容器。
+3. **导航策略**：主框架只放行 Level 2；被拦截的导航记日志（只记
+   scheme/host/path，不记 query/fragment——凭证都在 query 里）。
+
+纵深防御：
 
 - 导航白名单只在 `useShouldOverrideUrlLoading: true` 时生效（插件默认 false，回调
   永远不会触发——这是踩过的坑）。
+- 五个高权限 JS bridge 回调（zrTheme/zrEvents/zrViewState/zrSeen/zrWs）在 Dart 侧
+  统一过 `_bridgeAllowed()`：处理前再次确认当前主文档仍是官方远控页面。
 - 三个注入 UserScript 均带 `allowedOriginRules: {'https://zcode.z.ai'}`。
-- `link_builder.dart` 负责控制链接解析：host 校验、拒绝环回/私网/保留地址、URL 重建。
+- `thirdPartyCookiesEnabled: false`（W3 最小化；真机全流程 smoke 通过后保持）。
 - `sid`/`hash` 等凭证只进 secure storage；日志、测试、文档不得出现真实凭证。
 
 ## 更新链（Android 专属）
@@ -63,7 +78,7 @@ Flutter 单 Activity（`FlutterFragmentActivity`）应用，无底部 Tab、无�
 
 | 通道 | 用途 |
 |---|---|
-| `zremote/keepalive` | 电池优化白名单（isBatteryIgnored / requestBatteryIgnore / MIUI 豁免） |
+| `zremote/battery` | 电池优化白名单（查询 / 引导；不承诺后台保活，K1/K2） |
 | `zremote/app` | 应用设置、系统通知开关状态 |
 | `zremote/theme` | 夜间模式同步 |
 | `zremote/notification_sound` | 默认通知音预览 |

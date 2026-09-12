@@ -2,7 +2,7 @@ name: zremote
 description: "ZCode App — ZCode 桌面端远程控制的移动端伴侣：扫码导入，多设备并行会话，生物识别门禁。"
 publish_to: 'none'
 
-version: 1.0.7+8
+version: 1.0.8+9
 
 environment:
   sdk: ^3.10.4

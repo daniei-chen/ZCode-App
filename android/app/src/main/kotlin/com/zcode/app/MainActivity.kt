@@ -37,10 +37,11 @@ class MainActivity : FlutterFragmentActivity() {
         syncApplicationNightMode(mode)
         val dark = savedThemeIsDark()
         applySavedLaunchSurface(dark)
-        // Stop the v1.0.0 foreground service if an older install had enabled
-        // it. v1.0.1 no longer declares or starts that service, so no
-        // background "ZCode running" notification can remain behind.
-        stopService(Intent(this, KeepAliveService::class.java))
+        // v1.0.0 的前台服务在新版本里已不存在（类已删除）：用组件名停一次，
+        // 清掉旧安装可能的运行实例与常驻通知，不需要保留整套 Service 实现。
+        stopService(
+            Intent().setClassName(packageName, "com.zcode.app.KeepAliveService"),
+        )
         clearLegacyKeepAliveNotification()
         super.onCreate(savedInstanceState)
         // FlutterActivity switches LaunchTheme to NormalTheme inside super.
@@ -141,21 +142,12 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            "zremote/keepalive",
+            "zremote/battery",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "start" -> {
-                    stopService(Intent(this, KeepAliveService::class.java))
-                    result.success(null)
-                }
-                "stop" -> {
-                    stopService(Intent(this, KeepAliveService::class.java))
-                    result.success(null)
-                }
-                "isRunning" -> result.success(false)
-                "isBlocked" -> result.success(false)
-                "isBatteryIgnored" -> result.success(isBatteryIgnored())
-                "requestBatteryIgnore" -> {
+                "isIgnoringBatteryOptimizations" -> result.success(isBatteryIgnored())
+                "isVendorBlocked" -> result.success(false)
+                "requestIgnoreBatteryOptimizations" -> {
                     if (requestBatteryIgnore()) result.success(null)
                     else result.error("battery_ignore_failed", null, null)
                 }
