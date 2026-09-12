@@ -13,6 +13,7 @@ import '../state/notification_prefs.dart';
 import '../state/startup_target.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
+import 'section_label.dart';
 import 'update_download_dialog.dart';
 
 const _settingsRowHeight = 64.0;
@@ -29,10 +30,14 @@ class _SettingsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 26,
-      height: 26,
-      child: Icon(icon, size: 21, color: color ?? context.zt.textLo),
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: context.zt.surfaceHi,
+      ),
+      child: Icon(icon, size: 20, color: color ?? context.zt.accent),
     );
   }
 }
@@ -45,36 +50,16 @@ class _DeviceStyleSettingIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = context.zt.accent;
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: tint.withValues(alpha: 0.10),
+        color: context.zt.surfaceHi,
       ),
-      child: Icon(icon, size: 20, color: tint),
+      child: Icon(icon, size: 20, color: context.zt.accent),
     );
   }
-}
-
-class _SettingsSectionLabel extends StatelessWidget {
-  const _SettingsSectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: context.zt.textLo,
-      ),
-    ),
-  );
 }
 
 class SettingsPage extends ConsumerWidget {
@@ -87,17 +72,9 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final settingsTheme = Theme.of(context).copyWith(
-      cardTheme: CardThemeData(
-        color: context.zt.surface,
-        elevation: 0,
-        margin: EdgeInsets.zero,
-        surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      ),
       listTileTheme: ListTileThemeData(
         visualDensity: const VisualDensity(horizontal: 0, vertical: -1),
         minVerticalPadding: 0,
-        iconColor: context.zt.textLo,
       ),
     );
     return Theme(
@@ -106,43 +83,38 @@ class SettingsPage extends ConsumerWidget {
         body: SafeArea(
           bottom: false,
           child: ListView(
-            padding: const EdgeInsets.only(bottom: 40),
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 40),
             children: [
-              SizedBox(
-                height: 58,
-                child: Stack(
-                  alignment: Alignment.center,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
+                child: Row(
                   children: [
+                    if (!embedded)
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.arrow_back, color: context.zt.textLo),
+                      ),
                     Text(
                       l10n.settingsTitle,
                       style: TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.4,
                         color: context.zt.textHi,
                       ),
                     ),
-                    if (!embedded)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: Icon(
-                            Icons.arrow_back,
-                            color: context.zt.textLo,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
               // 原生设置只管理启动端本身；WebView 内部的 Agent、Hook、统计
               // 等选项留在远程页面自己的设置入口中。
-              _SettingsSectionLabel(l10n.settingsGroupBasics),
+              SectionLabel(l10n.settingsGroupBasics),
               const _BatteryTile(),
               const _StartupTargetTile(),
               const _FeedbackTile(),
               const _AuthorTile(),
-              _SettingsSectionLabel(l10n.settingsGroupNotifications),
+              SectionLabel(l10n.settingsGroupNotifications),
               const _NotificationCard(),
             ],
           ),
@@ -595,7 +567,7 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
               onTap: () => _pickAlertMode(context, prefs),
             ),
           ),
-          const Divider(indent: 68, endIndent: 14, height: 1),
+          const Divider(indent: 66, endIndent: 14, height: 1),
           if (_systemEnabled == false)
             SizedBox(
               height: _settingsRowHeight,
@@ -626,21 +598,21 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
             (v) => notifier.set(prefs.copyWith(approval: v)),
             Icons.verified_user_outlined,
           ),
-          const Divider(indent: 68, endIndent: 14, height: 1),
+          const Divider(indent: 66, endIndent: 14, height: 1),
           tile(
             l10n.notifCompleteTitle,
             prefs.complete,
             (v) => notifier.set(prefs.copyWith(complete: v)),
             Icons.check_circle_outline,
           ),
-          const Divider(indent: 68, endIndent: 14, height: 1),
+          const Divider(indent: 66, endIndent: 14, height: 1),
           tile(
             l10n.notifFailTitle,
             prefs.fail,
             (v) => notifier.set(prefs.copyWith(fail: v)),
             Icons.error_outline,
           ),
-          const Divider(indent: 68, endIndent: 14, height: 1),
+          const Divider(indent: 66, endIndent: 14, height: 1),
           SizedBox(
             height: _settingsRowHeight,
             child: ListTile(
