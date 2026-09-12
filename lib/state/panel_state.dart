@@ -1,6 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../services/bridge_message_pipeline.dart';
 
 /// 工作台面板的数据快照。全部字段可为空 —— 远控页何时推送哪类数据
 /// 取决于用户在页面里的操作，未拿到的面板显示引导空态。
@@ -246,29 +246,45 @@ abstract final class PanelDataExtractor {
 
     for (final entry in node.entries) {
       final key = entry.key;
-      if (key is! String) continue;
-      final lower = key.toLowerCase();
       final value = entry.value;
+
+      if (key is! String) {
+        // 非字符串键（防御）：不参与分类，但继续向下扫。
+        if (value is Map || value is List) _walk(value, depth + 1, sink);
+        continue;
+      }
+      final lower = key.toLowerCase();
 
       if (value is List) {
         final items = value.whereType<Map>().toList();
-        if (items.isEmpty) continue;
-        if (_isProviderList(lower, items)) {
-          sink.onProviders(_providersOf(items));
-        } else if (lower.contains('subagent') || lower.contains('sub_agent')) {
-          sink.onSubagents(_subagentsOf(items));
-        } else if (lower.contains('quota') || lower.contains('entitlement')) {
-          sink.onQuotas(_quotasOf(items));
-        } else if (lower.contains('usage') &&
-            !lower.contains('lastused') &&
-            items.length <= _maxItems) {
-          sink.onUsage(_usageOf(items));
-        } else {
-          final panelKey = _panelKeyOf(lower);
-          if (panelKey != null) {
-            sink.onList(panelKey, _itemsOf(items));
+        if (items.isNotEmpty) {
+          if (_isProviderList(lower, items)) {
+            sink.onProviders(_providersOf(items));
+            // 已分类的列表不再向深处重扫：列表项是完整消费过的领域对象，
+            // 旧实现的双重遍历会把嵌套 models 列表误分类成 providers 并
+            // 覆盖真实供应商（characterization 测试锁定的行为修复）。
+            continue;
+          } else if (lower.contains('subagent') || lower.contains('sub_agent')) {
+            sink.onSubagents(_subagentsOf(items));
+            continue;
+          } else if (lower.contains('quota') || lower.contains('entitlement')) {
+            sink.onQuotas(_quotasOf(items));
+            continue;
+          } else if (lower.contains('usage') &&
+              !lower.contains('lastused') &&
+              items.length <= _maxItems) {
+            sink.onUsage(_usageOf(items));
+            continue;
+          } else {
+            final panelKey = _panelKeyOf(lower);
+            if (panelKey != null) {
+              sink.onList(panelKey, _itemsOf(items));
+              continue;
+            }
           }
         }
+        // 未命中的列表继续向下扫描。
+        _walk(value, depth + 1, sink);
       } else if (value is Map) {
         if (lower.contains('entitlement') ||
             lower == 'plan' ||
@@ -277,18 +293,16 @@ abstract final class PanelDataExtractor {
           if (plan != null) sink.onPlan(plan);
           final q = _quotasMapOf(value);
           if (q.isNotEmpty) sink.onQuotas(q);
+          // plan 节点内也可能嵌套其他面板数据，继续扫一遍（单趟内完成）。
+          _walk(value, depth + 1, sink);
         } else {
           _walk(value, depth + 1, sink);
         }
       }
     }
-
-    // 无键名匹配时继续向下扫描（数据可能包在 payload/snapshot 里）。
-    if (depth < _maxDepth) {
-      for (final value in node.values) {
-        if (value is Map || value is List) _walk(value, depth + 1, sink);
-      }
-    }
+    // 旧实现这里有一个第二遍全值循环：非 plan 的 Map 子节点被访问两次
+    // （深度 d 翻倍放大），且会把已消费列表的嵌套内容误分类。上面的
+    // 单趟版本对每个子节点恰好访问一次，首次 emit 的相对次序不变。
   }
 
   static String? _panelKeyOf(String lower) {
@@ -548,16 +562,16 @@ class PanelDataNotifier extends Notifier<Map<String, PanelSnapshot>> {
   @override
   Map<String, PanelSnapshot> build() => const {};
 
-  void ingest(String deviceId, String body) {
+  void ingest(String deviceId, String body) => ingestRoot(deviceId, body, null);
+
+  /// 已由调用方完成单次 decode 的入口：needle 与大小门仍按原始 [body]
+  /// 判断，[root] 复用调用方解析结果，省掉第二次 jsonDecode（评审 A2）。
+  void ingestRoot(String deviceId, String body, dynamic root) {
     if (body.isEmpty || body.length > 512 * 1024) return;
     final lower = body.toLowerCase();
     if (!_needles.any(lower.contains)) return;
-    dynamic root;
-    try {
-      root = jsonDecode(body);
-    } catch (_) {
-      return;
-    }
+    root ??= BridgeMessagePipeline.decode(body);
+    if (root == null) return;
     final parsed = PanelDataExtractor.parseRoot(
       root,
       now: DateTime.now().millisecondsSinceEpoch,

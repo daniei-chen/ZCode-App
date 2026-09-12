@@ -53,7 +53,7 @@ WS  wss://zcode.z.ai/ws?mid=<deviceMid>
 服务端下行（**字段平铺在顶层，不在 `payload` 里**）：
 
 ```json
-{"type":"auth_challenge","server_ts":1789014602,"nonce":"0jop_jgCASCVbpC4ctjQWXvB"}
+{"type":"auth_challenge","server_ts":1789014602,"nonce":"<nonce>"}
 ```
 
 上行：
@@ -66,7 +66,7 @@ WS  wss://zcode.z.ai/ws?mid=<deviceMid>
 
 ```json
 {"type":"auth_ack","server_ts":…,"device_sid":"<sid>",
- "terminal_sid":"t_DYxSVufN3TfJXwxP7auqxH","pair_status":"matched"}
+ "terminal_sid":"t_<example>","pair_status":"matched"}
 ```
 
 - `proof = base64url_nopad(HMAC-SHA256(key=passHash, msg="{nonce}|terminal|{deviceSid}"))`
@@ -105,11 +105,11 @@ if (byteLength(JSON.stringify(message)) > 1024 * 1024) → oversize，拒发
 ```json
 {"type":"data","server_ts":…,"payload":{"requestId":"…","result":{
   "activeTaskId":"sess_…",
-  "activeWorkspaceKey":"D:\\工作\\工作1",
+  "activeWorkspaceKey":"D:\\<workspace>",
   "tasks":[
     {"taskId":"sess_…","title":"…","displayStatus":"running","provider":"glm",
      "workspaceKind":"local","workspaceLabel":"工作1",
-     "workspacePath":"D:\\工作\\工作1","createdAt":…,"updatedAt":…}
+     "workspacePath":"D:\\<workspace>","createdAt":…,"updatedAt":…}
   ]
 }}}
 ```
@@ -130,7 +130,7 @@ if (byteLength(JSON.stringify(message)) > 1024 * 1024) → oversize，拒发
 {"type":"data","payload":{
   "zcode_type":"workspace-bridge-open",
   "requestId":"…","bridgeSessionId":"…","bridgeGeneration":1,
-  "workspaceKey":"D:\\工作\\工作1"}, "client_ts":…}
+  "workspaceKey":"D:\\<workspace>"}, "client_ts":…}
 ```
 
 下行：
@@ -141,7 +141,7 @@ if (byteLength(JSON.stringify(message)) > 1024 * 1024) → oversize，拒发
   "requestId":"…","bridgeSessionId":"…","bridgeGeneration":1,
   "bridge":{"bridgeSessionId":"…","bridgeGeneration":1,
             "initialTaskId":"sess_…","kind":"local",
-            "workspaceKey":"D:\\工作\\工作1","workspacePath":"D:\\工作\\工作1"}
+            "workspaceKey":"D:\\<workspace>","workspacePath":"D:\\<workspace>"}
 }}
 ```
 

@@ -9,10 +9,9 @@ import '../services/keepalive.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
-import '../state/event_feed.dart';
-import '../state/theme_mode.dart';
-import 'notifications_page.dart';
 import '../state/notification_prefs.dart';
+import '../state/startup_target.dart';
+import '../state/theme_mode.dart';
 import '../theme.dart';
 import 'update_download_dialog.dart';
 
@@ -78,19 +77,6 @@ class _SettingsSectionLabel extends StatelessWidget {
   );
 }
 
-class _SettingsDivider extends StatelessWidget {
-  const _SettingsDivider();
-
-  @override
-  Widget build(BuildContext context) => Divider(
-    height: 1,
-    thickness: 1,
-    indent: 16,
-    endIndent: 16,
-    color: context.zt.hairline.withValues(alpha: 0.8),
-  );
-}
-
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({this.embedded = false, super.key});
 
@@ -153,9 +139,10 @@ class SettingsPage extends ConsumerWidget {
               // 等选项留在远程页面自己的设置入口中。
               _SettingsSectionLabel(l10n.settingsGroupBasics),
               const _BatteryTile(),
+              const _StartupTargetTile(),
+              const _FeedbackTile(),
+              const _AuthorTile(),
               _SettingsSectionLabel(l10n.settingsGroupNotifications),
-              const _NotificationCenterTile(),
-              const _SettingsDivider(),
               const _NotificationCard(),
             ],
           ),
@@ -165,75 +152,149 @@ class SettingsPage extends ConsumerWidget {
   }
 }
 
-/// 通知历史是上下文入口，不占用根部底部导航的一个位置。
-class _NotificationCenterTile extends ConsumerWidget {
-  const _NotificationCenterTile();
+/// 启动进入页：恢复最近设备或落在设备中心（单行，行尾显示当前值）。
+class _StartupTargetTile extends ConsumerWidget {
+  const _StartupTargetTile();
+
+  static String _label(AppLocalizations l10n, String value) => switch (value) {
+    'launcher' => l10n.startupTargetLauncher,
+    _ => l10n.startupTargetLastDevice,
+  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final zt = context.zt;
-    final feed = ref.watch(eventFeedProvider);
-    final unread = feed.values.fold<int>(0, (sum, item) => sum + item.unread);
-    final approval = feed.values.any((item) => item.permPending);
-    final subtitle = unread == 0 && !approval
-        ? l10n.notifCenterEmpty.split('\n').first
-        : '$unread ${l10n.notifCenterTitle}';
+    final target = ref.watch(startupTargetProvider);
     return Card(
       child: SizedBox(
         height: _settingsRowHeight,
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-          leading: _SettingsIcon(
-            approval
-                ? Icons.notifications_active_outlined
-                : Icons.notifications_none_outlined,
-            color: approval ? zt.danger : zt.accent,
-          ),
+          leading: const _SettingsIcon(Icons.rocket_launch_outlined),
           title: Text(
-            l10n.notifCenterTitle,
+            l10n.startupTargetTitle,
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
-          subtitle: Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _label(l10n, target),
+                style: TextStyle(fontSize: 13, color: context.zt.textLo),
+              ),
+              Icon(Icons.chevron_right, size: 18, color: context.zt.textLo),
+            ],
           ),
-          trailing: unread > 0 || approval
-              ? _NotificationBadge(count: unread, alert: approval)
-              : Icon(Icons.chevron_right, color: zt.textLo),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const NotificationsPage()),
-          ),
+          onTap: () async {
+            final choice = await showDialog<String>(
+              context: context,
+              builder: (dialogContext) => SimpleDialog(
+                title: Text(l10n.startupTargetTitle),
+                children: [
+                  for (final value in const ['lastDevice', 'launcher'])
+                    SimpleDialogOption(
+                      onPressed: () => Navigator.pop(dialogContext, value),
+                      child: Row(
+                        children: [
+                          Icon(
+                            target == value
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            size: 20,
+                            color: target == value
+                                ? dialogContext.zt.accent
+                                : dialogContext.zt.textLo,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _label(AppLocalizations.of(dialogContext)!, value),
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+            if (choice == null || choice == target) return;
+            await ref.read(startupTargetProvider.notifier).set(choice);
+          },
         ),
       ),
     );
   }
 }
 
-class _NotificationBadge extends StatelessWidget {
-  const _NotificationBadge({required this.count, required this.alert});
+/// 反馈问题：直开 GitHub Issues（外置浏览器，失败给提示）。
+class _FeedbackTile extends StatelessWidget {
+  const _FeedbackTile();
 
-  final int count;
-  final bool alert;
+  static const _issuesUrl =
+      'https://github.com/2421873411a-rgb/ZCode-App/issues';
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-      color: alert ? context.zt.danger : context.zt.accent,
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      alert ? (count > 0 ? '$count!' : '!') : '$count',
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      child: SizedBox(
+        height: _settingsRowHeight,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          leading: const _SettingsIcon(Icons.feedback_outlined),
+          title: Text(
+            l10n.feedbackTitle,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          trailing: Icon(Icons.chevron_right, size: 18, color: context.zt.textLo),
+          onTap: () => _open(context, Uri.parse(_issuesUrl)),
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  static Future<void> _open(BuildContext context, Uri uri) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (uri.scheme != 'https' || uri.host.isEmpty) return;
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) _toast(context, l10n);
+    } catch (_) {
+      if (context.mounted) _toast(context, l10n);
+    }
+  }
+
+  static void _toast(BuildContext context, AppLocalizations l10n) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.feedbackOpenFailed)));
+  }
+}
+
+/// 作者：点击跳转 QQ 群链接。
+class _AuthorTile extends StatelessWidget {
+  const _AuthorTile();
+
+  static const _authorUrl = 'https://qm.qq.com/q/D3LXUdWyJi';
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      child: SizedBox(
+        height: _settingsRowHeight,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          leading: const _SettingsIcon(Icons.person_outline),
+          title: Text(
+            l10n.authorTitle,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          trailing: Icon(Icons.chevron_right, size: 18, color: context.zt.textLo),
+          onTap: () => _FeedbackTile._open(context, Uri.parse(_authorUrl)),
+        ),
+      ),
+    );
+  }
 }
 
 class ThemeSettingTile extends ConsumerWidget {
@@ -426,6 +487,57 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
     _refresh();
   }
 
+  static String _alertLabel(AppLocalizations l10n, String mode) => switch (mode) {
+    NotificationPrefs.kAlertVibrate => l10n.notifAlertVibrate,
+    NotificationPrefs.kAlertSilent => l10n.notifAlertSilent,
+    _ => l10n.notifAlertSound,
+  };
+
+  Future<void> _pickAlertMode(
+    BuildContext context,
+    NotificationPrefs prefs,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: Text(l10n.notifAlertTitle),
+        children: [
+          for (final mode in const [
+            NotificationPrefs.kAlertSound,
+            NotificationPrefs.kAlertVibrate,
+            NotificationPrefs.kAlertSilent,
+          ])
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, mode),
+              child: Row(
+                children: [
+                  Icon(
+                    prefs.alertMode == mode
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    size: 20,
+                    color: prefs.alertMode == mode
+                        ? dialogContext.zt.accent
+                        : dialogContext.zt.textLo,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _alertLabel(AppLocalizations.of(dialogContext)!, mode),
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (choice == null || choice == prefs.alertMode) return;
+    await ref.read(notificationPrefsProvider.notifier).set(
+      prefs.copyWith(alertMode: choice),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(appLifecycleProvider, (prev, next) {
@@ -458,6 +570,32 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
     return Card(
       child: Column(
         children: [
+          SizedBox(
+            height: _settingsRowHeight,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              leading: const _SettingsIcon(Icons.volume_up_outlined),
+              title: Text(
+                l10n.notifAlertTitle,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _alertLabel(l10n, prefs.alertMode),
+                    style: TextStyle(fontSize: 13, color: context.zt.textLo),
+                  ),
+                  Icon(Icons.chevron_right, size: 18, color: context.zt.textLo),
+                ],
+              ),
+              onTap: () => _pickAlertMode(context, prefs),
+            ),
+          ),
+          const Divider(indent: 68, endIndent: 14, height: 1),
           if (_systemEnabled == false)
             SizedBox(
               height: _settingsRowHeight,

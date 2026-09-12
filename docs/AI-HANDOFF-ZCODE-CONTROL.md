@@ -37,7 +37,7 @@ D:\AI\codex\codex4\zremote-handoff-20260910\zremote
 D:\AI\codex\codex4\.toolcache\flutter\bin\flutter.bat
 D:\AI\codex\codex4\.toolcache\flutter\bin\dart.bat
 D:\AI\codex\codex4\.toolcache\jdk-17
-D:\AI\codex\codex4\.toolcache\android-sdk
+D:\phone\Android\android-sdk
 ```
 
 PowerShell 常用环境：
@@ -262,7 +262,7 @@ flutter test --reporter compact
 $env:JAVA_HOME='D:\AI\codex\codex4\.toolcache\jdk-17'
 $env:Path="$env:JAVA_HOME\bin;$env:Path"
 flutter build apk --release
-& 'D:\AI\codex\codex4\.toolcache\android-sdk\build-tools\36.0.0\apksigner.bat' verify --verbose --print-certs build\app\outputs\flutter-apk\app-release.apk
+& 'D:\phone\Android\android-sdk\build-tools\36.0.0\apksigner.bat' verify --verbose --print-certs build\app\outputs\flutter-apk\app-release.apk
 Get-FileHash build\app\outputs\flutter-apk\app-release.apk -Algorithm SHA256
 ```
 

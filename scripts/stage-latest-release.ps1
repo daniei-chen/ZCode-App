@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Output = 'D:\AI\codex\codex4\ZCode-Control-latest-20260911',
-    [string]$OfficialSource = 'D:\AI\codex\codex4\.source\zcode-3.11.2',
+    [string]$Output = (Join-Path $PSScriptRoot '..\dist\staged'),
+    [string]$OfficialSource = $env:ZCODE_OFFICIAL_SOURCE,
     [string]$OfficialAsar = ''
 )
 

@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,9 +17,11 @@ import '../relay/conversation_subscription.dart';
 import '../relay/conversation_update.dart';
 import '../relay/relay_link.dart';
 import '../relay/relay_socket.dart';
+import '../services/bridge_message_pipeline.dart';
 import '../services/link_builder.dart';
 import '../services/event_observer.dart';
 import '../services/notifier.dart';
+import '../services/warmup.dart';
 import 'active_session.dart';
 import 'app_lifecycle.dart';
 import 'event_feed.dart';
@@ -29,6 +29,7 @@ import 'notification_prefs.dart';
 import 'panel_state.dart';
 import 'session_index.dart';
 import 'session_pool.dart';
+import 'session_status.dart';
 
 /// 原生 relay 通道相对于某台设备的可用状态。
 enum RelaySourceKind {
@@ -154,13 +155,17 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
   final Map<String, RelayBridge> _bridges = {};
   final Map<String, StreamSubscription<String>> _payloadSubscriptions = {};
   final Map<String, Timer> _refresh = {};
-  final Map<String, Future<void>> _connecting = {};
+  final Map<String, ({int generation, Future<void> future})> _connecting = {};
   final Map<String, Timer> _retry = {};
   final Map<String, RemoteDevice> _devices = {};
   final Map<String, int> _retryAttempts = {};
   final Map<String, int> _connectGeneration = {};
   final Map<String, StateDiffer> _stateDiffers = {};
   final Map<String, String?> _activeSessionIds = {};
+
+  /// 后台挂起轮询的设备集合：paused/hidden 期间周期刷新跳过（推送式
+  /// 通知不依赖轮询），resumed 清空并立即补刷一次。
+  final Set<String> _suspended = {};
 
   /// 列表刷新间隔。列表不保证主动推送（实测安静时无推送），靠轮询保持新鲜。
   static const Duration refreshInterval = Duration(seconds: 20);
@@ -170,21 +175,44 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
   static RelaySocketFactory? debugSocketFactory;
 
   @override
-  Map<String, RelaySourceState> build() => const {};
+  Map<String, RelaySourceState> build() {
+    // 容器销毁（测试）时回收重试/轮询定时器与桥，避免跨用例泄漏：
+    // 泄漏的重试 Timer 会在后续用例运行中途触发真实网络连接。
+    ref.onDispose(_teardownAll);
+    ref.listen<AppLifecycleState>(appLifecycleProvider, (_, next) {
+      if (next == AppLifecycleState.paused ||
+          next == AppLifecycleState.hidden) {
+        _suspended.addAll(_bridges.keys);
+      } else if (next == AppLifecycleState.resumed) {
+        _suspended.clear();
+        for (final id in _bridges.keys.toList()) {
+          if (state.containsKey(id)) unawaited(_bridges[id]?.refreshTasks());
+        }
+      }
+    });
+    return const {};
+  }
 
   /// 建立一条 [RelayBridge]（拆出来便于测试注入）。
   @visibleForTesting
-  static RelayBridge buildBridge(RelayLink link) =>
-      RelayBridge(link: link, socketFactory: debugSocketFactory);
+  static RelayBridge buildBridge(RelayLink link) {
+    // ignore: avoid_print
+    print('BUILD-BRIDGE factory=${debugSocketFactory?.runtimeType}');
+    return RelayBridge(link: link, socketFactory: debugSocketFactory);
+  }
 
   void _set(String deviceId, RelaySourceState s) {
     state = {...state, deviceId: s};
   }
 
-  /// 从设备记录解析 relay 链接；不是 relay 设备时返回 null。
+  /// 从设备记录解析 relay 链接；不是 relay 设备或端点不公开时返回 null。
   static RelayLink? linkOf(RemoteDevice device) {
     if (!LinkBuilder.isTrustedDevice(device)) return null;
-    return RelayLink.from(baseUrl: device.baseUrl, params: device.params);
+    final link = RelayLink.from(baseUrl: device.baseUrl, params: device.params);
+    if (link == null) return null;
+    // LinkBuilder 白名单之外的第二道防线：即使白名单将来放宽，环回/
+    // 私网/保留地址也进不了 relay 连接。
+    return LinkBuilder.isPublicEndpoint(Uri.parse(link.origin)) ? link : null;
   }
 
   /// 该设备能否走原生通道（需要 deviceSid + passHash）。
@@ -234,8 +262,14 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
       _set(id, const RelaySourceState(kind: RelaySourceKind.unsupported));
       return Future<void>.value();
     }
-    if (pending != null && sameDevice) return pending;
-    if (current != null && current.isReady && sameDevice) {
+    if (pending != null &&
+        sameDevice &&
+        pending.generation == (_connectGeneration[id] ?? 0)) {
+      // disconnect/换参都会递增 generation：带着旧 generation 的在途
+      // future 已注定废弃，不能返回它冒充新连接（评审 N2）。
+      return pending.future;
+    }
+    if (current != null && current.isReady && !current.isDegraded && sameDevice) {
       return Future<void>.value();
     }
 
@@ -247,9 +281,9 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
       generation: generation,
       stale: current,
     );
-    _connecting[id] = future;
+    _connecting[id] = (generation: generation, future: future);
     return future.whenComplete(() {
-      if (identical(_connecting[id], future)) _connecting.remove(id);
+      if (identical(_connecting[id]?.future, future)) _connecting.remove(id);
     });
   }
 
@@ -393,16 +427,46 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
     );
 
     _refresh[id]?.cancel();
-    _refresh[id] = Timer.periodic(refreshInterval, (_) {
-      final b = _bridges[id];
-      if (b == null) return;
-      unawaited(b.refreshTasks());
-    });
+    _refresh[id] = Timer.periodic(refreshInterval, (_) => refreshTick(id));
 
     // Bootstrap step 2: complete the agent handshake as part of connecting,
     // so the UI learns "connected but agent not ready" before the user tries
     // to send rather than after.
     await _handshakeAgent(id, bridge, generation);
+  }
+
+  /// 一次周期任务刷新。后台挂起期间跳过（省电），回前台由生命周期回调补刷。
+  @visibleForTesting
+  void refreshTick(String deviceId) {
+    if (_suspended.contains(deviceId)) return;
+    final bridge = _bridges[deviceId];
+    if (bridge == null) return;
+    unawaited(bridge.refreshTasks());
+  }
+
+  void _teardownAll() {
+    for (final t in _retry.values) {
+      t.cancel();
+    }
+    _retry.clear();
+    _retryAttempts.clear();
+    for (final t in _refresh.values) {
+      t.cancel();
+    }
+    _refresh.clear();
+    for (final sub in _payloadSubscriptions.values) {
+      unawaited(sub.cancel());
+    }
+    _payloadSubscriptions.clear();
+    _stateDiffers.clear();
+    _activeSessionIds.clear();
+    _suspended.clear();
+    final bridges = Map.of(_bridges);
+    _bridges.clear();
+    for (final bridge in bridges.values) {
+      unawaited(bridge.stop().catchError((_) {}));
+      bridge.dispose();
+    }
   }
 
   /// Run (or reuse) the conversation-layer handshake and record its phase.
@@ -494,11 +558,22 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
   /// Current connection epoch for [deviceId]; 0 before the first connect.
   int epochOf(String deviceId) => _connectGeneration[deviceId] ?? 0;
 
-  /// 设备被移除时彻底清理（含 session_index 里的数据）。
+  /// 设备被移除时彻底清理（含 session_index 与各运行时层的数据）。
+  ///
+  /// 注意：会话层（conversationProvider）的按设备清理不在这里做——
+  /// conversation 依赖本 provider，这里读它会成环；由设备生命周期
+  /// 协调器（仲裁器）显式调用 conversation.forgetDevice。
   Future<void> forget(String deviceId) async {
     await disconnect(deviceId);
     _devices.remove(deviceId);
     ref.read(sessionIndexProvider.notifier).forget(deviceId);
+    // 对齐 WebView 侧 forget 的清理范围（webview_sync.forget），并补上
+    // 面板/预热层：删设备不能留下幽灵数据继续吃事件。
+    ref.read(sessionStatusProvider.notifier).forget(deviceId);
+    ref.read(eventFeedProvider.notifier).forget(deviceId);
+    ref.read(activeSessionProvider.notifier).forget(deviceId);
+    ref.read(panelDataProvider.notifier).forget(deviceId);
+    ref.read(warmupMemoryProvider.notifier).forget(deviceId);
     if (state.containsKey(deviceId)) {
       state = Map.of(state)..remove(deviceId);
     }
@@ -509,18 +584,14 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
 
   /// 把原生 relay 的非帧事件送进已有的事件、面板和任务索引层。
   ///
-  /// 这一步让支持原生 Relay 的设备不再依赖 SessionView 才能收到通知、
+  /// 这一步让支持原生 Relay 的设备不再依赖 WebView 页才能收到通知、
   /// 面板同步或会话状态变化；解析仍复用 WebView 路径的防御式提取器。
   void _ingestNativePayload(String deviceId, String body) {
     if (body.isEmpty || body.length > 512 * 1024) return;
-    ref.read(panelDataProvider.notifier).ingest(deviceId, body);
-
-    dynamic root;
-    try {
-      root = jsonDecode(body);
-    } catch (_) {
-      return;
-    }
+    // 单次 decode：面板、状态、任务索引与事件提取共用同一 root（评审 A2）。
+    final root = BridgeMessagePipeline.decode(body);
+    if (root == null) return;
+    ref.read(panelDataProvider.notifier).ingestRoot(deviceId, body, root);
 
     final activeSession = ActiveSessionExtractor.parseRoot(root);
     if (activeSession != null) {
@@ -529,23 +600,27 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
     }
 
     final states = SessionStateExtractor.parseRoot(root);
+    final removedResult = BridgeMessagePipeline.parseRemoved(root);
     final removed = [
-      ...SessionStateExtractor.parseRemovedRoot(root),
-      ...TaskIndexExtractor.parseRemovedRoot(root),
-      ...TaskIndexExtractor.parseArchivedRoot(root),
+      ...removedResult.sessions,
+      ...removedResult.tasks,
+      ...removedResult.archived,
     ];
     final index = ref.read(sessionIndexProvider.notifier);
     index.upsertAll(deviceId, states);
     index.removeSessions(deviceId, removed);
+    final taskIndex = TaskIndexExtractor.parseRoot(root);
     final snapshotTasks = TaskIndexExtractor.parseSnapshotRoot(root);
     if (snapshotTasks != null) {
+      _stateDiffers[deviceId]?.pruneOnSnapshot(snapshotTasks);
       index.replaceTasks(deviceId, snapshotTasks, preservePinned: true);
     } else {
-      index.upsertTasks(deviceId, TaskIndexExtractor.parseRoot(root));
+      index.upsertTasks(deviceId, taskIndex);
     }
     final resultTasks = TaskIndexExtractor.parseResultTasksRoot(root);
     if (resultTasks != null && resultTasks.isNotEmpty) {
       if (TaskIndexExtractor.isBootstrapResult(root)) {
+        _stateDiffers[deviceId]?.pruneOnSnapshot(resultTasks);
         index.replaceTasks(deviceId, resultTasks, preservePinned: true);
       } else {
         index.upsertTasks(deviceId, resultTasks);
@@ -560,7 +635,7 @@ class RelaySourceNotifier extends Notifier<Map<String, RelaySourceState>> {
       ...differ.apply(
         // Keep the native and WebView paths symmetrical: task-index deltas
         // are the update form used for sessions outside the active view.
-        [...states, ...TaskIndexExtractor.parseRoot(root)],
+        [...states, ...taskIndex],
         removed: removed,
       ),
     ]);

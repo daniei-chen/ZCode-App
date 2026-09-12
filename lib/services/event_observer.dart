@@ -39,8 +39,11 @@ abstract final class EventObserver {
     return true;
   };
   window.addEventListener('flutterInAppWebViewPlatformReady', function() { flush(); }, false);
+  var flushTries = 0;
   var flushTimer = setInterval(function() {
-    if (flush()) clearInterval(flushTimer);
+    // 通道长期缺席（页面环境异常）时最多空转约 30s 后放弃；通道晚就绪
+    // 另有 flutterInAppWebViewPlatformReady 事件兜底。
+    if (flush() || ++flushTries > 250) clearInterval(flushTimer);
   }, 120);
   var send = function(body) { post('zrEvents', body); };
   var seenQ = [];
@@ -1186,6 +1189,26 @@ class StateDiffer {
       }
     }
     return events;
+  }
+
+  /// 快照全量替换后的基线对账：只剪"已终态且不在最新快照中"的条目。
+  ///
+  /// completed/error 事件都要求 prev != null，因此 pending（审批/输入
+  /// 计数大于 0）与运行中基线一律保留，否则会漏报；终态条目不会再产生
+  /// 新转移（唯一出口是 removed 对账），剪掉零漏报，同时清掉长会话场景
+  /// 下 `_prev` 的增长大头。
+  void pruneOnSnapshot(Iterable<SessionState> snapshot) {
+    if (_prev.isEmpty) return;
+    final alive = snapshot.map((s) => s.sessionId).toSet();
+    _prev.removeWhere((id, state) {
+      if (alive.contains(id)) return false;
+      final terminal =
+          (state.phase == 'error' ||
+              state.phase == 'completedSuccess' ||
+              state.phase == 'completedInterrupted') &&
+          state.sessionEnded != false;
+      return terminal;
+    });
   }
 }
 

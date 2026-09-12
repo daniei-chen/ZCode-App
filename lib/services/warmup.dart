@@ -134,7 +134,12 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
     if (state.containsKey(deviceId)) {
       state = Map.of(state)..remove(deviceId);
     }
-    await DeviceStore.instance.setWarmupScript(deviceId, null);
+    try {
+      await DeviceStore.instance.setWarmupScript(deviceId, null);
+    } catch (e) {
+      // 内存态已清除；安全存储删除失败只影响持久化残留，不阻塞调用方。
+      debugPrint('[ZR] warmup.forget 落盘失败: $e');
+    }
   }
 
   static bool _shouldRecord(WarmupRequest req) {

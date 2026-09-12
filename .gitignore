@@ -57,6 +57,12 @@ lib/l10n/*.dart
 # 本地逆向/构建辅助工具（脚本产物与安装包不入库）
 tools/
 artifacts/
+
+# 本地材料：官方产物、交接文档、扫描工具状态，一律不入库
+reference/
+交接文档.md
+.mimosa/
+
 android/.gradle/
 android/local.properties
 android/key.properties

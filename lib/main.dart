@@ -11,6 +11,8 @@ import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
 import 'state/session_pool.dart';
+import 'state/native_channel.dart';
+import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
 import 'theme.dart';
 import 'state/app_lifecycle.dart';
@@ -27,6 +29,8 @@ Future<void> main() async {
   final lastDeviceFuture = _safeLastDevice(store.lastDeviceId());
   final biometricFuture = _safeBool(store.biometricEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
+  final startupTargetFuture = _safeString(store.startupTarget(), 'lastDevice');
+  final nativeChannelFuture = _safeBool(store.nativeChannelEnabled());
 
   // Resolve the saved devices before the first Flutter frame. Otherwise the
   // provider briefly reports an empty list and paints the import launcher
@@ -35,11 +39,17 @@ Future<void> main() async {
   final lastDeviceId = await lastDeviceFuture;
   final initialBiometric = await biometricFuture;
   final initialThemeMode = await themeModeFuture;
+  final startupTarget = await startupTargetFuture;
+  final nativeChannel = await nativeChannelFuture;
   final recentIndex = lastDeviceId == null
       ? -1
       : initialDevices.indexWhere((d) => d.id == lastDeviceId);
   final initialActiveIndex = recentIndex >= 0 ? recentIndex : 0;
-  final startAtLauncher = initialDevices.isNotEmpty && recentIndex < 0;
+  // 启动进入可配置：默认恢复最近设备；选了"设备中心"或上次没有已保存设备
+  // 时落在设备列表。
+  final startAtLauncher =
+      initialDevices.isNotEmpty &&
+      (recentIndex < 0 || startupTarget == 'launcher');
 
   runApp(
     ProviderScope(
@@ -55,6 +65,12 @@ Future<void> main() async {
         ),
         themeModeProvider.overrideWith(
           () => ThemeModeNotifier(initial: initialThemeMode),
+        ),
+        startupTargetProvider.overrideWith(
+          () => StartupTargetNotifier(initial: startupTarget),
+        ),
+        nativeChannelProvider.overrideWith(
+          () => NativeChannelNotifier(initial: nativeChannel),
         ),
       ],
       child: ZCodeControlApp(startAtLauncher: startAtLauncher),
@@ -136,8 +152,8 @@ class ZCodeControlApp extends ConsumerWidget {
         );
       },
       // Put the gate above AppShell in the route tree. When the app is locked,
-      // AppShell/SessionView are not built at all, so relay connections and
-      // WebViews cannot start underneath a visual overlay.
+      // AppShell is not built at all, so relay connections and WebViews
+      // cannot start underneath a visual overlay.
       home: LifecycleWatcher(
         child: BiometricGate(child: AppShell(startAtLauncher: startAtLauncher)),
       ),
@@ -278,8 +294,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     final l10n = AppLocalizations.of(context) ?? l10nZh;
     if (!locked) return widget.child;
     // Do not keep the protected subtree as a sibling under a visual overlay.
-    // Returning only the lock screen disposes AppShell, SessionView and their
-    // relay/WebView resources until authentication succeeds.
+    // Returning only the lock screen disposes AppShell and its relay/WebView
+    // resources until authentication succeeds.
     return BlockSemantics(
       blocking: true,
       child: Scaffold(

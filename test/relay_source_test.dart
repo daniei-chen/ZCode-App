@@ -1,10 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zremote/models/device.dart';
 import 'package:zremote/relay/relay_payloads.dart';
 import 'package:zremote/relay/relay_socket.dart';
+import 'package:zremote/state/app_lifecycle.dart';
 import 'package:zremote/state/relay_source.dart';
 import 'package:zremote/state/session_index.dart';
 
@@ -106,6 +108,14 @@ ProviderContainer makeContainer() {
   final c = ProviderContainer();
   addTearDown(c.dispose);
   return c;
+}
+
+/// 轮询等待异步状态收敛（连接/重连涉及真实超时路径）。
+Future<void> pumpUntil(bool Function() cond, {int maxMs = 15000}) async {
+  final sw = Stopwatch()..start();
+  while (!cond() && sw.elapsedMilliseconds < maxMs) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
 }
 
 void main() {
@@ -223,4 +233,110 @@ void main() {
       expect(s.reason, isNotNull);
     });
   });
+
+  group('RelaySourceNotifier 轮询前后台', () {
+    test('后台挂起跳过周期刷新，回前台立即补发', () async {
+      final socket = scriptedSocket();
+      RelaySourceNotifier.debugSocketFactory = FakeRelaySocketFactory(
+        socket: socket,
+      );
+      final c = makeContainer();
+      await c.read(relaySourceProvider.notifier).connect(relayDevice());
+      int requests() => socket.sent
+          .where((m) => m.contains('workspace-list-request'))
+          .length;
+      final baseline = requests();
+      expect(baseline, greaterThan(0));
+
+      // paused：周期 tick 被抑制，不打桌面端。
+      c.read(appLifecycleProvider.notifier).set(AppLifecycleState.paused);
+      c.read(relaySourceProvider.notifier).refreshTick('dev-1');
+      await Future<void>.delayed(Duration.zero);
+      expect(requests(), baseline);
+
+      // resumed：立即补刷一次，列表不因后台暂停而过期。
+      c.read(appLifecycleProvider.notifier).set(AppLifecycleState.resumed);
+      await Future<void>.delayed(Duration.zero);
+      expect(requests(), greaterThan(baseline));
+    });
+  });
+
+  group('RelaySourceNotifier 前置修复回归', () {
+    test('degraded 后 connect 重建桥而不是被 isReady 短路（N1）', () async {
+      final factory = _ScriptedSocketFactory();
+      RelaySourceNotifier.debugSocketFactory = factory;
+      final c = makeContainer();
+      await c.read(relaySourceProvider.notifier).connect(relayDevice());
+      expect(c.read(relaySourceProvider)['dev-1']!.kind, RelaySourceKind.live);
+
+      // 注入 bridge-degraded：phase 保持 degraded（isReady 仍为 true）。
+      // 不带 bridgeSessionId：通道只接受属于当前桥的降级通知。
+      factory.created.single.emitJson({
+        'type': 'data',
+        'payload': {
+          'zcode_type': ZcodeType.bridgeDegraded,
+          'reason': 'rpc-frame-gap',
+          'seq': 1,
+          'expectedSeq': 1,
+          'droppedCount': 1,
+        },
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(c.read(relaySourceProvider)['dev-1']!.kind, RelaySourceKind.failed);
+
+      // 退避重试（1s）里的 connect 必须重建新桥：若被 isReady 短路，
+      // kind 将永远卡在 failed。
+      await pumpUntil(
+        () => c.read(relaySourceProvider)['dev-1']!.kind ==
+            RelaySourceKind.live,
+        maxMs: 20000,
+      );
+      expect(factory.created.length, greaterThanOrEqualTo(2));
+    });
+
+    test('disconnect 丢弃在途 connect，随后的 connect 建立新连接（N2）', () async {
+      final factory = FakeRelaySocketFactory(error: StateError('x'));
+      RelaySourceNotifier.debugSocketFactory = factory;
+      final c = makeContainer();
+      final n = c.read(relaySourceProvider.notifier);
+      final first = n.connect(relayDevice());
+      // 在途 future 完成前就断开：generation 递增使 pending 作废。
+      await n.disconnect('dev-1');
+      factory.error = null;
+      factory.socket = scriptedSocket();
+      await n.connect(relayDevice());
+      expect(c.read(relaySourceProvider)['dev-1']!.kind, RelaySourceKind.live);
+      await first;
+    });
+
+    test('forget 清理会话层与面板/事件等全部运行时数据', () async {
+      RelaySourceNotifier.debugSocketFactory = _ScriptedSocketFactory();
+      final c = makeContainer();
+      final n = c.read(relaySourceProvider.notifier);
+      await n.connect(relayDevice());
+      c
+          .read(sessionIndexProvider.notifier)
+          .upsertTasks('dev-1', const []);
+      await n.forget('dev-1');
+      expect(c.read(relaySourceProvider).containsKey('dev-1'), isFalse);
+      expect(c.read(sessionIndexProvider).containsKey('dev-1'), isFalse);
+    });
+  });
+}
+
+/// 每次连接产出全新 scripted socket 的工厂：桥重建（degraded 重连等）
+/// 时旧 socket 已被 stop/close，必须给新桥新 socket。
+class _ScriptedSocketFactory implements RelaySocketFactory {
+  final List<FakeRelaySocket> created = [];
+
+  @override
+  Future<RelaySocket> connect(
+    Uri url, {
+    Map<String, String>? headers,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final socket = scriptedSocket();
+    created.add(socket);
+    return socket;
+  }
 }

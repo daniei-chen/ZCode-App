@@ -185,6 +185,11 @@ void main() {
     });
   });
 
+  test('hookScript：flush 定时器带重试上限（通道缺席时空转有界）', () {
+    expect(EventObserver.hookScript, contains('flushTries'));
+    expect(EventObserver.hookScript, contains('++flushTries > 250'));
+  });
+
   group('NotificationSpec.from', () {
     test('permission_request → 标题使用会话名，正文讲做什么（非工具名）', () {
       final spec = NotificationSpec.from(
@@ -426,6 +431,33 @@ void main() {
       });
       expect(states.single.workspacePath, r'E:\zcode\alpha');
       expect(states.single.workspace, 'alpha');
+    });
+
+    test('pruneOnSnapshot 只剪缺席的终态基线，running 保留不漏报', () {
+      final differ = StateDiffer();
+      final running = SessionStateExtractor.parseRoot({
+        'sessionId': 'sess_r',
+        'title': '长会话',
+        'phase': 'running',
+        'sessionEnded': false,
+      });
+      differ.apply(running);
+      // 快照仍含 running：基线保留，后续 completed 照常通知。
+      differ.pruneOnSnapshot(running);
+      final done = SessionStateExtractor.parseRoot({
+        'sessionId': 'sess_r',
+        'title': '长会话',
+        'phase': 'completedSuccess',
+        'sessionEnded': true,
+      });
+      final events = differ.apply(done);
+      expect(events.map((e) => e.type), contains('completed'));
+
+      // 终态条目不在快照中：剪掉；同一终态再次到达不重复发 completed。
+      final differ2 = StateDiffer();
+      differ2.apply(done);
+      differ2.pruneOnSnapshot(const []);
+      expect(differ2.apply(done), isEmpty);
     });
 
     test('提取：从逻辑帧嵌套里挖出 session 状态', () {

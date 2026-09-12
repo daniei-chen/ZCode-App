@@ -124,6 +124,7 @@ class RelayBridge {
 
   RelayPhase get phase => _channel.phase;
   bool get isReady => _channel.isReady;
+  bool get isDegraded => _channel.isDegraded;
 
   RelayWorkspace? get workspace => _workspace;
   String? get bridgeSessionId => _bridgeSessionId;
@@ -404,7 +405,8 @@ class RelayBridge {
     if (frame == null) return;
 
     final cs = d.raw['checksum'];
-    if (!_frames.isClosed) {
+    // 诊断流当前无消费者：仅在有订阅者时才付出 base64 解码与拷贝的成本。
+    if (!_frames.isClosed && _frames.hasListener) {
       _frames.add(
         RelayFrameInfo(
           seq: frame.messageSeq ?? frame.seq,
@@ -714,8 +716,14 @@ class RelayBridge {
     // A socket close must abort the waiter immediately. Otherwise a
     // disconnect can leave the single-flight queue occupied until its
     // normal timeout, delaying the next reconnect's handshake.
-    final failureSub = failures.listen((_) {
-      if (!completer.isCompleted) completer.complete(null);
+    // 只有通道级致命失败（phase → failed/closed）才立即中止在途等待；
+    // 可恢复故障（帧 gap、bridge-degraded）不该把已发出的写命令误判成
+    // 失败——传输并没断，响应可能仍在路上（评审 P1）。
+    final failureSub = phases.listen((phase) {
+      if (!completer.isCompleted &&
+          (phase == RelayPhase.failed || phase == RelayPhase.closed)) {
+        completer.complete(null);
+      }
     });
     final stopSub = _agentStopSignals.stream.listen((_) {
       if (!completer.isCompleted) completer.complete(null);

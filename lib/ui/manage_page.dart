@@ -256,16 +256,20 @@ class _TimeGreetingState extends State<_TimeGreeting> {
     final greeting = _text(AppLocalizations.of(context)!);
     return Align(
       alignment: Alignment.centerRight,
-      child: Text(
-        greeting,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.right,
-        style: TextStyle(
-          fontSize: 12,
-          height: 1.25,
-          fontWeight: FontWeight.w500,
-          color: context.zt.textLo,
+      // 单行硬约束：放不下时整行等比缩小（FittedBox），既不折第二行，
+      // 也不用省略号截断文案。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          greeting,
+          maxLines: 1,
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.25,
+            fontWeight: FontWeight.w500,
+            color: context.zt.textLo,
+          ),
         ),
       ),
     );

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Output = '',
-    [string]$OfficialSource = 'D:\AI\codex\codex4\.source\zcode-3.11.2',
+    [string]$OfficialSource = $env:ZCODE_OFFICIAL_SOURCE,
     [string]$OfficialAsar = ''
 )
 
@@ -30,7 +30,7 @@ function Sha256([string]$Path) {
 $projectRoot = FullPath (Join-Path $PSScriptRoot '..')
 $distRoot = FullPath (Join-Path $projectRoot 'dist')
 if (-not $Output) {
-    $Output = Join-Path $distRoot 'ZCode-Control-latest-20260911.zip'
+    $Output = Join-Path $distRoot 'ZCode-App-latest.zip'
 }
 $outputPath = FullPath $Output
 

@@ -138,7 +138,7 @@ class TodoItem {
 
 /// 一条正文行。
 class ConversationRow {
-  const ConversationRow({
+  ConversationRow({
     required this.rowId,
     required this.kind,
     this.turnId,
@@ -261,6 +261,33 @@ class ConversationRow {
     return min;
   }
 
+  /// `inputText` 的解析缓存。行对象不可变（字段全 final，reducer 按
+  /// rowId 复用实例），summary/todos 反复访问时只解析一次。三态语义：
+  /// Map = 解析成功；null = 空输入或解析结果不是对象；`_failedDecode`
+  /// 哨兵 = 非法 JSON（summary 退回截断原文，todos 直接为空）。
+  static const _failedDecode = Object();
+  Object? _decodedInputCache;
+
+  /// 首次访问时解析一次并缓存（类带 const 构造器，不能用 late final）。
+  Object? get _decodedInput => _decodedInputCache ??= _decodeInput();
+
+  Object? _decodeInput() {
+    final raw = inputText;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      return _failedDecode;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get _inputMap =>
+      identical(_decodedInput, _failedDecode)
+      ? null
+      : _decodedInput as Map<String, dynamic>?;
+
   /// 工具调用的一句话摘要（用于紧凑行展示）。
   ///
   /// `inputText` 是 JSON 字符串；不同工具的关键字段不一样，按工具名挑，
@@ -268,19 +295,14 @@ class ConversationRow {
   String get summary {
     final raw = inputText;
     if (raw == null || raw.isEmpty) return '';
-    Map<String, dynamic>? m;
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map) m = Map<String, dynamic>.from(decoded);
-    } catch (_) {
-      return _clip(raw, 80);
-    }
+    if (identical(_decodedInput, _failedDecode)) return _clip(raw, 80);
+    final m = _inputMap;
     if (m == null) return '';
 
     String? pick(List<String> keys) {
       for (final k in keys) {
         if (_isSensitiveKey(k)) continue;
-        final v = m![k];
+        final v = m[k];
         if (v is String && v.isNotEmpty) return v;
         if (v is num || v is bool) return v.toString();
       }
@@ -342,13 +364,7 @@ class ConversationRow {
   List<TodoItem> get todos {
     final raw = inputText;
     if (raw == null || raw.isEmpty) return const [];
-    Map<String, dynamic>? m;
-    try {
-      final d = jsonDecode(raw);
-      if (d is Map) m = Map<String, dynamic>.from(d);
-    } catch (_) {
-      return const [];
-    }
+    final m = _inputMap;
     if (m == null) return const [];
     for (final k in _todoKeys) {
       final v = m[k];

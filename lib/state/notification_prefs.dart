@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/notification_prefs.dart';
+
+export '../models/notification_prefs.dart';
 import '../services/device_store.dart';
 
 class NotificationPrefsNotifier extends Notifier<NotificationPrefs> {

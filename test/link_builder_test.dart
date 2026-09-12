@@ -124,4 +124,67 @@ void main() {
       expect(r.params, d.params);
     });
   });
+
+group('LinkBuilder.isPublicEndpoint（出站端点第二道防线）', () {
+  test('官方 origin 放行', () {
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://zcode.z.ai')),
+      isTrue,
+    );
+  });
+
+  test('环回 / 私网 / 保留地址一律拒绝', () {
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://localhost')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://127.0.0.1/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://10.1.2.3/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://192.168.1.1/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://172.16.0.9/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://169.254.9.9/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://100.64.0.1/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://[::1]/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://[fe80::1]/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://[fc00::1]/x')),
+      isFalse,
+    );
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('https://[::ffff:192.168.0.1]/x')),
+      isFalse,
+    );
+  });
+
+  test('非 https/wss scheme 拒绝', () {
+    expect(
+      LinkBuilder.isPublicEndpoint(Uri.parse('http://zcode.z.ai')),
+      isFalse,
+    );
+  });
+});
 }

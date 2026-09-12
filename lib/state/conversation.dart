@@ -1310,6 +1310,31 @@ class ConversationNotifier extends Notifier<Map<String, ConversationState>> {
     if (!state.containsKey(key)) return;
     state = Map.of(state)..remove(key);
   }
+
+  /// 设备删除时的会话层清理：取消该设备全部订阅、定时器与内部状态。
+  ///
+  /// 单会话的 [forget] 只处理一行；删设备必须按设备前缀整体回收，否则
+  /// 订阅与待重绑集合会残留（评审 P3：设备级缓存无清理入口）。
+  void forgetDevice(String deviceId) {
+    final prefix = '$deviceId|';
+    for (final key in _subscriptions.keys
+        .where((k) => k.startsWith(prefix))
+        .toList()) {
+      unawaited(_subscriptions.remove(key)?.cancel());
+    }
+    for (final key in _reconcile.keys
+        .where((k) => k.startsWith(prefix))
+        .toList()) {
+      _reconcile.remove(key)?.cancel();
+    }
+    _wantsRealtime.removeWhere((k) => k.startsWith(prefix));
+    _scopes.removeWhere((k, _) => k.startsWith(prefix));
+    _epochSeen.remove(deviceId);
+    final remaining = Map.of(
+      state,
+    )..removeWhere((k, _) => k.startsWith(prefix));
+    state = remaining;
+  }
 }
 
 final conversationProvider =

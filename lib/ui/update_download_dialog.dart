@@ -190,7 +190,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
               if (widget.result.downloadFileName != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                  '${widget.result.downloadFileName} · ${_formatBytes(widget.result.downloadSize)}',
+                  '${widget.result.downloadFileName} · ${_formatBytes(widget.result.downloadSize, l10n)}',
                   style: TextStyle(fontSize: 12, color: palette.textLo),
                 ),
               ],
@@ -298,8 +298,8 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
     );
   }
 
-  static String _formatBytes(int? bytes) {
-    if (bytes == null || bytes <= 0) return '大小未知';
+  static String _formatBytes(int? bytes, AppLocalizations l10n) {
+    if (bytes == null || bytes <= 0) return l10n.sizeUnknown;
     if (bytes >= 1024 * 1024) {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }

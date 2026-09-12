@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kDebugMode, mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../services/link_builder.dart';
 import '../services/session_jump.dart';
@@ -14,9 +16,37 @@ import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
 import '../state/root_tabs.dart';
+import '../state/session_index.dart';
 import '../state/session_status.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
+
+/// Bridge used by the app shell to give a mounted WebView the first chance
+/// to handle Android back.  The WebView remains in the IndexedStack, so this
+/// is intentionally a small imperative controller rather than a Navigator
+/// route.
+class OfficialRemotePageController {
+  Future<bool> Function()? _backHandler;
+
+  void attach(Future<bool> Function() handler) {
+    _backHandler = handler;
+  }
+
+  void detach() {
+    _backHandler = null;
+  }
+
+  Future<bool> handleBack() async {
+    final handler = _backHandler;
+    if (handler == null) return false;
+    try {
+      return await handler();
+    } catch (error, stackTrace) {
+      debugPrint('[ZR][WebView] back handling failed: $error\n$stackTrace');
+      return false;
+    }
+  }
+}
 
 /// Hosts the official ZCode remote page without recreating its visual layer.
 ///
@@ -26,9 +56,14 @@ import '../theme.dart';
 /// The page is also observed in-place so the launcher can keep a local cache
 /// without opening a second WebView or a second remote connection.
 class OfficialRemotePage extends ConsumerStatefulWidget {
-  const OfficialRemotePage({super.key, required this.device});
+  const OfficialRemotePage({
+    super.key,
+    required this.device,
+    this.backController,
+  });
 
   final RemoteDevice device;
+  final OfficialRemotePageController? backController;
 
   @override
   ConsumerState<OfficialRemotePage> createState() => _OfficialRemotePageState();
@@ -112,6 +147,86 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   window.setTimeout(hide, 0);
   window.setTimeout(hide, 250);
   window.setTimeout(hide, 1000);
+})();
+''';
+
+  /// ZCode's mobile conversation view is an in-page route.  Prefer its own
+  /// back control/history so the first Android back returns to the mobile
+  /// workspace/task overview instead of exposing the device launcher.
+  static const _mobileBackScript = r'''
+(function () {
+  function visible(node) {
+    if (!node || !(node instanceof HTMLElement)) return false;
+    var rect = node.getBoundingClientRect();
+    var style = window.getComputedStyle(node);
+    return style.display !== 'none' && style.visibility !== 'hidden' &&
+      style.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0 &&
+      rect.bottom > 0 && rect.top < Math.max(220, window.innerHeight * 0.30);
+  }
+
+  function isBackLabel(value) {
+    var text = String(value || '').trim();
+    // Substring matching against long message text would tap wrong elements;
+    // only short, label-like text qualifies.
+    if (text.length > 24) return false;
+    return /^(返回|返回上一级|back|go back)$/i.test(text) ||
+      /(^|[\s_-])(back|go-back)([\s_-]|$)/i.test(text);
+  }
+
+  function isBackToTop(value) {
+    var text = String(value || '').toLowerCase();
+    return text.indexOf('返回顶部') !== -1 ||
+      text.indexOf('back to top') !== -1;
+  }
+
+  var selectors = [
+    '[aria-label*="返回"]',
+    '[aria-label*="Back"]',
+    '[title*="返回"]',
+    '[title*="Back"]',
+    '[data-testid*="back"]',
+    '[data-testid*="Back"]',
+    '[data-test*="back"]',
+    '[data-test*="Back"]'
+  ];
+  var candidates = [];
+  selectors.forEach(function (selector) {
+    try {
+      document.querySelectorAll(selector).forEach(function (node) {
+        if (isBackToTop(node.getAttribute('aria-label')) ||
+            isBackToTop(node.getAttribute('title')) ||
+            isBackToTop(node.textContent)) {
+          return;
+        }
+        if (candidates.indexOf(node) < 0) candidates.push(node);
+      });
+    } catch (e) {}
+  });
+  document.querySelectorAll('button, [role="button"], a').forEach(function (node) {
+    if (isBackToTop(node.getAttribute('aria-label')) ||
+        isBackToTop(node.textContent)) {
+      return;
+    }
+    if (isBackLabel(node.getAttribute('aria-label')) ||
+        isBackLabel(node.getAttribute('title')) ||
+        isBackLabel(node.textContent)) {
+      if (candidates.indexOf(node) < 0) candidates.push(node);
+    }
+  });
+
+  for (var i = 0; i < candidates.length; i++) {
+    if (!visible(candidates[i])) continue;
+    candidates[i].click();
+    return true;
+  }
+
+  if (window.history && window.history.length > 1) {
+    // history.length also counts forward entries, so back() here can be a
+    // silent no-op that would swallow the back key forever. Report back and
+    // let the Dart side decide via canGoBack().
+    return 'history';
+  }
+  return false;
 })();
 ''';
 
@@ -341,7 +456,6 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   InAppWebViewController? _controller;
   bool _failed = false;
   bool _loading = true;
-  DateTime _lastAutoReload = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _warmupTimer;
   String? _pendingSessionId;
   WebViewSyncController? _sync;
@@ -351,6 +465,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.backController?.attach(_handleBack);
   }
 
   @override
@@ -377,15 +492,31 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   @override
   void didUpdateWidget(covariant OfficialRemotePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.backController != widget.backController) {
+      oldWidget.backController?.detach();
+      widget.backController?.attach(_handleBack);
+    }
     if (oldWidget.device.id != widget.device.id ||
         oldWidget.device.baseUrl != widget.device.baseUrl ||
-        oldWidget.device.params.toString() != widget.device.params.toString()) {
+        !mapEquals(oldWidget.device.params, widget.device.params)) {
+      // Warmup requests recorded under the old link must not replay against
+      // the new credential.
+      _warmup?.forget(widget.device.id);
       _reload();
     }
   }
 
   Future<void> _reload() async {
-    setState(() => _failed = false);
+    if (_controller == null) {
+      // No WebView (e.g. untrusted link): retrying cannot navigate anywhere,
+      // so keep the error card instead of getting stuck on a blank spinner.
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
     ref
         .read(sessionStatusProvider.notifier)
         .report(widget.device.id, SessionStatus.loading);
@@ -428,25 +559,53 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     MediaQuery.platformBrightnessOf(context),
   );
 
-  Future<void> _onLoadError() async {
-    final now = DateTime.now();
-    if (now.difference(_lastAutoReload).inSeconds >= 30) {
-      _lastAutoReload = now;
-      ref
-          .read(sessionStatusProvider.notifier)
-          .report(widget.device.id, SessionStatus.loading);
-      await _controller?.loadUrl(urlRequest: _request);
-      return;
+  void _onLoadError() {
+    if (!mounted || _failed) return;
+    // Never reload on a document error. A reload would discard the WebView
+    // input buffer and repeatedly interrupt a message being typed.
+    setState(() {
+      _loading = false;
+      _failed = true;
+    });
+    ref
+        .read(sessionStatusProvider.notifier)
+        .report(widget.device.id, SessionStatus.error);
+  }
+
+  bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
+
+  Future<bool> _handleBack() async {
+    if (!mounted || !_isPhone) return false;
+    final controller = _controller;
+    if (controller == null) return false;
+
+    // The official page may keep the conversation transition inside its SPA;
+    // let its visible back control or history handle that first.
+    try {
+      final result = await controller.evaluateJavascript(
+        source: _mobileBackScript,
+      );
+      // Only a tapped in-page back control counts as handled. 'history' (and
+      // anything else) falls through to the canGoBack() check below, which
+      // knows whether a real back entry exists.
+      if (result == true) return true;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ZR][WebView] mobile back script failed: $error\n$stackTrace',
+      );
     }
-    if (mounted) {
-      setState(() {
-        _loading = false;
-        _failed = true;
-      });
-      ref
-          .read(sessionStatusProvider.notifier)
-          .report(widget.device.id, SessionStatus.error);
+
+    // Fallback for navigations Chromium exposes even if JavaScript returned
+    // no value (for example, a redirect-created history entry).
+    try {
+      if (await controller.canGoBack()) {
+        await controller.goBack();
+        return true;
+      }
+    } catch (error, stackTrace) {
+      debugPrint('[ZR][WebView] browser back failed: $error\n$stackTrace');
     }
+    return false;
   }
 
   void _scheduleWarmupReplay() {
@@ -471,8 +630,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _pendingSessionId = sessionId;
       return;
     }
+    // Collapsed workspace groups expand only when the jump script knows the
+    // workspace label; without it the probe never finds the target session.
+    final workspace =
+        ref.read(sessionIndexProvider)[widget.device.id]?[sessionId]?.workspace;
     unawaited(
-      controller.evaluateJavascript(source: SessionJump.jumpScript(sessionId)),
+      controller.evaluateJavascript(
+        source: SessionJump.jumpScript(sessionId, workspace: workspace),
+      ),
     );
   }
 
@@ -489,6 +654,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 
   @override
   void dispose() {
+    widget.backController?.detach();
     WidgetsBinding.instance.removeObserver(this);
     _warmupTimer?.cancel();
     _sync?.forget();
@@ -542,7 +708,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
           child: !trusted
               ? _RemotePageError(
                   onRetry: null,
-                  message: '此链接不是受信任的 ZCode 官方远控链接。',
+                  message: AppLocalizations.of(context)!.untrustedLinkMessage,
                 )
               : Stack(
                   fit: StackFit.expand,
@@ -656,17 +822,21 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       onLoadStop: (_, uri) {
                         debugPrint('[ZR][WebView] load stop ${uri?.path}');
                         if (!mounted) return;
+                        // Android fires onLoadStop even when the main document
+                        // failed (the error page still "finishes"). Only
+                        // onLoadStart resets _failed, so the retry card stays.
                         setState(() {
                           _loading = false;
-                          _failed = false;
                         });
                         unawaited(_hideHandshakeOverlay());
                         unawaited(_applyWebTheme(_currentDark(context)));
-                        ref
-                            .read(sessionStatusProvider.notifier)
-                            .report(widget.device.id, SessionStatus.live);
-                        _scheduleWarmupReplay();
-                        _applyPendingJump();
+                        if (!_failed) {
+                          ref
+                              .read(sessionStatusProvider.notifier)
+                              .report(widget.device.id, SessionStatus.live);
+                          _scheduleWarmupReplay();
+                          _applyPendingJump();
+                        }
                       },
                       shouldOverrideUrlLoading: (_, action) async {
                         final uri = action.request.url;
@@ -680,7 +850,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           '[ZR][WebView] load error ${error.type}: '
                           '${error.description}',
                         );
-                        unawaited(_onLoadError());
+                        _onLoadError();
                       },
                       onReceivedHttpError: (_, request, response) {
                         if (request.isForMainFrame != true || !mounted) return;
@@ -688,12 +858,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           debugPrint(
                             '[ZR][WebView] http error ${response.statusCode}',
                           );
-                          unawaited(_onLoadError());
+                          _onLoadError();
                         }
                       },
                       onConsoleMessage: (_, message) {
                         final text = message.message.trim();
-                        if (text.isNotEmpty) {
+                        // release 构建不把页面 console 透传到 logcat（可能
+                        // 带会话内容片段）。
+                        if (kDebugMode && text.isNotEmpty) {
                           debugPrint('[ZR][WebView] console $text');
                         }
                       },
@@ -702,7 +874,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       Positioned.fill(
                         child: _RemotePageError(
                           onRetry: _reload,
-                          message: '官方远程页面暂时无法打开。',
+                          message: AppLocalizations.of(context)!.remotePageErrorTitle,
+                          retryLabel: AppLocalizations.of(context)!.retry,
                         ),
                       ),
                   ],
@@ -714,10 +887,15 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 }
 
 class _RemotePageError extends StatelessWidget {
-  const _RemotePageError({required this.onRetry, required this.message});
+  const _RemotePageError({
+    required this.onRetry,
+    required this.message,
+    this.retryLabel,
+  });
 
   final VoidCallback? onRetry;
   final String message;
+  final String? retryLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -733,7 +911,7 @@ class _RemotePageError extends StatelessWidget {
             Text(message, style: TextStyle(color: zt.textLo, fontSize: 13)),
             if (onRetry != null) ...[
               const SizedBox(height: 12),
-              OutlinedButton(onPressed: onRetry, child: const Text('重试')),
+              OutlinedButton(onPressed: onRetry, child: Text(retryLabel ?? '重试')),
             ],
           ],
         ),

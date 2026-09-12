@@ -14,6 +14,7 @@ import '../state/panel_state.dart';
 import '../state/session_index.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
+import 'bridge_message_pipeline.dart';
 import 'event_observer.dart';
 import 'notifier.dart';
 import 'warmup.dart';
@@ -36,16 +37,13 @@ class WebViewSyncController {
   void ingestMessage(String body, BuildContext context) {
     if (body.isEmpty || body.length > kMaxListenBytes) return;
 
+    // 单次 decode：面板、状态、任务索引与事件提取共用同一 root（评审 A2）。
+    final root = BridgeMessagePipeline.decode(body);
+    if (root == null) return;
+
     // Panel responses and task/session events share the official page's
     // existing bridge stream. Each device is stored independently.
-    ref.read(panelDataProvider.notifier).ingest(device.id, body);
-
-    dynamic root;
-    try {
-      root = jsonDecode(body);
-    } catch (_) {
-      root = null;
-    }
+    ref.read(panelDataProvider.notifier).ingestRoot(device.id, body, root);
 
     final frameStatus = RelayLedPolicy.onFrameRoot(root);
     if (frameStatus != null) {
@@ -59,20 +57,23 @@ class WebViewSyncController {
     }
 
     final states = SessionStateExtractor.parseRoot(root);
+    final removedResult = BridgeMessagePipeline.parseRemoved(root);
     final removed = [
-      ...SessionStateExtractor.parseRemovedRoot(root),
-      ...TaskIndexExtractor.parseRemovedRoot(root),
-      ...TaskIndexExtractor.parseArchivedRoot(root),
+      ...removedResult.sessions,
+      ...removedResult.tasks,
+      ...removedResult.archived,
     ];
     final index = ref.read(sessionIndexProvider.notifier);
     index.upsertAll(device.id, states);
     index.removeSessions(device.id, removed);
 
+    final taskIndex = TaskIndexExtractor.parseRoot(root);
     final snapshotTasks = TaskIndexExtractor.parseSnapshotRoot(root);
     if (snapshotTasks != null) {
-      index.replaceTasks(device.id, snapshotTasks);
+      _stateDiffer.pruneOnSnapshot(snapshotTasks);
+      index.replaceTasks(device.id, snapshotTasks, preservePinned: true);
     } else {
-      index.upsertTasks(device.id, TaskIndexExtractor.parseRoot(root));
+      index.upsertTasks(device.id, taskIndex);
     }
 
     final resultTasks = TaskIndexExtractor.parseResultTasksRoot(root);
@@ -93,10 +94,7 @@ class WebViewSyncController {
       // not currently open. Include that form in the same state differ so a
       // completion/approval in any conversation is monitored, not just the
       // conversation rendered on screen.
-      ..._stateDiffer.apply([
-        ...states,
-        ...TaskIndexExtractor.parseRoot(root),
-      ], removed: removed),
+      ..._stateDiffer.apply([...states, ...taskIndex], removed: removed),
     ]);
     if (events.isEmpty) return;
 

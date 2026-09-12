@@ -301,7 +301,12 @@ class UpdateService {
     final ownsClient = client == null;
     File? partial;
     try {
-      final targetDirectory = directory ?? await getTemporaryDirectory();
+      final baseDirectory = directory ?? await getTemporaryDirectory();
+      // 与 FileProvider 的 file_paths（updates/ 子目录）保持一致，避免
+      // 把整个 cache 目录暴露给安装器。
+      final targetDirectory = Directory(
+        '${baseDirectory.path}${Platform.pathSeparator}updates',
+      );
       await targetDirectory.create(recursive: true);
       final version = normalizeVersion(result.latestVersion ?? '') ?? 'latest';
       final target = File(

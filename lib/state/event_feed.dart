@@ -7,6 +7,9 @@ class DeviceFeed {
     this.unread = 0,
     this.permPending = false,
     this.lastSummary,
+    this.lastType,
+    this.lastTaskId,
+    this.lastSessionTitle,
   });
 
   final int unread;
@@ -15,12 +18,28 @@ class DeviceFeed {
 
   final String? lastSummary;
 
-  DeviceFeed copyWith({int? unread, bool? permPending, String? lastSummary}) =>
-      DeviceFeed(
-        unread: unread ?? this.unread,
-        permPending: permPending ?? this.permPending,
-        lastSummary: lastSummary ?? this.lastSummary,
-      );
+  /// 最近一条可提醒事件的要素（原通知历史的取数来源，悬浮通知卡用）。
+  final String? lastType;
+
+  final String? lastTaskId;
+
+  final String? lastSessionTitle;
+
+  DeviceFeed copyWith({
+    int? unread,
+    bool? permPending,
+    String? lastSummary,
+    String? lastType,
+    String? lastTaskId,
+    String? lastSessionTitle,
+  }) => DeviceFeed(
+    unread: unread ?? this.unread,
+    permPending: permPending ?? this.permPending,
+    lastSummary: lastSummary ?? this.lastSummary,
+    lastType: lastType ?? this.lastType,
+    lastTaskId: lastTaskId ?? this.lastTaskId,
+    lastSessionTitle: lastSessionTitle ?? this.lastSessionTitle,
+  );
 }
 
 class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
@@ -35,9 +54,6 @@ class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
       return;
     }
     if (!kNotifiableTypes.contains(event.type)) return;
-    ref
-        .read(eventHistoryProvider.notifier)
-        .append(deviceId, event, DateTime.now().millisecondsSinceEpoch);
     final current = state[deviceId] ?? const DeviceFeed();
     state = {
       ...state,
@@ -45,6 +61,9 @@ class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
         unread: current.unread + 1,
         permPending: current.permPending || event.type == 'permission_request',
         lastSummary: event.summary ?? event.type,
+        lastType: event.type,
+        lastTaskId: event.taskId,
+        lastSessionTitle: event.sessionTitle,
       ),
     };
   }
@@ -68,69 +87,12 @@ class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
   }
 
   void forget(String deviceId) {
-    ref.read(eventHistoryProvider.notifier).forget(deviceId);
-    clear(deviceId);
+    if (!state.containsKey(deviceId)) return;
+    state = Map.of(state)..remove(deviceId);
   }
 }
 
 final eventFeedProvider =
     NotifierProvider<EventFeedNotifier, Map<String, DeviceFeed>>(
       EventFeedNotifier.new,
-    );
-
-class FeedEvent {
-  const FeedEvent({
-    required this.type,
-    required this.at,
-    this.taskId,
-    this.sessionTitle,
-    this.summary,
-  });
-
-  final String type;
-
-  final int at;
-
-  final String? taskId;
-
-  final String? sessionTitle;
-
-  final String? summary;
-}
-
-/// 通知中心的事件历史（跨设备时间线），按设备分组存储、新事件在前。
-class EventHistoryNotifier extends Notifier<Map<String, List<FeedEvent>>> {
-  static const int _maxPerDevice = 50;
-
-  @override
-  Map<String, List<FeedEvent>> build() => const {};
-
-  void append(String deviceId, ObservedEvent event, int at) {
-    final list = [
-      FeedEvent(
-        type: event.type,
-        at: at,
-        taskId: event.taskId,
-        sessionTitle: event.sessionTitle,
-        summary: event.summary,
-      ),
-      ...state[deviceId] ?? const <FeedEvent>[],
-    ];
-    state = {
-      ...state,
-      deviceId: list.length > _maxPerDevice
-          ? list.sublist(0, _maxPerDevice)
-          : list,
-    };
-  }
-
-  void forget(String deviceId) {
-    if (!state.containsKey(deviceId)) return;
-    state = Map.of(state)..remove(deviceId);
-  }
-}
-
-final eventHistoryProvider =
-    NotifierProvider<EventHistoryNotifier, Map<String, List<FeedEvent>>>(
-      EventHistoryNotifier.new,
     );

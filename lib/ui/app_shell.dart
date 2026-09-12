@@ -7,7 +7,10 @@ import '../l10n/app_localizations.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
+import '../state/device_relay_coordinator.dart';
 import '../state/event_feed.dart';
+import '../state/notification_prefs.dart';
+import '../state/native_channel.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
@@ -30,6 +33,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   Timer? _noticeTimer;
   UpdateCheckResult? _pendingUpdate;
   bool _updateDialogShowing = false;
+  bool _backHandling = false;
+  final Map<String, OfficialRemotePageController> _remotePageControllers = {};
 
   /// The launcher is a native App surface. Device WebViews stay mounted
   /// underneath it so returning to a device restores the exact same page
@@ -42,6 +47,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     _launcherVisible = widget.startAtLauncher;
     NotificationTap.bind((payload) => _jumpTo(payload));
     NotifierService.instance.setLockScreenRedact(ref.read(biometricProvider));
+    NotifierService.instance.setAlertMode(
+      ref.read(notificationPrefsProvider).alertMode,
+    );
     // Keep launch quiet: the check runs in the background and only a confirmed
     // newer release produces a one-time foreground prompt.
     unawaited(_checkForUpdateOnLaunch());
@@ -94,8 +102,29 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void dispose() {
     _noticeTimer?.cancel();
+    _remotePageControllers.clear();
     NotificationTap.bind(null);
     super.dispose();
+  }
+
+  Future<void> _handleSystemBack(
+    OfficialRemotePageController controller,
+  ) async {
+    if (_backHandling || !mounted || _launcherVisible) return;
+    _backHandling = true;
+    try {
+      final handled = await controller.handleBack();
+      if (!handled && mounted && !_launcherVisible) {
+        // On a phone the first back is offered to the WebView above. If the
+        // WebView is already on its overview, expose the app launcher now;
+        // the next back exits the app normally. Tablets keep this same
+        // device-page → launcher behavior because their overview is already
+        // visible in the wider layout.
+        setState(() => _launcherVisible = true);
+      }
+    } finally {
+      _backHandling = false;
+    }
   }
 
   void _showFloatingNotice(String deviceId) {
@@ -104,10 +133,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (device == null || !mounted) return;
 
     final l10n = AppLocalizations.of(context)!;
-    final event = ref.read(eventHistoryProvider)[deviceId]?.firstOrNull;
-    final type = event?.type ?? '';
-    final session = event?.sessionTitle?.trim() ?? '';
-    final summary = event?.summary?.trim() ?? '';
+    final feedItem = ref.read(eventFeedProvider)[deviceId];
+    final type = feedItem?.lastType ?? '';
+    final session = feedItem?.lastSessionTitle?.trim() ?? '';
+    final summary = feedItem?.lastSummary?.trim() ?? '';
     final title = NotificationSpec.titleFor(device, session, l10n);
     final body = NotificationSpec.bodyFor(type, summary, l10n);
 
@@ -115,7 +144,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     setState(() {
       _floatingNotice = _FloatingNotice(
         deviceId: deviceId,
-        taskId: event?.taskId,
+        taskId: feedItem?.lastTaskId,
         type: type,
         title: title,
         body: body,
@@ -196,6 +225,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       biometricProvider,
       (_, next) => NotifierService.instance.setLockScreenRedact(next),
     );
+    ref.listen<NotificationPrefs>(notificationPrefsProvider, (_, next) {
+      NotifierService.instance.setAlertMode(next.alertMode);
+    });
 
     ref.listen(deviceListProvider, (prev, next) {
       ref.read(activeTabProvider.notifier).clampTo(next.length);
@@ -244,26 +276,54 @@ class _AppShellState extends ConsumerState<AppShell> {
       return const ManagePage();
     }
 
+    // 激活通道仲裁器（autoDispose 跟随本组件生命周期）。
+    ref.watch(deviceRelayCoordinatorProvider);
+    final nativeChannel = ref.watch(nativeChannelProvider);
+
     final active = ref.watch(activeTabProvider);
     final index = active.clamp(0, devices.length - 1);
+    _remotePageControllers.removeWhere(
+      (id, _) => !devices.any((device) => device.id == id),
+    );
+    for (final device in devices) {
+      _remotePageControllers.putIfAbsent(
+        device.id,
+        OfficialRemotePageController.new,
+      );
+    }
+    final activeBackController = _remotePageControllers[devices[index].id]!;
+    // 仲裁模式：只有活动设备挂 WebView（原生桥为其余设备供数，也省掉
+    // N 台设备 N 个浏览器内核的启动内存）；关闭时与历史版本完全一致。
+    final stackChildren = nativeChannel
+        ? [
+            OfficialRemotePage(
+              key: ValueKey(devices[index].id),
+              device: devices[index],
+              backController: _remotePageControllers[devices[index].id],
+            ),
+          ]
+        : [
+            for (final device in devices)
+              OfficialRemotePage(
+                key: ValueKey(device.id),
+                device: device,
+                backController: _remotePageControllers[device.id],
+              ),
+          ];
     return PopScope<void>(
       // Back from the official page returns to the launcher. Back from the
       // launcher is allowed to leave the app normally.
       canPop: _launcherVisible,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && !_launcherVisible && mounted) {
-          setState(() => _launcherVisible = true);
-        }
+        if (didPop || _launcherVisible) return;
+        unawaited(_handleSystemBack(activeBackController));
       },
       child: Stack(
         fit: StackFit.expand,
         children: [
           IndexedStack(
-            index: index,
-            children: [
-              for (final device in devices)
-                OfficialRemotePage(key: ValueKey(device.id), device: device),
-            ],
+            index: nativeChannel ? 0 : index,
+            children: stackChildren,
           ),
           if (_launcherVisible)
             Positioned.fill(child: ManagePage(onOpenDevice: _openDevice)),

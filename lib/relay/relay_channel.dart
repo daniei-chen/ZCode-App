@@ -108,6 +108,10 @@ class RelayChannel {
   bool get isReady =>
       _phase == RelayPhase.ready || _phase == RelayPhase.degraded;
 
+  /// degraded 表示传输仍在但已降级。重连必须重建桥，不能被 [isReady]
+  /// 短路——否则降级后的退避重试全部空转（评审 N1）。
+  bool get isDegraded => _phase == RelayPhase.degraded;
+
   Stream<RelayPhase> get phases => _phases.stream;
   Stream<RelayDownlink> get downlinks => _downlinks.stream;
   Stream<RelayFailure> get failures => _failures.stream;

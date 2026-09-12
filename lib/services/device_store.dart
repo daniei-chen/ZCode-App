@@ -134,6 +134,7 @@ class DeviceStore {
   static const _notifApprovalKey = 'zremote.notify.approval';
   static const _notifCompleteKey = 'zremote.notify.complete';
   static const _notifFailKey = 'zremote.notify.fail';
+  static const _notifAlertKey = 'zremote.notify.alertMode';
 
   Future<NotificationPrefs> notificationPrefs() async {
     final prefs = await SharedPreferences.getInstance();
@@ -141,6 +142,8 @@ class DeviceStore {
       approval: prefs.getBool(_notifApprovalKey) ?? true,
       complete: prefs.getBool(_notifCompleteKey) ?? true,
       fail: prefs.getBool(_notifFailKey) ?? true,
+      alertMode:
+          prefs.getString(_notifAlertKey) ?? NotificationPrefs.kAlertSound,
     );
   }
 
@@ -149,6 +152,34 @@ class DeviceStore {
     await prefs.setBool(_notifApprovalKey, value.approval);
     await prefs.setBool(_notifCompleteKey, value.complete);
     await prefs.setBool(_notifFailKey, value.fail);
+    await prefs.setString(_notifAlertKey, value.alertMode);
+  }
+
+  static const _startupTargetKey = 'zremote.startupTarget';
+
+  /// 启动进入页：'lastDevice'（默认，恢复最近设备）或 'launcher'（设备中心）。
+  Future<String> startupTarget() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_startupTargetKey) ?? 'lastDevice';
+  }
+
+  Future<void> setStartupTarget(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_startupTargetKey, value);
+  }
+
+  static const _nativeChannelKey = 'zremote.nativeChannel';
+
+  /// 原生 Relay 增强层总开关（内部开关，默认关）。关闭时 App 行为与
+  /// 历史版本一致：全部设备 WebView 常驻，无原生桥。
+  Future<bool> nativeChannelEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_nativeChannelKey) ?? false;
+  }
+
+  Future<void> setNativeChannelEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_nativeChannelKey, value);
   }
 
   static String _warmupKey(String id) => 'zremote.warmup.$id';

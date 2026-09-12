@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../models/device_label.dart';
+import '../models/notification_prefs.dart';
 import 'event_observer.dart';
 
 class NotificationSpec {
@@ -188,8 +189,16 @@ class NotifierService {
   Future<void>? _initFuture;
   Future<void>? _permissionFuture;
   bool _lockScreenRedact = false;
+  String _alertMode = NotificationPrefs.kAlertSound;
 
   void setLockScreenRedact(bool value) => _lockScreenRedact = value;
+
+  /// 提醒方式（声音/仅振动/静音）。Android 渠道创建后声音不可再改，
+  /// 因此通知按模式投递到不同的渠道族（见 [_channelId]）。
+  void setAlertMode(String mode) => _alertMode = mode;
+
+  // ignore: avoid_shadowing_type_parameters
+  String _channelId(String base) => '${base}_$_alertMode';
 
   Future<void> ensurePermission() => _permissionFuture ??= _requestPermission();
 
@@ -231,6 +240,8 @@ class NotifierService {
   }
 
   Future<void> playInAppSound() async {
+    // 仅振动/静音模式下应用内提示音一并停掉；悬浮卡本身已是视觉反馈。
+    if (_alertMode != NotificationPrefs.kAlertSound) return;
     try {
       await _soundChannel.invokeMethod<void>('playDefault');
     } catch (_) {
@@ -260,16 +271,16 @@ class NotifierService {
         body: spec.body,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            spec.channelId,
+            _channelId(spec.channelId),
             spec.channelName,
             icon: 'ic_notification',
             importance: spec.importance,
             priority: spec.priority,
             channelShowBadge: true,
-            playSound: true,
+            playSound: _alertMode == NotificationPrefs.kAlertSound,
             sound: null,
-            enableVibration: true,
-            silent: false,
+            enableVibration: _alertMode != NotificationPrefs.kAlertSilent,
+            silent: _alertMode == NotificationPrefs.kAlertSilent,
             // A new terminal event must alert even when Android reuses the
             // stable device/type/session notification id.
             onlyAlertOnce: false,
@@ -292,18 +303,17 @@ class NotifierService {
         body: l10nZh.notifTestBody,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            'zr_done_alert_v6',
+            // 测试按钮模拟的是真实告警路径，同样跟随提醒方式。
+            _channelId('zr_done_alert_v6'),
             l10nZh.notifChannelDone,
             icon: 'ic_notification',
             importance: Importance.high,
             priority: Priority.high,
             channelShowBadge: true,
-            playSound: true,
-            // This button exercises the outside-app OS notification path, so
-            // it deliberately uses the Android system default sound too.
+            playSound: _alertMode == NotificationPrefs.kAlertSound,
             sound: null,
-            enableVibration: true,
-            silent: false,
+            enableVibration: _alertMode != NotificationPrefs.kAlertSilent,
+            silent: _alertMode == NotificationPrefs.kAlertSilent,
             onlyAlertOnce: false,
           ),
         ),
