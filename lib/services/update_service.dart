@@ -273,14 +273,57 @@ class UpdateService {
       );
     }
 
-    // API 限流时的兜底只确认“有新版本”，绝不猜测资产文件名——
-    // 没有真实元数据就不构造下载 URL（canDownload=false，弹窗引导到
-    // GitHub Release 页面）。
+    // API 限流时的兜底：发布契约保证每个 Release 都有 ZCode-v<版本>.apk
+    // 与同名 .sha256 伴随资产，因此先取回 sidecar 摘要——拿到 digest 才
+    // 允许自动下载，仍然 fail-closed（U1）；拿不到（404/网络失败/摘要不
+    // 合格式）就退回"引导 GitHub 页"的老行为，绝不盲猜下载地址。
+    final assetName = 'ZCode-v$latest.apk';
+    final sidecarUri = _safeDownloadUri(
+      '$repositoryUrl/releases/download/$tag/$assetName.sha256',
+      allowedExtension: '.sha256',
+    );
+    String? assetDigest;
+    if (sidecarUri != null) {
+      assetDigest = await _fetchSidecarDigest(
+        sidecarUri,
+        client,
+        expectedFileName: assetName,
+        timeout: timeout,
+      );
+    }
     return _result(
       current: current,
       latest: latest,
       releaseUri: releaseUri,
+      downloadUri: assetDigest == null
+          ? null
+          : _safeDownloadUri('$repositoryUrl/releases/download/$tag/$assetName'),
+      downloadFileName: assetDigest == null ? null : assetName,
+      assetDigest: assetDigest,
     );
+  }
+
+  /// 下载 .sha256 伴随资产并解析摘要。内容为 sha256sum 输出格式：
+  /// `<64 位十六进制>  <文件名>`。文件名必须与契约资产完全一致，
+  /// 防止把别的文件的摘要当成安装包的。
+  Future<String?> _fetchSidecarDigest(
+    Uri uri,
+    http.Client client, {
+    required String expectedFileName,
+    required Duration timeout,
+  }) async {
+    try {
+      final response = await client.get(uri).timeout(timeout);
+      if (response.statusCode != 200) return null;
+      final match = RegExp(
+        r'^([0-9a-fA-F]{64})\s+\*?(.+)$',
+      ).firstMatch(response.body.trim());
+      if (match == null) return null;
+      if (match.group(2)!.trim() != expectedFileName) return null;
+      return 'sha256:${match.group(1)!.toLowerCase()}';
+    } catch (_) {
+      return null;
+    }
   }
 
   UpdateCheckResult? _resultFromApi(String body, String current) {
@@ -654,7 +697,7 @@ class UpdateService {
     return uri;
   }
 
-  static Uri? _safeDownloadUri(Object? raw) {
+  static Uri? _safeDownloadUri(Object? raw, {String allowedExtension = '.apk'}) {
     if (raw is! String) return null;
     final uri = Uri.tryParse(raw);
     if (uri == null ||
@@ -663,7 +706,7 @@ class UpdateService {
         !uri.path.toLowerCase().startsWith(
           '/2421873411a-rgb/zcode-app/releases/download/',
         ) ||
-        !uri.path.toLowerCase().endsWith('.apk')) {
+        !uri.path.toLowerCase().endsWith(allowedExtension)) {
       return null;
     }
     return uri;

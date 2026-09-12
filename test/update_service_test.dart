@@ -91,19 +91,29 @@ void main() {
     expect(result.canDownload, isFalse);
   });
 
-  test('API 限流时从公开发布页获取版本并构造 APK 下载地址', () async {
+  test('API 限流时从发布页取版本，并经 sidecar 摘要恢复自动下载', () async {
     final client = MockClient((request) async {
       if (request.url == UpdateService.latestReleaseApi) {
         return http.Response('rate limited', 403);
       }
-      expect(request.url, UpdateService.latestReleasePage);
+      if (request.url == UpdateService.latestReleasePage) {
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+          },
+        );
+      }
+      // sidecar：契约资产 ZCode-v1.0.1.apk 的摘要文件。
+      expect(
+        request.url.toString(),
+        'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk.sha256',
+      );
       return http.Response(
-        '',
-        302,
-        headers: {
-          'location':
-              'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
-        },
+        '${'a' * 64}  ZCode-v1.0.1.apk\n',
+        200,
       );
     });
 
@@ -118,9 +128,68 @@ void main() {
       result.releaseUri.toString(),
       'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
     );
-    // 页面兜底只确认“有新版本”：没有真实 asset 元数据就绝不伪造下载
-    // URL（真实资产为 ZCode-v1.0.5.apk 命名，硬编码 ZCode.apk 已 404）。
+    expect(
+      result.downloadUri.toString(),
+      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk',
+    );
+    expect(result.downloadFileName, 'ZCode-v1.0.1.apk');
+    expect(result.assetDigest, 'sha256:${'a' * 64}');
+    expect(result.canDownload, isTrue);
+  });
+
+  test('sidecar 拿不到（404）→ 回退为只引导 GitHub 页（fail-closed）', () async {
+    final client = MockClient((request) async {
+      if (request.url == UpdateService.latestReleaseApi) {
+        return http.Response('rate limited', 403);
+      }
+      if (request.url == UpdateService.latestReleasePage) {
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+          },
+        );
+      }
+      return http.Response('not found', 404);
+    });
+
+    final result = await UpdateService.instance.checkForUpdate(
+      client: client,
+      currentVersion: '1.0.0',
+    );
+
+    expect(result.status, UpdateCheckStatus.updateAvailable);
+    expect(result.latestVersion, '1.0.1');
     expect(result.downloadUri, isNull);
+    expect(result.assetDigest, isNull);
+    expect(result.canDownload, isFalse);
+  });
+
+  test('sidecar 文件名与契约资产不符 → 拒绝自动下载（防张冠李戴）', () async {
+    final client = MockClient((request) async {
+      if (request.url == UpdateService.latestReleaseApi) {
+        return http.Response('rate limited', 403);
+      }
+      if (request.url == UpdateService.latestReleasePage) {
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+          },
+        );
+      }
+      return http.Response('${'b' * 64}  something-else.apk\n', 200);
+    });
+
+    final result = await UpdateService.instance.checkForUpdate(
+      client: client,
+      currentVersion: '1.0.0',
+    );
+
     expect(result.canDownload, isFalse);
   });
 

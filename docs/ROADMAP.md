@@ -25,6 +25,7 @@
 - [x] v1.0.7 发布走完整 workflow，全程无手工上传文件（R1 验收 ✅ tag→签名→ABI 校验→SHA256→Release 全自动）
 
 ## v1.0.8 — WebView Hardening（候选）
+- [x] 页面回退路径经 .sha256 sidecar 恢复自动下载：修复 API 被限流（VPN 共享出口常见）时"发现新版本但没有可下载 APK"的体验不一致，fail-closed 语义不变
 
 - KeepAlive 死代码移除，电池优化能力独立命名（BatteryOptimizationService，K1）
 - 电池优化文案改为"改善后台存活概率"，不承诺通知必达（K2）
