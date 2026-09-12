@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.ColorDrawable
 import android.media.AudioAttributes
@@ -230,6 +231,19 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(true)
                     }
                 }
+                "inspectApk" -> {
+                    val path = call.argument<String>("path")
+                    val info = path?.let { inspectApk(it) }
+                    if (info == null) {
+                        result.error(
+                            "inspect_failed",
+                            "Unable to read the Android package",
+                            null,
+                        )
+                    } else {
+                        result.success(info)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -254,6 +268,27 @@ class MainActivity : FlutterFragmentActivity() {
         } catch (_: Exception) {
             false
         }
+    }
+
+    // 应用内更新的安装前预校验：读 APK 归档元数据（包名 + versionCode），
+    // Dart 侧据此在人话界面里拦下"无法降级安装(-25)"之类的系统错误。
+    private fun inspectApk(path: String): Map<String, Any?>? = try {
+        val pm = packageManager
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageArchiveInfo(path, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageArchiveInfo(path, 0)
+        }
+        info?.let {
+            mapOf(
+                "packageName" to it.packageName,
+                "versionName" to it.versionName,
+                "versionCode" to it.longVersionCode,
+            )
+        }
+    } catch (_: Exception) {
+        null
     }
 
     private fun playDefaultNotificationSound() {

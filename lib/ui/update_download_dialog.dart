@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
@@ -71,6 +72,18 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
         },
       );
       if (!mounted) return;
+      // 安装前预校验：包名/versionCode 不对时直接在人话界面拦下，
+      // 不让系统安装器弹"无法降级安装(-25)"之类的裸错误。
+      final precheckError = await _precheckDownload(file);
+      if (!mounted) return;
+      if (precheckError != null) {
+        setState(() {
+          _stage = _DownloadStage.failed;
+          _error = 'precheck';
+          _errorDetail = precheckError;
+        });
+        return;
+      }
       setState(() {
         _file = file;
         _stage = _DownloadStage.downloaded;
@@ -83,6 +96,24 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
         _errorDetail = e is UpdateDownloadException ? e.message : null;
       });
     }
+  }
+
+  /// 读 APK 元数据并与已装版本比对；返回人话错误文案，null = 通过。
+  Future<String?> _precheckDownload(File file) async {
+    final l10n = AppLocalizations.of(context)!;
+    final info = await PackageInfo.fromPlatform();
+    final archive = await UpdateInstaller.inspectApk(file.path);
+    return switch (precheckApk(
+      archive: archive,
+      expectedPackage: info.packageName,
+      // Android 上 buildNumber 就是 versionCode（pubspec 的 +N 部分）。
+      installedVersionCode: int.tryParse(info.buildNumber) ?? 0,
+    )) {
+      ApkPrecheckIssue.unreadable => l10n.updatePrecheckUnreadable,
+      ApkPrecheckIssue.wrongPackage => l10n.updatePrecheckWrongPackage,
+      ApkPrecheckIssue.downgrade => l10n.updatePrecheckDowngrade,
+      null => null,
+    };
   }
 
   Future<void> _install() async {

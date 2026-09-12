@@ -57,6 +57,36 @@ class UpdateDownloadException implements Exception {
   String toString() => cause == null ? message : '$message: $cause';
 }
 
+/// 安装前预校验发现的问题类型。
+enum ApkPrecheckIssue {
+  /// APK 读不出元数据（下载不完整或文件损坏）。
+  unreadable,
+
+  /// APK 包名与本应用不符（张冠李戴的包）。
+  wrongPackage,
+
+  /// 设备上已装更高 versionCode——系统会拒绝并报
+  /// INSTALL_FAILED_VERSION_DOWNGRADE(-25)，必须在交给系统前拦下。
+  downgrade,
+}
+
+/// 安装前预校验（纯函数，三个输入都是普通值，可直接单测）。
+/// 返回 null 表示通过，允许交给系统安装器。
+ApkPrecheckIssue? precheckApk({
+  required ApkArchiveInfo? archive,
+  required String expectedPackage,
+  required int installedVersionCode,
+}) {
+  if (archive == null) return ApkPrecheckIssue.unreadable;
+  if (archive.packageName != expectedPackage) {
+    return ApkPrecheckIssue.wrongPackage;
+  }
+  if (archive.versionCode < installedVersionCode) {
+    return ApkPrecheckIssue.downgrade;
+  }
+  return null;
+}
+
 /// Reads GitHub release metadata and downloads the APK without opening a
 /// browser page. GitHub's API is preferred because it exposes the exact asset
 /// URL; the public release page remains a fallback for API rate limiting.
