@@ -22,6 +22,7 @@ import '../state/session_status.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
 import '../services/app_log.dart';
+import '../services/bridge_schema.dart';
 
 /// Bridge used by the app shell to give a mounted WebView the first chance
 /// to handle Android back.  The WebView remains in the IndexedStack, so this
@@ -869,8 +870,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrTheme',
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
-                            final body = args.isNotEmpty ? args.first : null;
-                            _onWebThemeChange(body);
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxThemeBytes,
+                            );
+                            if (body != null) _onWebThemeChange(body);
                             return null;
                           },
                         );
@@ -879,8 +883,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
                             if (!context.mounted) return null;
-                            final body = args.isNotEmpty ? args.first : null;
-                            if (body is String) {
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxEventBytes,
+                            );
+                            if (body != null) {
                               _sync?.ingestMessage(body, context);
                             }
                             return null;
@@ -890,8 +897,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrViewState',
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
-                            final body = args.isNotEmpty ? args.first : null;
-                            if (body is String) _sync?.ingestViewState(body);
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxViewStateBytes,
+                            );
+                            if (body != null) _sync?.ingestViewState(body);
                             return null;
                           },
                         );
@@ -899,8 +909,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrSeen',
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
-                            final body = args.isNotEmpty ? args.first : null;
-                            if (body is String) _sync?.ingestSeen(body);
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxSeenBytes,
+                            );
+                            if (body != null) _sync?.ingestSeen(body);
                             return null;
                           },
                         );
@@ -909,22 +922,18 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
-                            if (body is String) {
-                              try {
-                                final decoded = jsonDecode(body);
-                                if (decoded is Map) {
-                                  ref
-                                      .read(observerStatsProvider.notifier)
-                                      .update({
-                                        for (final e in decoded.entries)
-                                          if (e.value is num)
-                                            '${e.key}':
-                                                (e.value as num).toInt(),
-                                      });
-                                  AppLog.debug('[ZR][Observer] stats $body');
-                                }
-                              } catch (_) {}
-                            }
+                            if (body is! String) return null;
+                            try {
+                              final stats = BridgeSchema.acceptStats(
+                                jsonDecode(body),
+                              );
+                              if (stats != null) {
+                                ref
+                                    .read(observerStatsProvider.notifier)
+                                    .update(stats);
+                                AppLog.debug('[ZR][Observer] stats $body');
+                              }
+                            } catch (_) {}
                             return null;
                           },
                         );
@@ -932,8 +941,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrWs',
                           callback: (args) async {
                             if (!await _bridgeAllowed()) return null;
-                            final body = args.isNotEmpty ? args.first : null;
-                            if (body is String) {
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxWsEventBytes,
+                            );
+                            if (body != null) {
                               _sync?.ingestWebSocketEvent(body);
                             }
                             return null;

@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../services/app_log.dart';
 import '../services/app_settings.dart';
 import '../services/battery_optimization.dart';
+import '../services/bridge_schema.dart';
 import '../services/update_service.dart';
 import '../state/observer_stats.dart';
 import '../state/session_pool.dart';
@@ -205,6 +206,11 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
             ),
           ),
           _section(palette, l10n.diagnosticsSectionObserver),
+          _row(
+            palette,
+            l10n.diagnosticsBridgeDropped,
+            '${BridgeSchema.droppedMessages}',
+          ),
           if (sortedStats.isEmpty)
             _row(palette, l10n.diagnosticsSectionObserver, '—')
           else

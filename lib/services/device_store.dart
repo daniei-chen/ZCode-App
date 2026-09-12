@@ -22,7 +22,13 @@ class DeviceStore {
     var ids = <String>[];
     if (indexRaw != null) {
       try {
-        ids = (jsonDecode(indexRaw) as List).cast<String>();
+        final rawIds = (jsonDecode(indexRaw) as List).cast<String>();
+        // 去重：索引损坏时可能出现重复项，重复设备只加载一次（混沌测试锁定）。
+        final seenIds = <String>{};
+        ids = [
+          for (final id in rawIds)
+            if (seenIds.add(id)) id,
+        ];
       } catch (_) {
         // 索引损坏自愈：凭据本体仍在 secure storage，逐个解析重建索引，
         // 而不是把"数据损坏"伪装成"用户没有设备"。注意排除索引键自身
