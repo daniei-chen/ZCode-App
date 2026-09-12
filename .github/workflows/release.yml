@@ -78,12 +78,46 @@ jobs:
           cd build/app/outputs/flutter-apk
           sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
 
+      # v1.4.0：SBOM（CycloneDX）+ release manifest（可审计事实集合）。
+      - name: Generate SBOM and release manifest
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd build/app/outputs/flutter-apk
+          python3 "${GITHUB_WORKSPACE}/scripts/generate-sbom.py" > "ZCode-v${VERSION}.sbom.cyclonedx.json"
+          BUILD_TOOLS="$(ls -d "${ANDROID_SDK_ROOT}/build-tools/"*/ | sort -V | tail -1)"
+          SIGNER=$("${BUILD_TOOLS}apksigner" verify --print-certs "ZCode-v${VERSION}.apk" \
+            | grep -m1 "SHA-256 digest" | awk '{print $NF}')
+          FLUTTER_VERSION=$(flutter --version --machine | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('frameworkVersion','unknown'))")
+          DART_VERSION=$(flutter --version --machine | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('dartSdkVersion','unknown'))")
+          VERSION_CODE=$(grep -E '^version:' "${GITHUB_WORKSPACE}/pubspec.yaml" | sed -E 's/.*\+([0-9]+).*/\1/')
+          MANIFEST_VERSION="${VERSION}" \
+          MANIFEST_VERSION_CODE="${VERSION_CODE}" \
+          MANIFEST_COMMIT="${GITHUB_SHA}" \
+          MANIFEST_APK="ZCode-v${VERSION}.apk" \
+          MANIFEST_APK_SHA256="$(sha256sum "ZCode-v${VERSION}.apk" | awk '{print $1}')" \
+          MANIFEST_FLUTTER="${FLUTTER_VERSION}" \
+          MANIFEST_DART="${DART_VERSION}" \
+          MANIFEST_SIGNER_SHA256="${SIGNER}" \
+          MANIFEST_SBOM="ZCode-v${VERSION}.sbom.cyclonedx.json" \
+          python3 "${GITHUB_WORKSPACE}/scripts/generate-release-manifest.py" > release-manifest.json
+
       # v1.1.0：APK 产物来源证明——用户可用 `gh attestation verify` 验证
       # 这个 APK 确实由本仓库的 GitHub Actions 构建。
       - name: Attest APK build provenance
         uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         with:
           subject-path: build/app/outputs/flutter-apk/ZCode-v*.apk
+
+      # v1.4.0 C：生成后立即自验证；证明不可验证的发布一律失败。
+      - name: Self-verify attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify "build/app/outputs/flutter-apk/ZCode-v${GITHUB_REF_NAME#v}.apk" \
+            --repo "${GITHUB_REPOSITORY}"
 
       # 发布说明：优先使用 docs/releases/<tag>.md；缺失时退回自动生成。
       - name: Prepare release notes
@@ -100,6 +134,8 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/ZCode-v*.apk
             build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
+            build/app/outputs/flutter-apk/ZCode-v*.sbom.cyclonedx.json
+            build/app/outputs/flutter-apk/release-manifest.json
 
       - name: GitHub Release
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
@@ -109,3 +145,5 @@ jobs:
           files: |
             build/app/outputs/flutter-apk/ZCode-v*.apk
             build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
+            build/app/outputs/flutter-apk/ZCode-v*.sbom.cyclonedx.json
+            build/app/outputs/flutter-apk/release-manifest.json
