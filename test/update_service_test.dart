@@ -96,10 +96,10 @@ void main() {
       result.releaseUri.toString(),
       'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
     );
-    expect(
-      result.downloadUri.toString(),
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode.apk',
-    );
+    // 页面兜底只确认“有新版本”：没有真实 asset 元数据就绝不伪造下载
+    // URL（真实资产为 ZCode-v1.0.5.apk 命名，硬编码 ZCode.apk 已 404）。
+    expect(result.downloadUri, isNull);
+    expect(result.canDownload, isFalse);
   });
 
   test('empty GitHub releases page is reported as no release', () async {
@@ -200,6 +200,7 @@ void main() {
           ]),
           206,
           contentLength: 3,
+          headers: {'content-range': 'bytes 2-4/5'},
         );
       });
 

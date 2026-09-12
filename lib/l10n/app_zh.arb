@@ -400,7 +400,7 @@
   "updateInstalling": "正在打开系统安装程序…",
   "updateDownloadFailed": "下载更新失败，请跳转下载",
   "updateInstallFailed": "无法打开系统安装程序，请稍后重试",
-  "updateNoApk": "该发布没有可下载的 APK",
+  "updateNoApk": "发现新版本，请到 GitHub 下载",
   "sourceCodeLink": "在 GitHub 查看源码",
   "unofficialDisclaimer": "本软件为个人开发的非官方软件。如有侵权，请联系作者。",
   "conversationTodo": "待办",

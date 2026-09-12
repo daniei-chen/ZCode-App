@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -667,6 +669,10 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
   Future<void> _check() async {
     if (_checking) return;
     setState(() => _checking = true);
+    if (!Platform.isAndroid) {
+      await UpdateService.openReleasePage();
+      return;
+    }
     final result = await UpdateService.instance.checkForUpdate();
     if (!mounted) return;
     setState(() {

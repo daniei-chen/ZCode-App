@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,6 +55,8 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   Future<void> _checkForUpdateOnLaunch() async {
+    // 应用内更新只支持 Android（下载 APK + 系统安装器）；iOS 不进入该链路。
+    if (!Platform.isAndroid) return;
     final result = await UpdateService.instance.checkForUpdate();
     if (!mounted || !result.hasUpdate || result.latestVersion == null) {
       return;
@@ -77,21 +80,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (version == null) return;
     _pendingUpdate = null;
 
-    // Mark before displaying so a repeated rebuild or a second resume cannot
-    // open the same prompt twice. Closing it means “ask again only for a new
-    // version”, as requested.
-    await UpdateService.instance.markPrompted(version);
-    if (!mounted ||
-        ref.read(appLifecycleProvider) != AppLifecycleState.resumed) {
-      return;
-    }
-
+    // _updateDialogShowing 负责防重复；markPrompted 必须在弹窗真实展示之后
+    // 再落盘——提前落盘会在生命周期竞争下把本版本的提示永久吞掉（U07）。
     _updateDialogShowing = true;
     try {
       // The update surface stays in the current app. It fetches the exact APK
       // asset URL from GitHub, shows device-page styled progress, then hands
       // the downloaded file to Android's installer.
       await showUpdateDownloadDialog(context, result);
+      await UpdateService.instance.markPrompted(version);
     } finally {
       _updateDialogShowing = false;
     }

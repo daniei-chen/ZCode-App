@@ -737,19 +737,25 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           source: EventObserver.hookScript,
                           injectionTime:
                               UserScriptInjectionTime.AT_DOCUMENT_START,
+                          allowedOriginRules: {'https://zcode.z.ai'},
                         ),
                         UserScript(
                           source: _themeSyncScript(dark),
                           injectionTime:
                               UserScriptInjectionTime.AT_DOCUMENT_START,
+                          allowedOriginRules: {'https://zcode.z.ai'},
                         ),
                         UserScript(
                           source: _hideHandshakeOverlayScript,
                           injectionTime:
                               UserScriptInjectionTime.AT_DOCUMENT_START,
+                          allowedOriginRules: {'https://zcode.z.ai'},
                         ),
                       ]),
                       initialSettings: InAppWebViewSettings(
+                        // 必须显式开启：插件默认 false 时 shouldOverrideUrlLoading
+        // 回调根本不会触发，导航白名单会变成死代码（安全审计 S-1）。
+                        useShouldOverrideUrlLoading: true,
                         javaScriptEnabled: true,
                         domStorageEnabled: true,
                         cacheEnabled: true,

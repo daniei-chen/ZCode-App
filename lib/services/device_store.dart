@@ -19,8 +19,27 @@ class DeviceStore {
 
   Future<List<RemoteDevice>> loadAll() async {
     final indexRaw = await _secure.read(key: _indexKey);
-    if (indexRaw == null) return [];
-    final ids = (jsonDecode(indexRaw) as List).cast<String>();
+    var ids = <String>[];
+    if (indexRaw != null) {
+      try {
+        ids = (jsonDecode(indexRaw) as List).cast<String>();
+      } catch (_) {
+        // 索引损坏自愈：凭据本体仍在 secure storage，按设备键前缀重建
+        // 索引，而不是把“数据损坏”伪装成“用户没有设备”。
+        try {
+          final all = await _secure.readAll();
+          ids = all.keys
+              .where((k) => k.startsWith(_deviceKeyPrefix))
+              .map((k) => k.substring(_deviceKeyPrefix.length))
+              .toList();
+          if (ids.isNotEmpty) {
+            await _secure.write(key: _indexKey, value: jsonEncode(ids));
+          }
+        } catch (_) {
+          return [];
+        }
+      }
+    }
     final rawDevices = await Future.wait(
       ids.map((id) => _secure.read(key: _deviceKey(id))),
     );

@@ -67,11 +67,21 @@ class UpdateService {
 
   static const repositoryUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
   static final latestReleasePage = Uri.parse('$repositoryUrl/releases/latest');
+
+  /// 非 Android 平台的更新入口：直接打开最新发布页。
+  static Future<void> openReleasePage() async {
+    try {
+      await launchUrl(latestReleasePage, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
   static final latestReleaseApi = Uri.parse(
     'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
   );
   static const _promptedVersionKey = 'zremote.update.promptedVersion';
   static const _apkName = 'ZCode.apk';
+
+  /// 安装包体积硬上限：正常 release 约 30-70 MB，超限视为异常响应。
+  static const int _maxApkBytes = 200 * 1024 * 1024;
 
   /// Returns whether the foreground update prompt has already been shown for
   /// this exact release. A newer release naturally gets a new prompt.
@@ -208,12 +218,13 @@ class UpdateService {
       );
     }
 
+    // API 限流时的兜底只确认“有新版本”，绝不猜测资产文件名——
+    // 没有真实元数据就不构造下载 URL（canDownload=false，弹窗引导到
+    // GitHub Release 页面）。
     return _result(
       current: current,
       latest: latest,
       releaseUri: releaseUri,
-      downloadUri: _downloadUriForTag(tag),
-      downloadFileName: _apkName,
     );
   }
 
@@ -244,11 +255,20 @@ class UpdateService {
           if (entry is! Map) continue;
           final name = entry['name'];
           if (name is! String) continue;
-          if (name.toLowerCase() == _apkName.toLowerCase()) {
+          final lower = name.toLowerCase();
+          // 命名契约：正式资产为 ZCode-v<版本>.apk，精确匹配优先；
+          // 其余 .apk 仅作兜底，避免多架构/误传包产生歧义。
+          if (lower == 'zcode-v$latest.apk') {
             selected = entry;
             break;
           }
-          selected ??= name.toLowerCase().endsWith('.apk') ? entry : null;
+          if (lower == _apkName.toLowerCase()) {
+            selected ??= entry;
+            continue;
+          }
+          if (lower.endsWith('.apk')) {
+            selected ??= entry;
+          }
         }
         if (selected != null) {
           downloadUri = _safeDownloadUri(selected['browser_download_url']);
@@ -324,6 +344,12 @@ class UpdateService {
     final uri = result.downloadUri;
     if (uri == null) {
       throw const UpdateDownloadException('该版本没有可下载的 APK');
+    }
+    final declared = result.downloadSize;
+    if (declared != null && declared > _maxApkBytes) {
+      throw UpdateDownloadException(
+        '安装包体积 ${(declared / 1024 / 1024).round()} MB 超过上限，已拒绝下载',
+      );
     }
 
     final httpClient = client ?? http.Client();
@@ -426,7 +452,7 @@ class UpdateService {
     var offset = received;
     if (response.statusCode == 416) {
       final expected = result.downloadSize;
-      if (expected != null && received >= expected) return received;
+      if (expected != null && received == expected) return received;
       throw UpdateDownloadException(
         '下载服务器返回 HTTP ${response.statusCode}',
       );
@@ -434,7 +460,20 @@ class UpdateService {
     if (response.statusCode == 200) {
       offset = 0;
       if (await partial.exists()) await partial.delete();
-    } else if (response.statusCode != 206) {
+    } else if (response.statusCode == 206) {
+      // 续传必须校验服务器返回的起点与本地断点一致，防止错位拼接。
+      final rangeHeader = response.headers['content-range'];
+      final match = rangeHeader == null
+          ? null
+          : RegExp(r'bytes (\d+)-').firstMatch(rangeHeader);
+      final start = match == null ? null : int.tryParse(match.group(1)!);
+      if (start != received) {
+        if (await partial.exists()) await partial.delete();
+        throw UpdateDownloadException(
+          '续传区间不符（服务器起点 $start，本地 $received），已重置下载',
+        );
+      }
+    } else if (response.statusCode != 200) {
       throw UpdateDownloadException(
         '下载服务器返回 HTTP ${response.statusCode}',
       );
@@ -446,15 +485,28 @@ class UpdateService {
       mode: offset > 0 ? FileMode.append : FileMode.write,
     );
     var local = offset;
+    var oversized = false;
+    IOSink? openSink;
     try {
+      openSink = sink;
       await for (final chunk in response.stream.timeout(stallTimeout)) {
         sink.add(chunk);
         local += chunk.length;
+        if (local > _maxApkBytes) {
+          oversized = true;
+          break;
+        }
         onProgress?.call(local, total);
       }
       await sink.flush();
     } finally {
-      await sink.close();
+      await openSink?.close();
+    }
+    if (oversized) {
+      if (await partial.exists()) await partial.delete();
+      throw const UpdateDownloadException(
+        '下载数据超过大小上限，已中断并清理',
+      );
     }
     return local;
   }
@@ -554,13 +606,6 @@ class UpdateService {
     );
   }
 
-  static Uri? _downloadUriForTag(String tag) {
-    final release = _releaseUriForTag(tag);
-    if (release == null) return null;
-    return _safeDownloadUri(
-      '$repositoryUrl/releases/download/${Uri.encodeComponent(tag.trim())}/$_apkName',
-    );
-  }
 
   static Uri? _releaseUriFromHtml(String html) {
     final match = RegExp(

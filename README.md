@@ -19,7 +19,7 @@
 
 ## 项目简介
 
-ZCode App（当前版本 1.0.5）面向需要在手机或平板上管理 ZCode 桌面任务的用户。它通过 ZCode 桌面端的移动远程控制功能接入电脑：扫码或粘贴控制链接，命名并保存设备，之后即可从设备页快速进入最近使用的设备和会话。
+ZCode App（当前版本 1.0.6）面向需要在手机或平板上管理 ZCode 桌面任务的用户。它通过 ZCode 桌面端的移动远程控制功能接入电脑：扫码或粘贴控制链接，命名并保存设备，之后即可从设备页快速进入最近使用的设备和会话。
 
 应用采用原生 Flutter 外壳承载设备管理、设置和通知；进入设备后的任务与会话页面使用内置 WebView 加载 ZCode 桌面端移动远程控制页面，保持电脑端的页面、布局和交互体验。Android 安装标识为 `com.zcode.app`，应用显示名为 `ZCode`。
 
@@ -103,7 +103,6 @@ flutter build apk --release
 ```text
 lib/
   models/       设备、通知、会话等数据模型
-  relay/        远程协议、消息和会话数据处理
   services/     设备存储、WebView、通知、更新和后台服务
   state/        设备池、会话、事件流和页面状态
   ui/           设备、WebView 会话入口、通知和设置页面
@@ -117,7 +116,7 @@ test/           Dart 单元测试与 Widget 测试
 当前工程已完成：
 
 - `flutter analyze`：无问题
-- `flutter test`：644 项通过
+- `flutter test`：316 项通过
 - Android Release APK：已构建并在模拟器安装启动验证
 - 包名：`com.zcode.app`
 
