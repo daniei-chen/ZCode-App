@@ -65,6 +65,19 @@ void main() {
       );
     });
 
+    test('WS/SSE 白名单（W2）：只观察官方 relay 端点，其余透明计数', () {
+      final hook = read('lib/services/event_observer.dart');
+      expect(hook.contains("u.pathname === '/ws'"), isTrue);
+      expect(hook.contains('wsIgnored'), isTrue);
+      expect(hook.contains('sseIgnored'), isTrue);
+    });
+
+    test('Renderer 崩溃恢复接入（v1.2.0）：generation 重建 WebView', () {
+      final page = read('lib/ui/official_remote_page.dart');
+      expect(page.contains('onRenderProcessGone'), isTrue);
+      expect(page.contains('_webviewGeneration'), isTrue);
+    });
+
     test('控制链接只接受 https 官方 host（拒绝明文与任意域）', () {
       final src = read('lib/services/link_builder.dart');
       expect(src.contains("scheme.toLowerCase() != 'https'"), isTrue);

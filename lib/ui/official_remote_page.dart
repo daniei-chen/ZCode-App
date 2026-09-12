@@ -500,6 +500,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   String? _pendingSessionId;
   WebViewSyncController? _sync;
   WarmupMemoryNotifier? _warmup;
+  // Renderer 恢复（v1.2.0）：Chromium 渲染进程被系统回收后，同一个 WebView
+  // 无法自愈；重试时用新的 generation 重建整个 WebView。
+  bool _rendererGone = false;
+  int _webviewGeneration = 0;
 
   @override
   void initState() {
@@ -601,7 +605,32 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     }
   }
 
+  void _handleRendererGone(String detail) {
+    AppLog.warn('[ZR][WebView] renderer gone: $detail');
+    if (!mounted) return;
+    setState(() {
+      _rendererGone = true;
+      _failed = true;
+      _loading = false;
+    });
+  }
+
   Future<void> _reload() async {
+    if (_rendererGone && mounted) {
+      // 渲染进程已死：原地 loadUrl 无法恢复，用新 generation 重建 WebView。
+      AppLog.warn('[ZR][WebView] rebuilding webview after renderer death');
+      setState(() {
+        _rendererGone = false;
+        _webviewGeneration++;
+        _failed = false;
+        _loading = true;
+        _firstLoadSettled = false;
+        _silentRetried = false;
+        _firstPaintProbed = false;
+      });
+      _armFirstLoadWatchdog();
+      return;
+    }
     if (_controller == null) {
       // No WebView (e.g. untrusted link): retrying cannot navigate anywhere,
       // so keep the error card instead of getting stuck on a blank spinner.
@@ -810,6 +839,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                   fit: StackFit.expand,
                   children: [
                     InAppWebView(
+                      key: ValueKey(
+                        'zr-webview-${widget.device.id}-$_webviewGeneration',
+                      ),
                       initialUrlRequest: _request,
                       initialUserScripts: UnmodifiableListView([
                         UserScript(
@@ -1038,6 +1070,19 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           AppLog.debug('[ZR][WebView] console $text');
                         }
                       },
+                      // v1.2.0 renderer 恢复：进程被系统回收后进入错误卡，
+                      // 重试走 generation 重建；无响应是"黑屏卡死"信号，
+                      // release 可见以便真机诊断。
+                      onRenderProcessGone: (_, detail) {
+                        _handleRendererGone(detail.toString());
+                      },
+                      onRenderProcessUnresponsive: (_, uri) async {
+                        AppLog.warn(
+                          '[ZR][WebView] renderer unresponsive ${uri?.path}',
+                        );
+                        return null;
+                      },
+                      onRenderProcessResponsive: (_, uri) async => null,
                     ),
                     if (_failed)
                       Positioned.fill(
