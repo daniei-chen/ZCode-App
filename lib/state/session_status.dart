@@ -74,6 +74,14 @@ abstract final class PageLoadPolicy {
 
   static bool isHttpFailure(bool? isForMainFrame, int? statusCode) =>
       isForMainFrame == true && (statusCode ?? 0) >= 400;
+
+  /// 首载静默重载预算已用尽（已经静默重试过一次、仍未 loadStop、也未进入
+  /// 失败）：此时必须走明确的失败出口（错误卡 + 可重试），不能继续等待（R01）。
+  static bool retryBudgetExhausted({
+    required bool silentRetried,
+    required bool settled,
+    required bool failed,
+  }) => silentRetried && !settled && !failed;
 }
 
 class SessionStatusNotifier extends Notifier<Map<String, SessionStatus>> {

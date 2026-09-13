@@ -151,5 +151,42 @@ void main() {
       expect(PageLoadPolicy.isHttpFailure(false, 500), isFalse);
       expect(PageLoadPolicy.isHttpFailure(true, null), isFalse);
     });
+
+    test('首载重试预算：用尽后必须进失败出口，首次超时仍可重试一次', () {
+      expect(
+        PageLoadPolicy.retryBudgetExhausted(
+          silentRetried: false,
+          settled: false,
+          failed: false,
+        ),
+        isFalse,
+        reason: '首次超时应静默重载一次',
+      );
+      expect(
+        PageLoadPolicy.retryBudgetExhausted(
+          silentRetried: true,
+          settled: false,
+          failed: false,
+        ),
+        isTrue,
+        reason: '已重试且仍未完成 → 预算用尽，必须显示失败卡（R01）',
+      );
+      expect(
+        PageLoadPolicy.retryBudgetExhausted(
+          silentRetried: true,
+          settled: true,
+          failed: false,
+        ),
+        isFalse,
+      );
+      expect(
+        PageLoadPolicy.retryBudgetExhausted(
+          silentRetried: true,
+          settled: false,
+          failed: true,
+        ),
+        isFalse,
+      );
+    });
   });
 }

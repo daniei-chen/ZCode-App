@@ -517,8 +517,32 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _firstLoadWatchdog?.cancel();
     _firstLoadWatchdog = Timer(const Duration(seconds: 20), () {
       if (!mounted || _firstLoadSettled || _failed) return;
+      // 静默重载预算用尽仍没有 loadStop：给出明确的失败出口，
+      // 而不是让用户对着空白页无限等待（F05/R01）。
+      if (PageLoadPolicy.retryBudgetExhausted(
+        silentRetried: _silentRetried,
+        settled: _firstLoadSettled,
+        failed: _failed,
+      )) {
+        _failFirstLoad('first load timeout (retry budget exhausted)');
+        return;
+      }
       unawaited(_silentReloadOnce('first load timeout'));
     });
+  }
+
+  /// 首载失败出口：进入错误卡（可重试 / 可回设备中心），并同步设备状态。
+  void _failFirstLoad(String reason) {
+    if (!mounted) return;
+    AppLog.warn('[ZR][WebView] first load failed: $reason');
+    _firstLoadWatchdog?.cancel();
+    setState(() {
+      _failed = true;
+      _loading = false;
+    });
+    ref
+        .read(sessionStatusProvider.notifier)
+        .report(widget.device.id, SessionStatus.error);
   }
 
   Future<void> _silentReloadOnce(String reason) async {
@@ -613,6 +637,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _failed = true;
       _loading = false;
     });
+    // 渲染进程已死不是"连接中"：把设备状态同步为异常，避免画布显示假在线。
+    ref
+        .read(sessionStatusProvider.notifier)
+        .report(widget.device.id, SessionStatus.error);
   }
 
   Future<void> _reload() async {
@@ -640,7 +668,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     setState(() {
       _loading = true;
       _failed = false;
+      // 手动重试 = 完整重开一轮：重置首载标志与重试预算，并重新计时（R03）。
+      _firstLoadSettled = false;
+      _silentRetried = false;
+      _firstPaintProbed = false;
     });
+    _armFirstLoadWatchdog();
     ref
         .read(sessionStatusProvider.notifier)
         .report(widget.device.id, SessionStatus.loading);
@@ -1011,9 +1044,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         unawaited(_hideHandshakeOverlay());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {
+                          // 文档加载完成 ≠ 远控可用（F06）：桌面离线、凭证失效
+                          // 时页面照样 loadStop。这里先记"连接中"，只有 relay
+                          // 证据（RelayLedPolicy：data 帧 / 终态错误）才改判。
                           ref
                               .read(sessionStatusProvider.notifier)
-                              .report(widget.device.id, SessionStatus.live);
+                              .report(widget.device.id, SessionStatus.loading);
                           _scheduleWarmupReplay();
                           _applyPendingJump();
                           unawaited(_verifyFirstPaint());
