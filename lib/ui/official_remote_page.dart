@@ -667,10 +667,24 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (oldWidget.device.id != widget.device.id ||
         oldWidget.device.baseUrl != widget.device.baseUrl ||
         !mapEquals(oldWidget.device.params, widget.device.params)) {
+      // 换链接 = 换凭证（F10）：旧页面的 JS 上下文、sync 基线（旧 device 对象、
+      // StateDiffer、activeSessionId）与桥令牌都不能沿用，也不能只做 reload——
+      // 用新 generation 重建 WebView，再让 warmup 记录在旧凭证下失效。
       // Warmup requests recorded under the old link must not replay against
       // the new credential.
       _warmup?.forget(widget.device.id);
-      _reload();
+      _sync?.forget();
+      _sync = null;
+      setState(() {
+        _webviewGeneration++;
+        _failed = false;
+        _loading = true;
+        _firstLoadSettled = false;
+        _silentRetried = false;
+        _firstPaintProbed = false;
+      });
+      _rotateBridgeToken();
+      _armFirstLoadWatchdog();
     }
   }
 

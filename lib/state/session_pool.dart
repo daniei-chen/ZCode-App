@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/device.dart';
-import '../services/device_store.dart';
 import '../services/app_log.dart';
+import '../services/device_store.dart';
+import '../services/warmup.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   DeviceListNotifier({List<RemoteDevice>? seed})
@@ -57,8 +58,24 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
 
   Future<void> remove(String id) async {
     await DeviceStore.instance.remove(id);
+    // 取消待写定时器并清掉内存预热记录：否则延时写入会把已删设备的
+    // warmup 又写回存储（F10）。
+    await ref.read(warmupMemoryProvider.notifier).forget(id);
     if (!ref.mounted) return;
+    final removedIndex = state.indexWhere((d) => d.id == id);
+    final activeIndex = ref.read(activeTabProvider);
     state = state.where((d) => d.id != id).toList();
+    if (removedIndex < 0) return;
+    // 选择跟随 deviceId（F10）：删除前方的设备不得让当前会话漂移到别的机器，
+    // 删除当前设备时落到确定的后继（或最后一台）。
+    if (removedIndex < activeIndex) {
+      ref.read(activeTabProvider.notifier).set(activeIndex - 1);
+    } else if (removedIndex == activeIndex) {
+      final fallback = activeIndex >= state.length
+          ? state.length - 1
+          : activeIndex;
+      ref.read(activeTabProvider.notifier).set(fallback < 0 ? 0 : fallback);
+    }
   }
 
   Future<void> reorder(int oldIndex, int newIndex) async {
