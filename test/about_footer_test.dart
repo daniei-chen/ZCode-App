@@ -89,4 +89,51 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(repoLink, findsOneWidget);
   });
+
+  testWidgets('窄屏（320dp）页尾不溢出（X06 / G10-63）', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(keepaliveChannel, (call) async => false);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          packageInfoChannel,
+          (call) async => {
+            'appName': 'ZCode',
+            'packageName': 'com.zcode.app',
+            'version': '1.1.0',
+            'buildNumber': '11',
+            'buildSignature': '',
+          },
+        );
+    addTearDown(() {
+      for (final channel in [keepaliveChannel, packageInfoChannel]) {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      }
+    });
+
+    // 模拟器实测：这一行在 228dp 可用宽度下溢出 49px（版本号 + 仓库地址）。
+    tester.view.physicalSize = const Size(320, 3200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: ListView(children: const [VersionFooter()])),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: '窄屏不得出现 RenderFlex 溢出（应折行/省略号）',
+    );
+    expect(find.byType(VersionFooter), findsOneWidget);
+  });
 }

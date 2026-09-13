@@ -836,12 +836,16 @@ class VersionFooter extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'ZCode v${info.version} · github.com/2421873411a-rgb/ZCode-App',
-                        style: TextStyle(
-                          fontSize: 10,
-                          letterSpacing: 0.2,
-                          color: context.zt.textLo,
+                      Flexible(
+                        child: Text(
+                          'ZCode v${info.version} · github.com/2421873411a-rgb/ZCode-App',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            letterSpacing: 0.2,
+                            color: context.zt.textLo,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 4),

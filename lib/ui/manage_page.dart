@@ -49,13 +49,17 @@ class ManagePage extends ConsumerWidget {
                         height: 46,
                       ),
                       const SizedBox(width: 12),
-                      Text(
-                        'ZCode',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.4,
-                          color: context.zt.textHi,
+                      Flexible(
+                        child: Text(
+                          'ZCode',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.4,
+                            color: context.zt.textHi,
+                          ),
                         ),
                       ),
                     ],
