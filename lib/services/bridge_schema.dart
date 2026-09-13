@@ -34,6 +34,29 @@ abstract final class BridgeSchema {
   /// 遥测 JSON 的解析前上限（8 KiB 足够；超限在 jsonDecode 之前丢弃）。
   static const int maxStatsChars = 8 * 1024;
 
+  /// 遥测允许的计数键白名单（F18）：与 `EventObserver.hookScript` 里的
+  /// `window.__zrStats` 初始字段一一对应。白名单之外一律丢弃——页面不应通过
+  /// 遥测通道把任意字符串塞进诊断页。
+  static const Set<String> statsKeys = {
+    'fetch200',
+    'fetchCloned',
+    'fetchSkipped',
+    'sseMessages',
+    'sseIgnored',
+    'wsMessages',
+    'wsIgnored',
+    'wsSkippedSize',
+    'fetchSkippedSize',
+    'framesDecoded',
+    'invalidFragments',
+    'expiredFragments',
+    'queueDropped',
+    'seenDropped',
+  };
+
+  /// 单个计数的合理上限：超过说明是伪造/溢出，直接丢弃该键。
+  static const int maxStatValue = 1 << 40;
+
   /// Dart 侧桥消息丢弃计数（类型不符/超长），诊断页可见。
   static int droppedMessages = 0;
 
@@ -59,8 +82,11 @@ abstract final class BridgeSchema {
     return body;
   }
 
-  /// 遥测计数只接受 `Map<String, 非负数字>`：未知类型跳过、负数拒绝、
-  /// 键数封顶；全部非法时返回 null。
+  /// 遥测计数只接受 `Map<String, 非负有限数字>`（F18）：
+  /// * 键必须在 [statsKeys] 白名单内（页面不能借遥测通道塞任意字符串）；
+  /// * 值必须是有限数（NaN/Infinity 会让 `toInt()` 抛错，旧实现被 catch 吞掉）；
+  /// * 值必须是整数、非负、不超过 [maxStatValue]；
+  /// * 键数封顶；全部非法时返回 null。
   static Map<String, int>? acceptStats(Object? decoded) {
     if (decoded is! Map) {
       droppedMessages++;
@@ -71,9 +97,11 @@ abstract final class BridgeSchema {
     for (final e in decoded.entries) {
       final k = e.key;
       final v = e.value;
-      if (k is! String || v is! num) continue;
-      if (v < 0) continue;
-      out[k] = v.toInt();
+      if (k is! String || !statsKeys.contains(k)) continue;
+      if (v is! num || !v.isFinite) continue;
+      final value = v.toInt();
+      if (value < 0 || value > maxStatValue) continue;
+      out[k] = value;
       if (++keys >= maxStatsKeys) break;
     }
     return out.isEmpty ? null : out;

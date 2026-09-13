@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/device.dart';
 import '../services/app_log.dart';
 import '../services/device_store.dart';
+import '../services/structured_log.dart';
 import '../services/warmup.dart';
+import 'observer_stats.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   DeviceListNotifier({List<RemoteDevice>? seed})
@@ -61,6 +63,8 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     // 取消待写定时器并清掉内存预热记录：否则延时写入会把已删设备的
     // warmup 又写回存储（F10）。
     await ref.read(warmupMemoryProvider.notifier).forget(id);
+    // 遥测与设备同生命周期（PR20/F18）：设备不在了，诊断页不该还显示它的计数。
+    ref.read(observerStatsProvider.notifier).forget(id);
     if (!ref.mounted) return;
     final removedIndex = state.indexWhere((d) => d.id == id);
     final activeIndex = ref.read(activeTabProvider);
@@ -158,7 +162,11 @@ class ActiveTabNotifier extends Notifier<int> {
         DeviceStore.instance
             .setLastDeviceId(ref.read(deviceListProvider)[index].id)
             .catchError((e) {
-              AppLog.warn('[ZR] lastDevice 落盘失败: $e');
+              AppLog.failure(
+                LogEvent.deviceLastUsedPersistFailed,
+                e,
+                fields: {LogField.reason: 'set_last_device'},
+              );
             }),
       );
     }

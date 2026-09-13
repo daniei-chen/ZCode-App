@@ -8,7 +8,10 @@ import '../services/app_log.dart';
 import '../services/app_settings.dart';
 import '../services/battery_optimization.dart';
 import '../services/bridge_schema.dart';
+import '../services/diagnostics_bundle.dart';
+import '../services/structured_log.dart';
 import '../services/update_service.dart';
+import '../services/webview_storage.dart';
 import '../state/observer_stats.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -87,6 +90,39 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     ).showSnackBar(SnackBar(content: Text(l10n.diagnosticsCopied)));
   }
 
+  /// 复制脱敏诊断包（PR20/F19）：一次性给出版本/平台/设备短 id/设置/计数/日志。
+  /// 内容由 `DiagnosticsBundle` 组装，只接受归一化字段，并在渲染时再过一次脱敏。
+  Future<void> _copyBundle() async {
+    final l10n = AppLocalizations.of(context)!;
+    final bundle = DiagnosticsBundle.render(_buildBundle());
+    await Clipboard.setData(ClipboardData(text: bundle));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.diagnosticsBundleCopied)),
+    );
+  }
+
+  DiagnosticsInputs _buildBundle() {
+    final devices = ref.read(deviceListProvider);
+    final statuses = ref.read(sessionStatusProvider);
+    final stats = ref.read(observerStatsProvider);
+    return DiagnosticsBundle.capture(
+      appVersion: _version,
+      buildNumber: _buildNumber,
+      android: _android,
+      deviceIds: devices.map((d) => d.id).toList(growable: false),
+      statuses: {
+        for (final entry in statuses.entries) entry.key: entry.value.name,
+      },
+      stats: {
+        for (final entry in stats.entries) entry.key: entry.value.counters,
+      },
+      biometric: ref.read(biometricProvider),
+      notificationsEnabled: _notifEnabled ?? false,
+      batteryIgnored: _batteryIgnored ?? false,
+    );
+  }
+
   String _statusLabel(AppLocalizations l10n, SessionStatus? status) =>
       switch (status) {
         SessionStatus.live => l10n.diagnosticsStatusLive,
@@ -102,11 +138,10 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final devices = ref.watch(deviceListProvider);
     final active = ref.watch(activeTabProvider);
     final statuses = ref.watch(sessionStatusProvider);
-    final stats = ref.watch(observerStatsProvider);
     final biometric = ref.watch(biometricProvider);
     final logs = AppLog.snapshot().reversed.take(120).toList();
-    final sortedStats = stats.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+    final deviceStats = ref.watch(observerStatsProvider).values.toList()
+      ..sort((a, b) => a.deviceId.compareTo(b.deviceId));
 
     return Scaffold(
       backgroundColor: palette.bg,
@@ -211,11 +246,25 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
             l10n.diagnosticsBridgeDropped,
             '${BridgeSchema.droppedMessages}',
           ),
-          if (sortedStats.isEmpty)
+          if (deviceStats.isEmpty)
             _row(palette, l10n.diagnosticsSectionObserver, '—')
           else
-            for (final e in sortedStats) _row(palette, e.key, '${e.value}'),
+            for (final device in deviceStats)
+              for (final entry in device.counters.entries)
+                _row(
+                  palette,
+                  '${LogRedactor.shortId(device.deviceId)}·${entry.key}',
+                  '${entry.value}',
+                ),
+          _section(palette, l10n.diagnosticsSectionStorage),
+          for (final entry in WebViewStorage.inventory.entries)
+            _row(palette, entry.key, entry.value),
           _section(palette, l10n.diagnosticsSectionLogs),
+          _row(
+            palette,
+            l10n.diagnosticsDebugDropped,
+            '${AppLog.droppedInRelease}',
+          ),
           if (logs.isEmpty)
             _row(palette, l10n.diagnosticsSectionLogs, l10n.diagnosticsLogsEmpty)
           else
@@ -234,13 +283,21 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               ),
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: _copyLogs,
-                icon: const Icon(Icons.copy_all_outlined, size: 18),
-                label: Text(l10n.diagnosticsCopyLogs),
-              ),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _copyLogs,
+                  icon: const Icon(Icons.copy_all_outlined, size: 18),
+                  label: Text(l10n.diagnosticsCopyLogs),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _copyBundle,
+                  icon: const Icon(Icons.description_outlined, size: 18),
+                  label: Text(l10n.diagnosticsCopyBundle),
+                ),
+              ],
             ),
           ),
         ],

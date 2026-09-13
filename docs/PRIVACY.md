@@ -13,13 +13,35 @@
 | 主题 / 通知偏好 / 启动目标 / 最近设备 | SharedPreferences（明文） | 不含凭证 |
 | 更新下载的 APK 与 `.part` | 应用缓存 `cache/updates/` | FileProvider 仅暴露该目录；安装后可清理 |
 | 运行日志（AppLog 环形 500 条） | 仅内存 | 不落盘、不上传；诊断页由用户主动复制导出 |
+| WebView 本地存储（Cookie / DOM storage / HTTP cache / IndexedDB） | Android WebView 数据目录 | 只属于官方远控页面；换凭证、移除设备、锁定擦除时清空（见下） |
+
+### WebView 本地存储清单与清理策略（F19）
+
+| 类型 | 存什么 | 何时清 |
+| -- | -- | -- |
+| cookies | 远控页的会话语义；不使用第三方 Cookie（`thirdPartyCookiesEnabled=false`） | 换凭证 / 移除设备 / 锁定擦除 |
+| localStorage | `zcode-theme` 等页面偏好 | 换凭证 / 移除设备 / 锁定擦除 |
+| sessionStorage | 页面会话级状态 | WebView generation 重建（渲染进程回收、换凭证）时随上下文消失 |
+| HTTP cache | 静态资源缓存，不含业务凭证 | 换凭证 / 移除设备 / 锁定擦除 |
+| IndexedDB | 官方页面自行使用 | 换凭证 / 移除设备 / 锁定擦除 |
+
+清理动作在 [lib/services/webview_storage.dart](../lib/services/webview_storage.dart)（与上面的清单同处一处，
+避免文档与实现漂移）；诊断页会展示同一份清单，用户可自查当前策略。
 
 ## 二、日志边界（硬规则）
 
 - **永不记录**：`sid`/`hash`/`remoteControlToken`、完整 URI（只允许 path）、
   query、cookie、Authorization、WebSocket 正文、会话正文与任务内容。
+- 日志由 [lib/services/structured_log.dart](../lib/services/structured_log.dart) 统一约束：
+  每条日志必须带**事件码**（`WV101`/`JP302`/`UP600`…），字段只能来自白名单
+  （route 只保留 `scheme://host/path`、设备只记前 8 位短 id、原因只允许机器标签、
+  异常摘要先脱敏再压成单行并截断 120 字符）——**没有自由文本字段**，
+  调用方写不进会话标题、正文或 payload。
+- 写入环形缓冲前，整行再过一次统一脱敏（凭证参数、JWT/长不透明串、URL query
+  一律替换为 `<redacted>`），这是防止调用点手拼字符串的第二道防线。
 - Release 构建只保留白名单事件：导航被拦（scheme/host/path）、黑屏守卫静默
-  重载（原因）、renderer 崩溃/无响应。其余调试日志仅 debug 构建输出。
+  重载（原因）、renderer 崩溃/无响应。其余调试日志仅 debug 构建输出，
+  诊断页会显示"Release 下丢弃的调试日志条数"，避免误以为日志被删。
 - 页面 `console` 仅在 debug 构建转发。
 
 ## 三、出站网络
@@ -39,7 +61,11 @@
 
 ## 五、诊断数据
 
-- 诊断页（设置 → 诊断信息）只读展示版本/环境/设备数量/权限状态/观测计数；
-  不显示链接、凭证、会话内容。
-- "复制日志"由用户主动触发，复制到系统剪贴板，应用自身不上传。
-- 遥测计数（fetch/WS/SSE 命中与异常）只含数字与通道名，不含 URL 与正文。
+- 诊断页（设置 → 诊断信息）只读展示版本/环境/设备数量/权限状态/观测计数/WebView
+  存储清单；不显示链接、凭证、会话内容。
+- 遥测计数（fetch/WS/SSE 命中与异常）**按设备分别保存**（键为设备短 id + generation），
+  只含白名单计数键与有限非负整数；白名单之外的键、NaN/Infinity/超大值一律丢弃。
+- "复制日志"与"复制诊断包"都由用户主动触发，复制到系统剪贴板，应用自身不上传。
+  诊断包内容固定为：版本、平台枚举、开关布尔值、设备**短 id**、状态枚举、观测计数、
+  存储清单与结构化日志——调用方接口上就没有传入链接/凭证/正文的口子，渲染时还会
+  再过一次统一脱敏；`test/diagnostics_bundle_test.dart` 用 canary 串做零命中回归。

@@ -10,7 +10,10 @@ import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
+import 'services/structured_log.dart';
+import 'services/webview_storage.dart';
 import 'state/app_lifecycle.dart';
+import 'state/observer_stats.dart';
 import 'state/session_pool.dart';
 import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
@@ -307,7 +310,11 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
         setState(() => _unavailable = true);
       }
     } catch (e) {
-      AppLog.warn('[ZR] biometric authentication failed: $e');
+      AppLog.failure(
+        LogEvent.biometricAuthFailed,
+        e,
+        fields: {LogField.reason: 'authenticate'},
+      );
     } finally {
       _authenticating = false;
     }
@@ -333,7 +340,11 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     } on BiometricUnavailableException {
       if (mounted) setState(() => _noDeviceCredential = true);
     } catch (e) {
-      AppLog.warn('[ZR] device credential unlock failed: $e');
+      AppLog.failure(
+        LogEvent.biometricUnlockFailed,
+        e,
+        fields: {LogField.reason: 'device_credential'},
+      );
     } finally {
       if (mounted) setState(() => _authenticating = false);
     }
@@ -364,6 +375,10 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     setState(() => _wipeBusy = true);
     try {
       await widget.wipeProtectedData();
+      // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
+      // 旧凭证留下的 Cookie/DOM storage/缓存不能继续留在磁盘上。
+      await WebViewStorage.clearForCredentialChange();
+      ref.read(observerStatsProvider.notifier).clear();
       await ref.read(biometricProvider.notifier).set(false);
       if (mounted) {
         setState(() {
@@ -373,7 +388,11 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
         });
       }
     } catch (e) {
-      AppLog.warn('[ZR] wipe protected data failed: $e');
+      AppLog.failure(
+        LogEvent.protectedDataWipeFailed,
+        e,
+        fields: {LogField.reason: 'wipe'},
+      );
     } finally {
       if (mounted) setState(() => _wipeBusy = false);
     }
