@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'device_store.dart';
 import 'link_builder.dart';
 import 'app_log.dart';
+import 'structured_log.dart';
 
 /// 预热请求签名 —— 从远控页面录到的 fetch 调用（面板数据都是按需拉取的，
 /// 录下来下次进 App 时重放，让工作台打开即有数据）。
@@ -95,7 +96,11 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
       if (list.isEmpty) return;
       state = {...state, deviceId: list};
     } catch (e) {
-      AppLog.warn('[ZR] warmup load failed: $e');
+      AppLog.failure(
+        LogEvent.warmupLoadFailed,
+        e,
+        fields: {LogField.reason: 'warmup_load'},
+      );
     }
   }
 
@@ -138,7 +143,11 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
       await DeviceStore.instance.setWarmupScript(deviceId, null);
     } catch (e) {
       // 内存态已清除；安全存储删除失败只影响持久化残留，不阻塞调用方。
-      AppLog.warn('[ZR] warmup.forget 落盘失败: $e');
+      AppLog.failure(
+        LogEvent.warmupPersistFailed,
+        e,
+        fields: {LogField.reason: 'warmup_forget'},
+      );
     }
   }
 
@@ -177,7 +186,11 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
         final json = jsonEncode([for (final r in list) r.toJson()]);
         await DeviceStore.instance.setWarmupScript(deviceId, json);
       } catch (e) {
-        AppLog.warn('[ZR] warmup persist failed: $e');
+        AppLog.failure(
+          LogEvent.warmupPersistFailed,
+          e,
+          fields: {LogField.reason: 'warmup_persist'},
+        );
       }
     });
   }

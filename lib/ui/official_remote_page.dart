@@ -24,6 +24,8 @@ import '../state/theme_mode.dart';
 import '../theme.dart';
 import '../services/app_log.dart';
 import '../services/bridge_schema.dart';
+import '../services/structured_log.dart';
+import '../services/webview_storage.dart';
 
 /// Bridge used by the app shell to give a mounted WebView the first chance
 /// to handle Android back.  The WebView remains in the IndexedStack, so this
@@ -45,8 +47,10 @@ class OfficialRemotePageController {
     if (handler == null) return false;
     try {
       return await handler();
-    } catch (error, stackTrace) {
-      AppLog.warn('[ZR][WebView] back handling failed: $error\n$stackTrace');
+    } catch (error) {
+      AppLog.failure(LogEvent.webviewBackFailed, error, fields: {
+        LogField.reason: 'controller_exception',
+      });
       return false;
     }
   }
@@ -570,7 +574,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         source: "window.__zrToken ? 'ok' : 'missing'",
       );
       if (present != 'ok') {
-        AppLog.warn('[ZR][Bridge] main-frame token missing after load stop');
+        AppLog.event(LogEvent.bridgeTokenMissing, level: LogLevel.warn, fields: {
+          LogField.device: widget.device.id,
+          LogField.generation: _webviewGeneration,
+        });
         await _injectBridgeToken();
       }
     } catch (_) {}
@@ -606,7 +613,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 首载失败出口：进入错误卡（可重试 / 可回设备中心），并同步设备状态。
   void _failFirstLoad(String reason) {
     if (!mounted) return;
-    AppLog.warn('[ZR][WebView] first load failed: $reason');
+    AppLog.event(LogEvent.webviewFirstLoadFailed, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.reason: reason,
+    });
     _firstLoadWatchdog?.cancel();
     setState(() {
       _failed = true;
@@ -621,7 +632,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (_silentRetried || !mounted || _failed) return;
     _silentRetried = true;
     // release 可见：黑屏守卫触发是真实故障信号，需要在诊断页/日志可查。
-    AppLog.warn('[ZR][WebView] silent reload: $reason');
+    AppLog.event(LogEvent.webviewSilentReload, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.reason: reason,
+    });
     _firstLoadSettled = false;
     _armFirstLoadWatchdog();
     await _controller?.reload();
@@ -712,6 +727,15 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _sync?.forget();
       _sync = null;
       _invalidateInFlightJump();
+      // 换凭证同时是本地存储的清理触发点（PR20/F19）：旧凭证下的 Cookie、
+      // DOM storage 与缓存不能留给新凭证继续使用。
+      unawaited(
+        WebViewStorage.clearForCredentialChange(
+          controller: _controller,
+          deviceId: oldWidget.device.id,
+        ),
+      );
+      ref.read(observerStatsProvider.notifier).forget(oldWidget.device.id);
       setState(() {
         _webviewGeneration++;
         _failed = false;
@@ -726,7 +750,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   void _handleRendererGone(String detail) {
-    AppLog.warn('[ZR][WebView] renderer gone: $detail');
+    AppLog.event(LogEvent.webviewRendererGone, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.reason: 'renderer_process_gone',
+      LogField.error: detail,
+    });
     if (!mounted) return;
     _invalidateInFlightJump();
     setState(() {
@@ -744,7 +773,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _invalidateInFlightJump();
     if (_rendererGone && mounted) {
       // 渲染进程已死：原地 loadUrl 无法恢复，用新 generation 重建 WebView。
-      AppLog.warn('[ZR][WebView] rebuilding webview after renderer death');
+      AppLog.event(LogEvent.webviewRebuilt, level: LogLevel.warn, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration + 1,
+        LogField.reason: 'renderer_death',
+      });
       setState(() {
         _rendererGone = false;
         _webviewGeneration++;
@@ -846,10 +879,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       // anything else) falls through to the canGoBack() check below, which
       // knows whether a real back entry exists.
       if (result == true) return true;
-    } catch (error, stackTrace) {
-      AppLog.warn(
-        '[ZR][WebView] mobile back script failed: $error\n$stackTrace',
-      );
+    } catch (error) {
+      AppLog.failure(LogEvent.webviewBackFailed, error, fields: {
+        LogField.reason: 'mobile_back_script',
+      });
     }
 
     // Fallback for navigations Chromium exposes even if JavaScript returned
@@ -859,8 +892,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         await controller.goBack();
         return true;
       }
-    } catch (error, stackTrace) {
-      AppLog.warn('[ZR][WebView] browser back failed: $error\n$stackTrace');
+    } catch (error) {
+      AppLog.failure(LogEvent.webviewBackFailed, error, fields: {
+        LogField.reason: 'browser_back',
+      });
     }
     return false;
   }
@@ -927,15 +962,20 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (_reportedJumpAttempt == outcome.attemptId) return;
     _reportedJumpAttempt = outcome.attemptId;
     if (outcome.ok) {
-      AppLog.debug(
-        '[ZR][Jump] attempt=${outcome.attemptId} found ${outcome.resolvedTaskId}',
-      );
+      AppLog.event(LogEvent.jumpSucceeded, level: LogLevel.debug, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.count: outcome.attemptId,
+        LogField.reason: 'found',
+      });
       return;
     }
-    AppLog.warn(
-      '[ZR][Jump] attempt=${outcome.attemptId} failed '
-      'reason=${outcome.reason} task=${outcome.taskId}',
-    );
+    AppLog.event(LogEvent.jumpFailed, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.count: outcome.attemptId,
+      LogField.reason: outcome.reason,
+    });
     _showJumpFailure(outcome);
   }
 
@@ -1168,10 +1208,16 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                                 jsonDecode(body),
                               );
                               if (stats != null) {
+                                // F18：遥测按 设备 + generation 存，两台设备
+                                // 交错上报不会互相覆盖；旧 generation 的迟到
+                                // 消息也不会把新页面的计数写回去。
                                 ref
                                     .read(observerStatsProvider.notifier)
-                                    .update(stats);
-                                AppLog.debug('[ZR][Observer] stats $body');
+                                    .update(
+                                      widget.device.id,
+                                      _webviewGeneration,
+                                      stats,
+                                    );
                               }
                             } catch (_) {}
                             return null;
@@ -1213,7 +1259,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         );
                       },
                       onLoadStart: (_, uri) {
-                        AppLog.debug('[ZR][WebView] load start ${uri?.path}');
+                        AppLog.event(LogEvent.webviewLoadStart, level: LogLevel.debug, fields: {
+                          LogField.device: widget.device.id,
+                          LogField.generation: _webviewGeneration,
+                          LogField.route: uri?.toString(),
+                        });
                         if (!mounted) return;
                         setState(() {
                           _loading = true;
@@ -1226,7 +1276,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         unawaited(_applyWebTheme(_currentDark(context)));
                       },
                       onLoadStop: (_, uri) {
-                        AppLog.debug('[ZR][WebView] load stop ${uri?.path}');
+                        AppLog.event(LogEvent.webviewLoadStop, level: LogLevel.debug, fields: {
+                          LogField.device: widget.device.id,
+                          LogField.generation: _webviewGeneration,
+                          LogField.route: uri?.toString(),
+                        });
                         if (!mounted) return;
                         // Android fires onLoadStop even when the main document
                         // failed (the error page still "finishes"). Only
@@ -1269,10 +1323,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           // release 可见（AppLog.warn）：真机 smoke 需要靠这条
                           // 日志发现被误拦的合法导航，再把路由加进策略。
                           // 只记 scheme/host/path——凭证都在 query 里。
-                          AppLog.warn(
-                            '[ZR][WebView] nav blocked '
-                            '${uri?.scheme}://${uri?.host}${uri?.path}',
-                          );
+                          AppLog.event(LogEvent.webviewNavBlocked, level: LogLevel.warn, fields: {
+                            LogField.device: widget.device.id,
+                            LogField.generation: _webviewGeneration,
+                            LogField.route: uri?.toString(),
+                          });
                         }
                         return trusted
                             ? NavigationActionPolicy.ALLOW
@@ -1280,18 +1335,23 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       },
                       onReceivedError: (_, request, error) {
                         if (request.isForMainFrame != true || !mounted) return;
-                        AppLog.debug(
-                          '[ZR][WebView] load error ${error.type}: '
-                          '${error.description}',
-                        );
+                        AppLog.event(LogEvent.webviewLoadError, level: LogLevel.debug, fields: {
+                          LogField.device: widget.device.id,
+                          LogField.generation: _webviewGeneration,
+                          LogField.reason: error.type.toString(),
+                          LogField.error: error.description,
+                        });
                         _onLoadError();
                       },
                       onReceivedHttpError: (_, request, response) {
                         if (request.isForMainFrame != true || !mounted) return;
                         if ((response.statusCode ?? 0) >= 400) {
-                          AppLog.debug(
-                            '[ZR][WebView] http error ${response.statusCode}',
-                          );
+                          AppLog.event(LogEvent.webviewLoadError, level: LogLevel.debug, fields: {
+                            LogField.device: widget.device.id,
+                            LogField.generation: _webviewGeneration,
+                            LogField.reason: 'http_error',
+                            LogField.count: response.statusCode,
+                          });
                           _onLoadError();
                         }
                       },
@@ -1300,7 +1360,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         // release 构建不把页面 console 透传到 logcat（可能
                         // 带会话内容片段）。
                         if (kDebugMode && text.isNotEmpty) {
-                          AppLog.debug('[ZR][WebView] console $text');
+                          AppLog.event(LogEvent.webviewConsoleDropped, level: LogLevel.debug, fields: {
+                            LogField.device: widget.device.id,
+                            LogField.generation: _webviewGeneration,
+                            LogField.error: text,
+                          });
                         }
                       },
                       // v1.2.0 renderer 恢复：进程被系统回收后进入错误卡，
@@ -1310,9 +1374,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _handleRendererGone(detail.toString());
                       },
                       onRenderProcessUnresponsive: (_, uri) async {
-                        AppLog.warn(
-                          '[ZR][WebView] renderer unresponsive ${uri?.path}',
-                        );
+                        AppLog.event(LogEvent.webviewRendererUnresponsive, level: LogLevel.warn, fields: {
+                          LogField.device: widget.device.id,
+                          LogField.generation: _webviewGeneration,
+                          LogField.route: uri?.toString(),
+                        });
                         return null;
                       },
                       onRenderProcessResponsive: (_, uri) async => null,
