@@ -6,12 +6,17 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/app_log.dart';
 import '../services/app_settings.dart';
 import '../services/battery_optimization.dart';
+import '../services/biometric.dart';
 import '../services/notifier.dart';
+import '../services/security_lock.dart';
+import '../services/structured_log.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/notification_prefs.dart';
+import '../state/session_pool.dart';
 import '../state/startup_target.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
@@ -113,6 +118,7 @@ class SettingsPage extends ConsumerWidget {
               // 原生设置只管理启动端本身；WebView 内部的 Agent、Hook、统计
               // 等选项留在远程页面自己的设置入口中。
               SectionLabel(l10n.settingsGroupBasics),
+              const _SecurityLockCard(),
               const _BatteryTile(),
               const _StartupTargetTile(),
               const _FeedbackTile(),
@@ -122,6 +128,108 @@ class SettingsPage extends ConsumerWidget {
               const _NotificationCard(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 安全门禁开关（F24 / PR21）：开启与关闭都必须先通过系统验证。
+///
+/// 之前这道门禁没有任何入口——只能靠"锁屏时的恢复路径"关闭，新安装也无法开启。
+/// 规则：
+/// * 开启：必须先通过生物识别验证；设备没有可用生物识别时明确告知，绝不放行。
+/// * 关闭：同样必须先验证身份（关闭保护本身是敏感操作）；生物识别不可用时可以
+///   退回系统锁屏凭据；两者都没有时，告知用户唯一路径是门禁自身的
+///   "清除本机数据并关闭门禁"。
+class _SecurityLockCard extends ConsumerStatefulWidget {
+  const _SecurityLockCard();
+
+  @override
+  ConsumerState<_SecurityLockCard> createState() => _SecurityLockCardState();
+}
+
+class _SecurityLockCardState extends ConsumerState<_SecurityLockCard> {
+  bool _busy = false;
+
+  Future<bool> _verify(AppLocalizations l10n, {required bool enabling}) {
+    return SecurityLockPolicy.verifyToggle(
+      enabling: enabling,
+      reason: enabling ? l10n.biometricEnableReason : l10n.biometricDisableReason,
+      biometric: BiometricService.instance.authenticate,
+      deviceCredential: BiometricService.instance.authenticateWithDeviceCredential,
+    );
+  }
+
+  Future<void> _toggle(bool next) async {
+    if (_busy) return;
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final verified = await _verify(l10n, enabling: next);
+      if (!mounted) return;
+      if (!verified) {
+        final available = await BiometricService.instance.isAvailable();
+        if (!mounted) return;
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              available
+                  ? l10n.securityLockVerifyRequired
+                  : (next
+                        ? l10n.biometricUnavailableToast
+                        : l10n.biometricNoDeviceCredential),
+            ),
+          ),
+        );
+        AppLog.event(
+          LogEvent.securityLockRejected,
+          level: LogLevel.warn,
+          fields: {
+            LogField.reason: next ? 'enable_not_verified' : 'disable_not_verified',
+            LogField.ok: false,
+          },
+        );
+        return;
+      }
+      await ref.read(biometricProvider.notifier).set(next);
+      if (!mounted) return;
+      AppLog.event(
+        next ? LogEvent.securityLockEnabled : LogEvent.securityLockDisabled,
+        fields: {LogField.ok: true},
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(next ? l10n.securityLockEnabled : l10n.securityLockDisabled),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final enabled = ref.watch(biometricProvider);
+    return Card(
+      child: SizedBox(
+        height: _settingsRowHeight,
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          secondary: const _SettingsIcon(Icons.fingerprint),
+          title: Text(
+            l10n.securityLockTitle,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            l10n.securityLockSubtitle,
+            style: TextStyle(fontSize: 12, color: context.zt.textLo),
+          ),
+          activeThumbColor: context.zt.accent,
+          value: enabled,
+          onChanged: _busy ? null : _toggle,
         ),
       ),
     );

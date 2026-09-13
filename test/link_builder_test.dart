@@ -40,6 +40,24 @@ void main() {
       expect(LinkBuilder.parse('javascript:alert(1)?sid=s&hash=h'), isNull);
     });
 
+    test('超长输入在解析前被拒（F24 长度门禁）', () {
+      const prefix = 'https://zcode.z.ai/remote/v4?sid=s&hash=h&pad=';
+      final okLength = prefix.length + 100;
+      expect(LinkBuilder.parse('$prefix${'x' * 100}'), isNotNull);
+      expect(
+        LinkBuilder.parse(
+          '$prefix${'x' * (LinkBuilder.maxLinkLength - prefix.length + 1)}',
+        ),
+        isNull,
+        reason: '超过 maxLinkLength 的文本不得进入解析路径',
+      );
+      expect(
+        LinkBuilder.parse('x' * (LinkBuilder.maxLinkLength + 1024)),
+        isNull,
+      );
+      expect(okLength, lessThanOrEqualTo(LinkBuilder.maxLinkLength));
+    });
+
     test('垃圾输入拒收', () {
       expect(LinkBuilder.parse(''), isNull);
       expect(LinkBuilder.parse('   '), isNull);

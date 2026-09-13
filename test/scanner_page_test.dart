@@ -86,6 +86,93 @@ void main() {
   });
 
   _replaceGroup();
+  _cameraErrorGroup();
+}
+
+/// 相机故障（非权限）必须给出可读原因与恢复入口（F24）。
+void _cameraErrorGroup() {
+  testWidgets('相机故障界面：可读原因 + 重试 + 改用粘贴（不再是黑屏）', (tester) async {
+    await _pumpScanner(tester);
+    await tester.pumpAndSettle();
+
+    final scanner = tester.widget<MobileScanner>(find.byType(MobileScanner));
+    final errorView = scanner.errorBuilder!(
+      tester.element(find.byType(MobileScanner)),
+      const MobileScannerException(
+        errorCode: MobileScannerErrorCode.genericError,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: errorView),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('相机暂时不可用'), findsOneWidget);
+    expect(find.textContaining('相机启动失败'), findsOneWidget);
+    expect(find.text('重试相机'), findsOneWidget);
+    expect(find.text('改用粘贴链接'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '重试相机'))
+          .onPressed,
+      isNotNull,
+      reason: '重试必须可用（旧实现整块是 SizedBox.shrink，连按钮都没有）',
+    );
+  });
+
+  testWidgets('相机被占用：错误原因分类为"被占用/初始化中"', (tester) async {
+    await _pumpScanner(tester);
+    await tester.pumpAndSettle();
+    final scanner = tester.widget<MobileScanner>(find.byType(MobileScanner));
+    final errorView = scanner.errorBuilder!(
+      tester.element(find.byType(MobileScanner)),
+      const MobileScannerException(
+        errorCode: MobileScannerErrorCode.controllerAlreadyInitialized,
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: errorView),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('相机被占用'), findsOneWidget);
+  });
+
+  testWidgets('相机故障后回前台 → 重建 controller（同一套 generation 机制）', (tester) async {
+    await _pumpScanner(tester);
+    await tester.pumpAndSettle();
+
+    final controllerBefore = tester
+        .widget<MobileScanner>(find.byType(MobileScanner))
+        .controller;
+    final dynamic pageState = tester.state(find.byType(ScannerPage));
+    pageState.debugMarkCameraError(MobileScannerErrorCode.genericError);
+    expect(pageState.debugScannerGeneration, 0);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pumpAndSettle();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(pageState.debugScannerGeneration, 1, reason: '故障恢复必须重建扫码器');
+    expect(
+      tester.widget<MobileScanner>(find.byType(MobileScanner)).key,
+      const ValueKey<int>(1),
+    );
+    final controllerAfter = tester
+        .widget<MobileScanner>(find.byType(MobileScanner))
+        .controller;
+    expect(identical(controllerBefore, controllerAfter), isFalse);
+  });
 }
 
 class _StubDevices extends DeviceListNotifier {

@@ -56,7 +56,15 @@ enum LogEvent {
   warmupPersistFailed('DS703'),
   biometricAuthFailed('LC800'),
   biometricUnlockFailed('LC801'),
-  protectedDataWipeFailed('LC802');
+  protectedDataWipeFailed('LC802'),
+
+  // 安全门禁开关（PR21/F24）：开关本身是敏感操作，两种结果都要留痕。
+  securityLockEnabled('SL900'),
+  securityLockDisabled('SL901'),
+  securityLockRejected('SL902'),
+
+  // 扫码（PR21/F24）：相机故障要能说明原因，不再只有黑屏。
+  cameraFailed('CM910');
 
   const LogEvent(this.code);
 

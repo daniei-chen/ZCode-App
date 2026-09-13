@@ -7,9 +7,11 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
+import '../services/app_log.dart';
 import '../services/app_settings.dart';
 import '../services/device_import.dart';
 import '../services/link_builder.dart';
+import '../services/structured_log.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
 import '../state/event_feed.dart';
@@ -172,7 +174,7 @@ class ManagePage extends ConsumerWidget {
       return;
     }
     final devices = ref.read(deviceListProvider);
-    final dup = findDuplicateBySid(devices, device);
+    final dup = findDuplicateDevice(devices, device);
     if (dup != null) {
       if (context.mounted) {
         final l10n = AppLocalizations.of(context)!;
@@ -340,10 +342,10 @@ Future<void> _applyReplaceLink(
   RemoteDevice parsed,
 ) async {
   final l10n = AppLocalizations.of(context)!;
-  final dup = findDuplicateBySidExcept(
+  final dup = findDuplicateDevice(
     ref.read(deviceListProvider),
     parsed,
-    target.id,
+    exceptId: target.id,
   );
   if (dup != null) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1044,10 +1046,17 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
 
   bool _permDenied = false;
 
+  /// 相机故障（非权限）：旧实现直接返回 `SizedBox.shrink()`，用户只看到一片
+  /// 黑屏、没有任何解释也无法恢复（F24）。这里记录错误码并给出可恢复的出口。
+  MobileScannerErrorCode? _cameraError;
+
   int _scannerGeneration = 0;
 
   @visibleForTesting
   void debugMarkPermDenied() => _permDenied = true;
+
+  @visibleForTesting
+  void debugMarkCameraError(MobileScannerErrorCode code) => _cameraError = code;
 
   @visibleForTesting
   int get debugScannerGeneration => _scannerGeneration;
@@ -1078,13 +1087,10 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
     if (controller == null) return;
     switch (state) {
       case AppLifecycleState.resumed:
-        if (_permDenied) {
+        if (_permDenied || _cameraError != null) {
+          // 权限或相机故障恢复：重建控制器（同一套 generation 机制）。
           _permDenied = false;
-          setState(() {
-            _scannerGeneration++;
-            _controller = MobileScannerController();
-          });
-          _guarded(controller.dispose);
+          _retryCamera();
         } else {
           _guarded(controller.start);
         }
@@ -1094,6 +1100,19 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
       case AppLifecycleState.detached:
         _guarded(controller.stop);
     }
+  }
+
+  /// 重建相机控制器（权限恢复、相机故障重试、回前台恢复共用）。
+  void _retryCamera() {
+    final previous = _controller;
+    setState(() {
+      _cameraError = null;
+      _scannerGeneration++;
+      _controller = MobileScannerController();
+    });
+    _guarded(() async {
+      await previous?.dispose();
+    });
   }
 
   @override
@@ -1123,11 +1142,25 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
             controller: _controller,
             onDetect: (capture) => _onDetect(capture),
             errorBuilder: (context, error) {
-              if (error.errorCode != MobileScannerErrorCode.permissionDenied) {
-                return const SizedBox.shrink();
+              if (error.errorCode == MobileScannerErrorCode.permissionDenied) {
+                _permDenied = true;
+                return _PermDeniedView();
               }
-              _permDenied = true;
-              return _PermDeniedView();
+              // 非权限错误（相机被占用/不支持/初始化失败）给出可恢复界面：
+              // 重试会重建控制器，与权限恢复路径同一套 generation 机制。
+              _cameraError = error.errorCode;
+              AppLog.event(
+                LogEvent.cameraFailed,
+                level: LogLevel.warn,
+                fields: {
+                  LogField.reason: error.errorCode.name,
+                  LogField.ok: false,
+                },
+              );
+              return _ScannerErrorView(
+                errorCode: error.errorCode,
+                onRetry: _retryCamera,
+              );
             },
           ),
           Positioned.fill(
@@ -1190,10 +1223,10 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
     if (replaceOf != null) {
       _navigating = true;
       final l10n = AppLocalizations.of(context)!;
-      final dup = findDuplicateBySidExcept(
+      final dup = findDuplicateDevice(
         ref.read(deviceListProvider),
         device,
-        replaceOf.id,
+        exceptId: replaceOf.id,
       );
       if (dup != null) {
         if (!mounted) return;
@@ -1218,7 +1251,7 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
       return;
     }
 
-    final dup = findDuplicateBySid(ref.read(deviceListProvider), device);
+    final dup = findDuplicateDevice(ref.read(deviceListProvider), device);
     if (dup != null) {
       _navigating = true;
       if (!mounted) return;
@@ -1282,6 +1315,83 @@ class _PermDeniedView extends StatelessWidget {
               onPressed: AppSettings.open,
               icon: const Icon(Icons.settings_outlined, size: 18),
               label: Text(l10n.scannerPermOpenSettings),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 相机故障（非权限）的可恢复界面（F24）。
+///
+/// 旧实现是 `SizedBox.shrink()`：黑屏 + 没有任何文字，用户只能反复进出页面。
+/// 这里把错误码翻译成人能读的原因，并给出"重试"与"改用粘贴导入"两条出口。
+class _ScannerErrorView extends StatelessWidget {
+  const _ScannerErrorView({required this.errorCode, required this.onRetry});
+
+  final MobileScannerErrorCode errorCode;
+  final VoidCallback onRetry;
+
+  /// 错误码 → 可读原因（只区分用户能应对的几类，其余归入通用）。
+  static String reasonLabel(AppLocalizations l10n, MobileScannerErrorCode code) =>
+      switch (code) {
+        MobileScannerErrorCode.unsupported => l10n.scannerErrorUnsupported,
+        MobileScannerErrorCode.controllerAlreadyInitialized ||
+        MobileScannerErrorCode.controllerUninitialized ||
+        MobileScannerErrorCode.controllerDisposed ||
+        MobileScannerErrorCode.controllerInitializing =>
+          l10n.scannerErrorBusy,
+        _ => l10n.scannerErrorGeneric,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.videocam_off_outlined,
+              size: 44,
+              color: Colors.white54,
+            ),
+            const SizedBox(height: 18),
+            Text(
+              l10n.scannerErrorTitle,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.scannerErrorBody(reasonLabel(l10n, errorCode)),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.5,
+                color: Colors.white70,
+              ),
+            ),
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: Text(l10n.scannerErrorRetry),
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              child: Text(
+                l10n.scannerErrorUsePaste,
+                style: const TextStyle(color: Colors.white70),
+              ),
             ),
           ],
         ),

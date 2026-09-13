@@ -244,6 +244,17 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     super.dispose();
   }
 
+  /// 门禁从"关闭"切到"开启"时（例如用户刚在设置里打开），不立刻把用户锁在
+  /// 门外：开启本身要求通过一次系统验证，那次验证就在几秒前。把最近一次成功
+  /// 验证当作本次会话的解锁凭据，与回前台时的判定规则一致（relockAfter 窗口）。
+  void _adoptRecentAuthIfEnabled(bool enabled) {
+    if (_authed || !enabled) return;
+    final lastSuccess = BiometricService.instance.lastSuccessAt;
+    if (lastSuccess == null) return;
+    if (DateTime.now().difference(lastSuccess) >= widget.relockAfter) return;
+    _authed = true;
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
@@ -410,6 +421,14 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(biometricProvider);
+    // 用户在设置里开启门禁时，刚刚的那次系统验证就是本次会话的解锁凭据；
+    // 否则开启瞬间会把自己锁在门外（ref.listen 只在状态变化时触发）。
+    ref.listen<bool>(biometricProvider, (_, next) {
+      if (next && !_authed) {
+        _adoptRecentAuthIfEnabled(next);
+        if (_authed) setState(() {});
+      }
+    });
     final prefUnreadable = ref.watch(securityPrefUnreadableProvider);
     // fail-closed：读不到安全偏好时同样锁定，直到重试成功。
     final locked = (enabled || prefUnreadable) && !_authed;

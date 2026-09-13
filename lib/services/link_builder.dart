@@ -21,6 +21,10 @@ class LinkBuilder {
   /// 但不接受该命名空间以外的任何官方页面）。
   static final _remotePagePath = RegExp(r'^/remote/v\d+(/|$)');
 
+  /// 可接受的链接文本上限（字符）：远超真实链接长度，同时挡住"粘贴一整篇
+  /// 文档"这类输入（解析前的成本门禁，不是格式校验）。
+  static const int maxLinkLength = 8192;
+
   /// Level 1：是否属于官方 origin。
   ///
   /// https + 官方 host + 无 userInfo + 默认端口（443；显式 :443 等价）。
@@ -133,6 +137,9 @@ class LinkBuilder {
   }) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return null;
+    // 长度门禁（F24）：真实控制链接只有几十到几百字符。粘贴/扫码入口不该
+    // 接受任意大小的文本再去做 URI 解析与 query 展开。
+    if (trimmed.length > maxLinkLength) return null;
 
     final uri = Uri.tryParse(trimmed);
     if (uri == null) return null;
