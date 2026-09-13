@@ -80,6 +80,33 @@ export function extractJumpScript(
     .replaceAll('$reportRetryMax', '20');
 }
 
+/** 提取 InPageBack.script 的运行期字符串值（插值点：attemptId/maxCandidates/reportRetryMax）。 */
+export function extractBackScript(
+  dartSource,
+  { attemptId = 5, maxCandidates = 6, reportRetryMax = 12 } = {},
+) {
+  const at = dartSource.indexOf('static String script(int attemptId)');
+  if (at < 0) throw new Error('InPageBack.script 未找到');
+  const open = dartSource.indexOf("'''", at);
+  const close = dartSource.indexOf("'''", open + 3);
+  if (open < 0 || close < 0) throw new Error('InPageBack.script 的三引号边界未找到');
+  const raw = dartSource.slice(open + 3, close);
+  let out = '';
+  for (let i = 0; i < raw.length; i += 1) {
+    const c = raw[i];
+    if (c === '\\' && i + 1 < raw.length) {
+      out += raw[i + 1];
+      i += 1;
+      continue;
+    }
+    out += c;
+  }
+  return out
+    .replaceAll('$attemptId', String(attemptId))
+    .replaceAll('$maxCandidates', String(maxCandidates))
+    .replaceAll('$reportRetryMax', String(reportRetryMax));
+}
+
 function makeSandbox() {
   const posted = [];
   const handlers = {};
@@ -239,6 +266,151 @@ function jumpPayload(posted, index = 0) {
   return { args, body: JSON.parse(args[1]) };
 }
 
+// ---------------------------------------------------------------- 假 DOM（返回脚本）
+
+/** 极简元素：只需要脚本真正用到的属性/方法。 */
+function backEl({
+  tag = 'button',
+  ariaLabel = null,
+  title = null,
+  testid = null,
+  text = '',
+  rect = { top: 40, left: 16, width: 40, height: 40 },
+  role = null,
+  tabindex = null,
+  disabled = false,
+  computedStyle = null,
+  onActivate = null,
+} = {}) {
+  const element = {
+    tagName: tag.toUpperCase(),
+    textContent: text,
+    className: '',
+    disabled,
+    clicks: 0,
+    attrs: {},
+    computedStyle,
+    getAttribute: (name) => (name in element.attrs ? element.attrs[name] : null),
+    getBoundingClientRect: () => ({
+      ...rect,
+      right: rect.left + rect.width,
+      bottom: rect.top + rect.height,
+    }),
+    scrollIntoView: () => {},
+    click() {
+      element.clicks += 1;
+      if (onActivate) onActivate(element);
+    },
+  };
+  if (ariaLabel) element.attrs['aria-label'] = ariaLabel;
+  if (title) element.attrs['title'] = title;
+  if (testid) element.attrs['data-testid'] = testid;
+  if (role) element.attrs['role'] = role;
+  if (tabindex !== null) element.attrs['tabindex'] = String(tabindex);
+  return element;
+}
+
+/** 支持本脚本用到的选择器：tag、[attr]、[attr="v"]、[attr*="v"]、[attr^="v"]、逗号分组。 */
+function matchesSelector(element, selector) {
+  const part = selector.trim();
+  const match = /^([a-zA-Z]*)(?:\[([a-zA-Z-]+)(?:([*^]?=)"([^"]*)")?\])?$/.exec(part);
+  if (!match) return false;
+  const [, tag, attr, op, value] = match;
+  if (tag && element.tagName !== tag.toUpperCase()) return false;
+  if (!attr) return Boolean(tag);
+  const actual = element.getAttribute(attr);
+  if (actual === null) return false;
+  if (!op) return true;
+  if (op === '=') return actual === value;
+  if (op === '*=') return actual.includes(value);
+  if (op === '^=') return actual.startsWith(value);
+  return false;
+}
+
+function matchAll(elements, selector) {
+  const parts = selector
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return elements.filter((element) =>
+    parts.some((part) => matchesSelector(element, part)),
+  );
+}
+
+/** 返回脚本的受控环境：假 DOM + 可控时钟 + 可手动 flush 的定时器。 */
+function makeBackSandbox({ elements = [], token = 'tok', now = 1000 } = {}) {
+  const posted = [];
+  const timers = [];
+  const clock = { now };
+  const document = {
+    title: 'conversation',
+    body: { firstElementChild: { className: 'app-root', tagName: 'DIV' } },
+    querySelectorAll: (selector) => matchAll(elements, selector),
+    querySelector: (selector) => matchAll(elements, selector)[0] || null,
+  };
+  const location = { href: 'https://zcode.z.ai/remote/v4?sid=canary' };
+  const window = {
+    __zrToken: token,
+    innerHeight: 800,
+    getComputedStyle: (element) =>
+      element.computedStyle || {
+        display: 'block',
+        visibility: 'visible',
+        pointerEvents: 'auto',
+      },
+    flutter_inappwebview: {
+      callHandler: (...args) => posted.push(args),
+    },
+  };
+  const sandbox = {
+    window,
+    document,
+    location,
+    Date: { now: () => clock.now },
+    JSON,
+    Math,
+    Object,
+    Array,
+    String,
+    Number,
+    RegExp,
+    Boolean,
+    console,
+    setTimeout: (fn, ms) => {
+      timers.push({ fn, ms });
+      return timers.length;
+    },
+    clearTimeout: () => {},
+  };
+  const context = vm.createContext(sandbox);
+  return { context, window, document, location, posted, timers, clock, elements };
+}
+
+/** 逐个执行排队的定时器（推进时钟），直到脚本回执或没有定时器为止。 */
+function flushTimers(box, { maxSteps = 400 } = {}) {
+  let steps = 0;
+  while (box.timers.length > 0 && steps < maxSteps) {
+    const timer = box.timers.shift();
+    box.clock.now += timer.ms || 0;
+    timer.fn();
+    steps += 1;
+  }
+}
+
+function backPayload(posted, index = 0) {
+  const args = posted[index];
+  if (!args) throw new Error(`没有第 ${index} 条桥消息`);
+  if (args[0] !== 'zrBack') {
+    throw new Error(`handler 名应为 zrBack，实际 ${args[0]}`);
+  }
+  return { args, body: JSON.parse(args[1]) };
+}
+
+function runBack(box) {
+  vm.runInContext(back, box.context, { filename: 'in_page_back.js' });
+  flushTimers(box);
+}
+
 const results = [];
 async function check(name, fn) {
   try {
@@ -256,6 +428,8 @@ function assert(cond, message) {
 
 const hook = extractHook(readFileSync(dartFile, 'utf8'));
 const jump = extractJumpScript(readFileSync(jumpFile, 'utf8'));
+const backFile = resolve(root, 'lib/services/in_page_back.dart');
+const back = extractBackScript(readFileSync(backFile, 'utf8'));
 
 // 1) 语法：单独的 JS 语法检查（不执行）。
 await check('提取出的钩子通过 JS 语法检查', () => {
@@ -445,6 +619,149 @@ await check('F12 空 taskId：回执 invalid 且不同步返回 true', () => {
   assert(returned === false, `空 taskId 应返回 false（实际 ${returned}）`);
   const { body } = jumpPayload(box.posted);
   assert(body.reason === 'invalid', `reason 应为 invalid（实际 ${body.reason}）`);
+});
+
+// ---------------------------------------------------------------------------
+// 页内返回脚本（用户上报回归）：能自证"页面真的换了"，找不到就如实报告。
+// ---------------------------------------------------------------------------
+
+await check('返回脚本通过 JS 语法检查', () => {
+  new vm.Script(back, { filename: 'in_page_back.js' });
+});
+
+await check('带 aria-label 的返回控件：点一次、页面变化后回执 clicked', () => {
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        ariaLabel: '返回任务首页',
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 1, `应点击一次（实际 ${box.elements[0].clicks}）`);
+  const { args, body } = backPayload(box.posted);
+  assert(body.id === 5, `回执应带 attemptId（实际 ${body.id}）`);
+  assert(body.ok === true, 'ok 应为 true');
+  assert(body.reason === 'clicked', `reason 应为 clicked（实际 ${body.reason}）`);
+  assert(args[2] === 'tok', '回执第 3 个参数必须是主 frame 令牌');
+});
+
+await check('纯图标返回键（无 aria-label）也能靠左上角几何启发式命中', () => {
+  const content = backEl({
+    tag: 'div',
+    role: 'button',
+    rect: { top: 120, left: 320, width: 240, height: 400 },
+  });
+  const box = makeBackSandbox({
+    elements: [
+      content,
+      backEl({
+        rect: { top: 36, left: 20, width: 44, height: 44 },
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[1].clicks === 1, '左上角图标按钮应被点击');
+  assert(content.clicks === 0, '内容区域不得被点击');
+  assert(backPayload(box.posted).body.reason === 'clicked');
+});
+
+await check('「返回顶部」绝不被当成返回：不点击并报告 not_found', () => {
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        ariaLabel: '返回顶部',
+        rect: { top: 720, left: 360, width: 40, height: 40 },
+        onActivate: () => {
+          box.document.title = 'scrolled-top';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 0, '返回顶部不得被点击');
+  const { body } = backPayload(box.posted);
+  assert(body.ok === false, 'ok 应为 false');
+  assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+});
+
+await check('点到控件但页面没变：报告 no_change（不谎报成功）', () => {
+  const box = makeBackSandbox({
+    elements: [backEl({ ariaLabel: '返回' })],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 1, '候选会被点一次');
+  const { body } = backPayload(box.posted);
+  assert(body.ok === false, 'ok 应为 false');
+  assert(body.reason === 'no_change', `reason 应为 no_change（实际 ${body.reason}）`);
+});
+
+await check('第一个候选无效时继续试下一个候选', () => {
+  const box = makeBackSandbox({
+    elements: [
+      backEl({ ariaLabel: '返回任务首页' }), // 点了没反应
+      backEl({
+        ariaLabel: '返回',
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 1, '先试第一个候选');
+  assert(box.elements[1].clicks === 1, '第一个无效后必须继续试下一个');
+  assert(backPayload(box.posted).body.reason === 'clicked');
+});
+
+await check('disabled 与 pointer-events:none 的控件不点', () => {
+  const disabled = backEl({ ariaLabel: '返回', disabled: true });
+  const noPointer = backEl({
+    ariaLabel: '返回',
+    computedStyle: { display: 'block', visibility: 'visible', pointerEvents: 'none' },
+  });
+  const box = makeBackSandbox({ elements: [disabled, noPointer] });
+  runBack(box);
+  assert(disabled.clicks === 0, 'disabled 不得点击');
+  assert(noPointer.clicks === 0, 'pointer-events:none 不得点击');
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('令牌未就绪不裸发，令牌到位后补发同一条结果', () => {
+  const box = makeBackSandbox({
+    token: null,
+    elements: [
+      backEl({
+        ariaLabel: '返回任务首页',
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  // 上面 runBack 会跑光重试定时器；这条用例要验证"令牌迟到"，所以重跑一次并
+  // 只推进到回执尝试之前。
+  box.posted.length = 0;
+  box.timers.length = 0;
+  box.elements[0].clicks = 0;
+  box.window.__zrToken = null;
+  box.document.title = 'conversation'; // 复位签名，让点击再次产生可观测变化
+  vm.runInContext(back, box.context, { filename: 'in_page_back.js' });
+  flushTimers(box, { maxSteps: 6 });
+  assert(box.posted.length === 0, `没有令牌时不得发回执（实际 ${box.posted.length}）`);
+  box.window.__zrToken = 'tok-late';
+  flushTimers(box);
+  assert(box.posted.length === 1, '令牌到位后应补发回执');
+  const { args, body } = backPayload(box.posted);
+  assert(body.reason === 'clicked', '补发的应是同一条结果');
+  assert(args[2] === 'tok-late', '补发也必须带令牌');
 });
 
 const failed = results.filter((r) => !r.ok);

@@ -25,6 +25,7 @@ enum LogEvent {
   webviewSilentReload('WV107'),
   webviewFirstLoadFailed('WV108'),
   webviewBackFailed('WV109'),
+  webviewBackHandled('WV112'),
   webviewConsoleDropped('WV110'),
   webviewStorageCleared('WV111'),
 

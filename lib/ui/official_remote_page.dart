@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
+import '../services/in_page_back.dart';
 import '../services/link_builder.dart';
 import '../services/session_jump.dart';
 import '../services/event_observer.dart';
@@ -185,103 +186,6 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   window.setTimeout(schedule, 250);
   window.setTimeout(schedule, 1000);
   window.setTimeout(stopWatching, 5000);
-})();
-''';
-
-  /// ZCode's mobile conversation view is an in-page route.  Prefer its own
-  /// back control/history so the first Android back returns to the mobile
-  /// workspace/task overview instead of exposing the device launcher.
-  static const _mobileBackScript = r'''
-(function () {
-  function visible(node) {
-    if (!node || !(node instanceof HTMLElement)) return false;
-    var rect = node.getBoundingClientRect();
-    var style = window.getComputedStyle(node);
-    return style.display !== 'none' && style.visibility !== 'hidden' &&
-      style.pointerEvents !== 'none' && rect.width > 0 && rect.height > 0 &&
-      rect.bottom > 0 && rect.top < Math.max(220, window.innerHeight * 0.30);
-  }
-
-  function isBackLabel(value) {
-    var text = String(value || '').trim();
-    // Substring matching against long message text would tap wrong elements;
-    // only short, label-like text qualifies.
-    if (text.length > 24) return false;
-    return /^(返回|返回上一级|back|go back)$/i.test(text) ||
-      /(^|[\s_-])(back|go-back)([\s_-]|$)/i.test(text);
-  }
-
-  function isBackToTop(value) {
-    var text = String(value || '').toLowerCase();
-    return text.indexOf('返回顶部') !== -1 ||
-      text.indexOf('back to top') !== -1;
-  }
-
-  var selectors = [
-    '[aria-label*="返回"]',
-    '[aria-label*="Back"]',
-    '[title*="返回"]',
-    '[title*="Back"]',
-    '[data-testid*="back"]',
-    '[data-testid*="Back"]',
-    '[data-test*="back"]',
-    '[data-test*="Back"]'
-  ];
-  // 会话页内的官方返回控件有稳定命名：优先点它回到对话列表，
-  // 而不是一路退出到设备启动器。
-  var backSel = [
-    'button[aria-label="返回任务首页"]',
-    'button[aria-label="Back to task home"]',
-    'button[aria-label="返回会话列表"]',
-    'button[aria-label^="Back to"]'
-  ];
-  for (var b = 0; b < backSel.length; b++) {
-    var els = document.querySelectorAll(backSel[b]);
-    for (var k = 0; k < els.length; k++) {
-      if (isBackToTop(els[k].getAttribute('aria-label'))) continue;
-      if (!visible(els[k])) continue;
-      els[k].click();
-      return true;
-    }
-  }
-  var candidates = [];
-  selectors.forEach(function (selector) {
-    try {
-      document.querySelectorAll(selector).forEach(function (node) {
-        if (isBackToTop(node.getAttribute('aria-label')) ||
-            isBackToTop(node.getAttribute('title')) ||
-            isBackToTop(node.textContent)) {
-          return;
-        }
-        if (candidates.indexOf(node) < 0) candidates.push(node);
-      });
-    } catch (e) {}
-  });
-  document.querySelectorAll('button, [role="button"], a').forEach(function (node) {
-    if (isBackToTop(node.getAttribute('aria-label')) ||
-        isBackToTop(node.textContent)) {
-      return;
-    }
-    if (isBackLabel(node.getAttribute('aria-label')) ||
-        isBackLabel(node.getAttribute('title')) ||
-        isBackLabel(node.textContent)) {
-      if (candidates.indexOf(node) < 0) candidates.push(node);
-    }
-  });
-
-  for (var i = 0; i < candidates.length; i++) {
-    if (!visible(candidates[i])) continue;
-    candidates[i].click();
-    return true;
-  }
-
-  if (window.history && window.history.length > 1) {
-    // history.length also counts forward entries, so back() here can be a
-    // silent no-op that would swallow the back key forever. Report back and
-    // let the Dart side decide via canGoBack().
-    return 'history';
-  }
-  return false;
 })();
 ''';
 
@@ -539,6 +443,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   int _reportedJumpAttempt = -1;
   Timer? _jumpWatchdog;
   String? _inFlightJumpTask;
+  // 页内返回（用户上报回归）：每次返回一个尝试号，只接受这一代的回执。
+  int _backAttempt = 0;
+  Completer<InPageBackOutcome?>? _pendingBack;
   WebViewSyncController? _sync;
   WarmupMemoryNotifier? _warmup;
   // Renderer 恢复（v1.2.0）：Chromium 渲染进程被系统回收后，同一个 WebView
@@ -862,31 +769,57 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         .report(widget.device.id, SessionStatus.error);
   }
 
-  bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
-
+  /// 系统返回键：先让官方页面自己处理"对话页 → 对话列表"这类页内路由，
+  /// 页面确实没动（或没有返回控件）才交回 Dart 决定是否露出设备页。
+  ///
+  /// 手机与平板走同一条路径：平板只是布局不同（对话与列表同屏），
+  /// 但官方页面自己的返回控件一样要能被系统返回键触发。
   Future<bool> _handleBack() async {
-    if (!mounted || !_isPhone) return false;
+    if (!mounted) return false;
     final controller = _controller;
     if (controller == null) return false;
 
-    // The official page may keep the conversation transition inside its SPA;
-    // let its visible back control or history handle that first.
+    _backAttempt++;
+    final attempt = _backAttempt;
+    final completer = Completer<InPageBackOutcome?>();
+    _pendingBack = completer;
+    InPageBackOutcome? outcome;
     try {
-      final result = await controller.evaluateJavascript(
-        source: _mobileBackScript,
+      await controller.evaluateJavascript(source: InPageBack.script(attempt));
+      outcome = await completer.future.timeout(
+        InPageBack.dartTimeout,
+        onTimeout: () => null,
       );
-      // Only a tapped in-page back control counts as handled. 'history' (and
-      // anything else) falls through to the canGoBack() check below, which
-      // knows whether a real back entry exists.
-      if (result == true) return true;
     } catch (error) {
       AppLog.failure(LogEvent.webviewBackFailed, error, fields: {
-        LogField.reason: 'mobile_back_script',
+        LogField.reason: 'in_page_back_script',
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+      });
+    } finally {
+      _pendingBack = null;
+    }
+
+    if (outcome?.ok == true) {
+      AppLog.event(LogEvent.webviewBackHandled, level: LogLevel.debug, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.reason: outcome!.reason,
+        LogField.count: outcome.attemptId,
+      });
+      return true;
+    }
+    if (outcome == null) {
+      // 页面没回执（脚本没跑起来/桥不可用）：留一条可见日志便于真机诊断，
+      // 但仍继续走历史兜底。
+      AppLog.event(LogEvent.webviewBackFailed, level: LogLevel.warn, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.reason: InPageBackOutcome.reasonUnavailable,
       });
     }
 
-    // Fallback for navigations Chromium exposes even if JavaScript returned
-    // no value (for example, a redirect-created history entry).
+    // 兜底：真实文档导航产生的历史条目（页内路由不会有）。
     try {
       if (await controller.canGoBack()) {
         await controller.goBack();
@@ -895,9 +828,26 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     } catch (error) {
       AppLog.failure(LogEvent.webviewBackFailed, error, fields: {
         LogField.reason: 'browser_back',
+        LogField.device: widget.device.id,
+      });
+    }
+    if (outcome != null && !outcome.ok) {
+      AppLog.event(LogEvent.webviewBackFailed, level: LogLevel.warn, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.reason: outcome.reason,
+        LogField.count: outcome.attemptId,
       });
     }
     return false;
+  }
+
+  /// 页面内返回的回执（`zrBack`）：只接受当前这一代尝试的结果。
+  void _onBackOutcome(InPageBackOutcome outcome) {
+    if (outcome.attemptId != _backAttempt) return;
+    final pending = _pendingBack;
+    if (pending == null || pending.isCompleted) return;
+    pending.complete(outcome);
   }
 
   void _scheduleWarmupReplay() {
@@ -1234,6 +1184,26 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                             if (body != null) {
                               _sync?.ingestWebSocketEvent(body);
                             }
+                            return null;
+                          },
+                        );
+                        // 页内返回回执（用户上报回归）：脚本点了什么、页面到底
+                        // 有没有换，都从这里回到 Dart。
+                        controller.addJavaScriptHandler(
+                          handlerName: 'zrBack',
+                          callback: (args) async {
+                            if (!await _bridgeAllowed(args)) return null;
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxBackBytes,
+                            );
+                            if (body == null) return null;
+                            final outcome = InPageBackOutcome.parse(body);
+                            if (outcome == null) {
+                              BridgeSchema.droppedMessages++;
+                              return null;
+                            }
+                            _onBackOutcome(outcome);
                             return null;
                           },
                         );

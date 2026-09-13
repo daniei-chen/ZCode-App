@@ -9,6 +9,7 @@ import '../services/app_settings.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
+import '../state/back_stack.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/root_tabs.dart';
@@ -110,13 +111,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (_backHandling || !mounted || _launcherVisible) return;
     _backHandling = true;
     try {
+      // 页面先处理"对话页 → 对话列表"这类页内路由（手机与平板同一条路径）；
+      // 页面处理不了时按层级露出设备页，再下一次返回才退出应用。
       final handled = await controller.handleBack();
-      if (!handled && mounted && !_launcherVisible) {
-        // On a phone the first back is offered to the WebView above. If the
-        // WebView is already on its overview, expose the app launcher now;
-        // the next back exits the app normally. Tablets keep this same
-        // device-page → launcher behavior because their overview is already
-        // visible in the wider layout.
+      final decision = decideSystemBack(
+        launcherVisible: _launcherVisible,
+        pageHandled: handled,
+      );
+      if (decision == BackDecision.revealLauncher &&
+          mounted &&
+          !_launcherVisible) {
         setState(() => _launcherVisible = true);
       }
     } finally {
