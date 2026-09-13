@@ -162,15 +162,13 @@ class ZCodeControlApp extends ConsumerWidget {
             systemNavigationBarDividerColor: Colors.transparent,
             systemNavigationBarContrastEnforced: false,
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: BiometricGate(child: child ?? const SizedBox.shrink()),
         );
       },
-      // Put the gate above AppShell in the route tree. When the app is locked,
-      // AppShell is not built at all, so relay connections and WebViews
-      // cannot start underneath a visual overlay.
-      home: LifecycleWatcher(
-        child: BiometricGate(child: AppShell(startAtLauncher: startAtLauncher)),
-      ),
+      // 门禁包住整个 Navigator（F02）：锁定时整棵路由树——包括已 push 的
+      // 设置/诊断页与粘贴控制链接的对话框——都不再构建，不会把敏感内容
+      // 留在锁屏之上；解锁后从入口重新进入。
+      home: LifecycleWatcher(child: AppShell(startAtLauncher: startAtLauncher)),
     );
   }
 }

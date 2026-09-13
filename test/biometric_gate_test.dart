@@ -395,6 +395,55 @@ void main() {
     );
   });
 
+  testWidgets('重锁遮断已 push 的路由与对话框（F02）', (tester) async {
+    var calls = 0;
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          biometricProvider.overrideWith(() => _FakeBiometricNotifier(true)),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          // 与 main.dart 的接线一致：门禁在 builder 里包住整个 Navigator。
+          builder: (context, child) => BiometricGate(
+            relockAfter: Duration.zero,
+            authenticate: (reason) async => ++calls == 1,
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: const Text('HOME'),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(find.text('HOME').hitTestable(), findsOneWidget);
+
+    // 模拟"粘贴控制链接"这类已 push 的敏感页面。
+    unawaited(
+      navigatorKey.currentState!.push(
+        MaterialPageRoute<void>(builder: (_) => const Text('SENSITIVE')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('SENSITIVE').hitTestable(), findsOneWidget);
+
+    // 后台超过重锁时间后回前台，本次验证被取消 → 应停在锁屏。
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text('SENSITIVE'),
+      findsNothing,
+      reason: '锁屏之上不得残留敏感路由或对话框',
+    );
+    expect(find.text('HOME'), findsNothing);
+    expect(visibleLock, findsOneWidget);
+    expect(calls, 2);
+  });
+
   testWidgets('锁定时不构建受保护的 AppShell 子树', (tester) async {
     var builds = 0;
     await pumpGate(
