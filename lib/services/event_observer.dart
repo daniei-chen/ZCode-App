@@ -8,11 +8,22 @@ abstract final class EventObserver {
 (function() {
   if (window.__zrHooked) return;
   window.__zrHooked = true;
+  // 诊断用：区分"钩子没执行"与"钩子执行了但令牌没给"（PR bridge-token）。
+  window.__zrHookReady = true;
   var q = [];
   var qBytes = 0;
   var qMaxEntries = 2048;
-  // 主 frame 令牌（F03）：由 Dart 注入，未就绪前消息只入队。
+  // 主 frame 令牌（F03）：优先用 document-start UserScript 预置的
+  // `window.__zrToken`（它在钩子之前注入，彻底避开"load stop 时才注入"的竞态）；
+  // 运行时的 `__zrSetToken` 仍可作为补充路径。
   var zrToken = null;
+  var tokenOf = function() {
+    if (typeof zrToken === 'string' && zrToken) return zrToken;
+    var preset = window.__zrToken;
+    return (typeof preset === 'string' && preset) ? preset : null;
+  };
+  var presetToken = tokenOf();
+  if (presetToken) zrToken = presetToken;
   // 分片预算（F04/B11）：单片 base64 上限 + 每个逻辑帧在途总字节上限
   // （收齐后的最终帧上限仍由 $kMaxListenBytes 判定）。
   var kMaxFragmentBytes = 16 * 1024 * 1024;
@@ -29,8 +40,9 @@ abstract final class EventObserver {
       // 主 frame 令牌（F03）：拿到令牌之前一律入队等待，绝不裸发。
       // 令牌由 Dart 用 evaluateJavascript 注入（只在主 frame 执行），
       // 跨域子 frame 读不到主 frame 的变量，因此无法伪造桥消息。
-      if (zrToken && h && h.callHandler) {
-        h.callHandler(name, body, zrToken);
+      var token = tokenOf();
+      if (token && h && h.callHandler) {
+        h.callHandler(name, body, token);
         return;
       }
       if (q.length >= qMaxEntries) {
@@ -50,11 +62,12 @@ abstract final class EventObserver {
     var h = window.flutter_inappwebview;
     if (!h || !h.callHandler) return false;
     // 令牌未就绪时不放行队列（fail-closed）：宁可稍后补发，也不裸发。
-    if (!zrToken) return false;
+    var token = tokenOf();
+    if (!token) return false;
     while (q.length > 0) {
       var m = q.shift();
       qBytes -= m.b.length;
-      try { h.callHandler(m.n, m.b, zrToken); } catch (e) {}
+      try { h.callHandler(m.n, m.b, token); } catch (e) {}
     }
     return true;
   };
@@ -62,6 +75,7 @@ abstract final class EventObserver {
   window.__zrSetToken = function(t) {
     if (typeof t !== 'string' || !t) return;
     zrToken = t;
+    window.__zrToken = t;
     flush();
   };
   window.addEventListener('flutterInAppWebViewPlatformReady', function() { flush(); }, false);

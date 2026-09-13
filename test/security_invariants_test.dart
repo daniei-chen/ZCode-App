@@ -59,10 +59,17 @@ void main() {
     test('bridge 守卫必须校验主 frame 令牌（PR04/F03）', () {
       final page = read('lib/ui/official_remote_page.dart');
       final hook = read('lib/services/event_observer.dart');
+      final token = read('lib/services/bridge_token.dart');
       expect(page.contains('BridgeAuthPolicy.tokenMatches'), isTrue);
-      // 令牌由 Dart 注入主 frame（evaluateJavascript），钩子读取它并在未就绪时排队。
-      expect(page.contains('__zrSetToken'), isTrue);
+      // 令牌有两条注入路径，都必须经过同一套"确认落地"逻辑：
+      //   1. document-start UserScript 预置 window.__zrToken（钩子安装时直接读）；
+      //   2. 运行期 __zrSetToken + read-back 校验 + 退避重试（bridge_token.dart）。
+      expect(page.contains('BridgeTokenPolicy.bootstrapScript'), isTrue);
+      expect(page.contains('_ensureBridgeToken'), isTrue);
+      expect(token.contains('window.__zrSetToken'), isTrue);
+      expect(token.contains('window.__zrToken'), isTrue);
       expect(hook.contains('window.__zrSetToken'), isTrue);
+      expect(hook.contains('tokenOf'), isTrue);
       expect(hook.contains('zrToken'), isTrue);
     });
 

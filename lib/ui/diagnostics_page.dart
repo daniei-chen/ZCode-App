@@ -12,6 +12,7 @@ import '../services/diagnostics_bundle.dart';
 import '../services/structured_log.dart';
 import '../services/update_service.dart';
 import '../services/webview_storage.dart';
+import '../state/bridge_health.dart';
 import '../state/observer_stats.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -117,6 +118,10 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       stats: {
         for (final entry in stats.entries) entry.key: entry.value.counters,
       },
+      bridgeHealth: {
+        for (final entry in ref.read(bridgeHealthProvider).entries)
+          entry.key: entry.value.ready ? 'ok' : 'missing',
+      },
       biometric: ref.read(biometricProvider),
       notificationsEnabled: _notifEnabled ?? false,
       batteryIgnored: _batteryIgnored ?? false,
@@ -140,6 +145,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final statuses = ref.watch(sessionStatusProvider);
     final biometric = ref.watch(biometricProvider);
     final logs = AppLog.snapshot().reversed.take(120).toList();
+    final bridge = ref.watch(bridgeHealthProvider);
     final deviceStats = ref.watch(observerStatsProvider).values.toList()
       ..sort((a, b) => a.deviceId.compareTo(b.deviceId));
 
@@ -192,7 +198,12 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                       : '—'),
           ),
           for (final d in devices)
-            _row(palette, d.label, _statusLabel(l10n, statuses[d.id])),
+            _row(
+              palette,
+              d.label,
+              '${_statusLabel(l10n, statuses[d.id])}'
+                  '${bridge[d.id] != null ? ' · bridge=${bridge[d.id]!.ready ? 'ok' : 'missing'}' : ''}',
+            ),
           _section(palette, l10n.diagnosticsSectionNotifications),
           _row(
             palette,

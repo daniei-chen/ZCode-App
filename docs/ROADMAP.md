@@ -3,7 +3,11 @@
 当前版本线：以 GitHub Releases 与 `pubspec.yaml` 为准（本文只记录范围与计划，不复述具体版本号）。
 支持范围与限制见 [SUPPORT.md](SUPPORT.md)。
 
-## v1.1.0 — 外部审计驱动的加固（当前版本，详见 [releases/v1.1.0.md](releases/v1.1.0.md)）
+## v1.1.x — 外部审计驱动的加固
+
+> 计划代号 v1.1.0（见 [releases/v1.1.0.md](releases/v1.1.0.md) 的计划内容清单）；
+> 实际发布版本为 **v1.1.2**（Pre-release，见 [releases/v1.1.2.md](releases/v1.1.2.md)，含出站 URL 策略与发布链自身修复）。
+> 版本号与 tag 的对应关系只在 GitHub Releases 与 `pubspec.yaml` 记录，本文不复述。
 
 四份外部深度审计（F01–F26、100 项验收矩阵）合并后的统一升级，逐项落地并附证据：
 

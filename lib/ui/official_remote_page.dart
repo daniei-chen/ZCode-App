@@ -17,6 +17,7 @@ import '../services/session_jump.dart';
 import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
+import '../state/bridge_health.dart';
 import '../state/observer_stats.dart';
 import '../state/root_tabs.dart';
 import '../state/session_index.dart';
@@ -25,6 +26,7 @@ import '../state/theme_mode.dart';
 import '../theme.dart';
 import '../services/app_log.dart';
 import '../services/bridge_schema.dart';
+import '../services/bridge_token.dart';
 import '../services/structured_log.dart';
 import '../services/webview_storage.dart';
 
@@ -456,38 +458,101 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 主 frame 令牌（F03）：每个 WebView generation 一个，只在主 frame 注入。
   String _bridgeToken = '';
 
+  /// 令牌是否已确认落地（read-back 一致才为 true）；诊断页可见。
+  bool _bridgeTokenReady = false;
+
   void _rotateBridgeToken() {
     final random = Random.secure();
     final bytes = List<int>.generate(24, (_) => random.nextInt(256));
     _bridgeToken = base64Url.encode(bytes);
+    _bridgeTokenReady = false;
+    // 本方法会在 initState/didUpdateWidget 里被调用：那里**不能**改 provider
+    // （Flutter 会抛 "Tried to modify a provider while the widget tree was
+    // building"，真机/模拟器实测红屏）。延到帧后再上报。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(bridgeHealthProvider.notifier)
+          .report(widget.device.id, _webviewGeneration, ready: false);
+    });
   }
 
-  /// 把令牌注入主 frame（evaluateJavascript 只在主 frame 执行）。
-  Future<void> _injectBridgeToken() async {
+  /// 把令牌注入主 frame 并**确认落地**（evaluateJavascript 只在主 frame 执行）。
+  ///
+  /// 现场证据（Android 16 / WebView 151）：`onLoadStop` 时钩子可能还没执行完，
+  /// 一次注入会打空 → 钩子按 fail-closed 规则把事件/遥测/返回回执全部排队，
+  /// 用户看到的是"返回没反应、通知不来"。所以这里按退避重试直到读回同一个令牌。
+  Future<bool> _injectBridgeToken({bool log = true}) async {
     final token = _bridgeToken;
-    if (token.isEmpty) return;
-    try {
-      await _controller?.evaluateJavascript(
-        source: "window.__zrSetToken && window.__zrSetToken('$token');",
-      );
-    } catch (_) {}
+    if (token.isEmpty) return false;
+    for (var attempt = 0; BridgeTokenPolicy.shouldRetry(attempt); attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(BridgeTokenPolicy.delayFor(attempt));
+      }
+      if (!mounted || _bridgeToken != token) return false;
+      try {
+        final readBack = await _controller?.evaluateJavascript(
+          source: BridgeTokenPolicy.injectScript(token),
+        );
+        if (BridgeTokenPolicy.isReady(readBack, token)) {
+          _markBridgeTokenReady();
+          return true;
+        }
+      } catch (_) {}
+    }
+    if (log) {
+      await _logTokenMissing('inject_failed');
+    }
+    return false;
   }
 
-  /// 页面就绪后复核令牌确实到位；缺失说明注入失败（观测会静默失效），
-  /// 补注一次并留下 release 可见告警。
-  Future<void> _verifyBridgeToken() async {
+  /// 令牌确认到位：更新诊断状态，并按 generation 只报一次成功日志。
+  void _markBridgeTokenReady() {
+    _bridgeTokenReady = true;
+    ref
+        .read(bridgeHealthProvider.notifier)
+        .report(widget.device.id, _webviewGeneration, ready: true);
+    AppLog.event(LogEvent.bridgeTokenReady, level: LogLevel.debug, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+    });
+  }
+
+  Future<void> _logTokenMissing(String reason) async {
+    var hookReady = 'unknown';
     try {
-      final present = await _controller?.evaluateJavascript(
-        source: "window.__zrToken ? 'ok' : 'missing'",
+      final value = await _controller?.evaluateJavascript(
+        source: BridgeTokenPolicy.hookReadyScript,
       );
-      if (present != 'ok') {
-        AppLog.event(LogEvent.bridgeTokenMissing, level: LogLevel.warn, fields: {
-          LogField.device: widget.device.id,
-          LogField.generation: _webviewGeneration,
-        });
-        await _injectBridgeToken();
-      }
+      hookReady = BridgeTokenPolicy.normalize(value) ?? 'unknown';
     } catch (_) {}
+    _bridgeTokenReady = false;
+    ref
+        .read(bridgeHealthProvider.notifier)
+        .report(widget.device.id, _webviewGeneration, ready: false);
+    // release 可见：这条日志是"观测/返回为什么不动"的第一现场。
+    AppLog.event(LogEvent.bridgeTokenMissing, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.reason: reason,
+      LogField.route: hookReady,
+    });
+  }
+
+  /// 在预算内等令牌到位（返回键/跳转这类需要桥的操作前调用）。
+  Future<bool> _ensureBridgeToken({Duration budget = BridgeTokenPolicy.backBudget}) async {
+    if (_bridgeTokenReady && _bridgeToken.isNotEmpty) return true;
+    final deadline = DateTime.now().add(budget);
+    final injected = await _injectBridgeToken();
+    while (!injected || !_bridgeTokenReady) {
+      if (!mounted || DateTime.now().isAfter(deadline)) return _bridgeTokenReady;
+      if (_bridgeTokenReady && _bridgeToken.isNotEmpty) return true;
+      await Future<void>.delayed(BridgeTokenPolicy.pollInterval);
+      await _injectBridgeToken();
+      if (_bridgeTokenReady) return true;
+      if (DateTime.now().isAfter(deadline)) return _bridgeTokenReady;
+    }
+    return _bridgeTokenReady;
   }
 
   @override
@@ -779,6 +844,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     final controller = _controller;
     if (controller == null) return false;
 
+    // 令牌没到位时脚本会按 fail-closed 拒绝回执，返回键看起来"没反应"：
+    // 先给它一个短预算把令牌确认下来（真机诊断包里的 WV109/unavailable 根因）。
+    final bridgeReady = await _ensureBridgeToken();
+    if (!mounted) return false;
+
     _backAttempt++;
     final attempt = _backAttempt;
     final completer = Completer<InPageBackOutcome?>();
@@ -816,6 +886,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         LogField.device: widget.device.id,
         LogField.generation: _webviewGeneration,
         LogField.reason: InPageBackOutcome.reasonUnavailable,
+        LogField.ok: bridgeReady,
       });
     }
 
@@ -1035,6 +1106,17 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       ),
                       initialUrlRequest: _request,
                       initialUserScripts: UnmodifiableListView([
+                        // 令牌引导（现场修复）：document-start 就把令牌放进主 frame，
+                        // 钩子在同一个时刻安装时直接读它——不再依赖"load stop 后
+                        // 用 evaluateJavascript 注入"，彻底消除真机上出现的
+                        // BR200 竞态（钩子未就绪 → 事件/返回回执全被 fail-closed 拦住）。
+                        // 必须排在钩子之前。
+                        UserScript(
+                          source: BridgeTokenPolicy.bootstrapScript(_bridgeToken),
+                          injectionTime:
+                              UserScriptInjectionTime.AT_DOCUMENT_START,
+                          allowedOriginRules: {'https://zcode.z.ai'},
+                        ),
                         UserScript(
                           source: EventObserver.hookScript,
                           injectionTime:
@@ -1262,7 +1344,6 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
                         unawaited(_injectBridgeToken());
-                        unawaited(_verifyBridgeToken());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {
                           // 文档加载完成 ≠ 远控可用（F06）：桌面离线、凭证失效

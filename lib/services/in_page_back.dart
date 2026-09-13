@@ -172,8 +172,16 @@ abstract final class InPageBack {
       if (!visible(el)) continue;
       push(el);
     }
-    // 结构/几何兜底：对话页左上角的小块可点元素（纯图标返回键没有 aria-label）。
-    var limitTop = Math.min(150, (window.innerHeight || 800) * 0.20);
+    // 结构/几何兜底：只认**左上角小方块里的纯图标按钮**。
+    //
+    // 真机实测教训：官方页面列表页左上角没有任何返回控件，早期"左上 96px 内"
+    // 的宽规则会把列表页的工作区选择器/新建按钮当成返回键点掉，表现为
+    // "越返回越往里走"。对话页的真实返回键在 (8,10,24,24)，因此这里收紧到
+    // 左上 56×40 的小角落，并要求是图标型（有 svg 或无文本）。
+    var cornerRight = 56;
+    var cornerBottom = 40;
+    var minSize = 20;
+    var maxSize = 40;
     var nodes = document.querySelectorAll(
       'button,[role="button"],a,[tabindex]'
     );
@@ -183,10 +191,13 @@ abstract final class InPageBack {
       if (isBackToTop(labelOf(node))) continue;
       if (!visible(node)) continue;
       var rect = node.getBoundingClientRect();
-      if (rect.width < 20 || rect.width > 96) continue;
-      if (rect.height < 20 || rect.height > 96) continue;
-      if (rect.top < 0 || rect.top > limitTop) continue;
-      if (rect.left < 0 || rect.left > 96) continue;
+      if (rect.width < minSize || rect.width > maxSize) continue;
+      if (rect.height < minSize || rect.height > maxSize) continue;
+      if (rect.top < 0 || rect.top > cornerBottom) continue;
+      if (rect.left < 0 || rect.left + rect.width > cornerRight) continue;
+      var iconOnly = node.querySelector('svg') ||
+        String(node.textContent || '').trim().length === 0;
+      if (!iconOnly) continue;
       scored.push({ el: node, score: rect.top * 2 + rect.left });
     }
     scored.sort(function (a, b) { return a.score - b.score; });

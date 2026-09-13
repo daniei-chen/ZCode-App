@@ -76,15 +76,22 @@ void main() {
       expect(script.contains('Date.now() + 600'), isTrue);
     });
 
-    test('多策略候选：显式标签 → 通用标签 → 左上角几何启发式', () {
+    test('多策略候选：显式标签 → 通用标签 → 左上角图标键几何兜底', () {
       expect(script.contains('aria-label="返回任务首页"'), isTrue);
       expect(script.contains('aria-label^="Back to"'), isTrue);
       expect(script.contains('data-testid*="back"'), isTrue);
       expect(script.contains('isBackLabel'), isTrue);
-      // 几何兜底：左上角小尺寸可点元素（纯图标返回键没有 aria-label）
-      expect(script.contains('rect.left > 96'), isTrue);
-      expect(script.contains('limitTop'), isTrue);
+      // 几何兜底收紧到"左上角 56×40 内的图标键"：官方页面返回键在 (8,10,24,24)，
+      // 而列表页左上角没有返回键——放宽会误点工作区/新建控件（模拟器实测回归）。
+      expect(script.contains('var cornerRight = 56;'), isTrue);
+      expect(script.contains('var cornerBottom = 40;'), isTrue);
+      expect(script.contains('var minSize = 20;'), isTrue);
+      expect(script.contains('var maxSize = 40;'), isTrue);
+      expect(script.contains("node.querySelector('svg')"), isTrue);
       expect(script.contains('score: rect.top * 2 + rect.left'), isTrue);
+      // 旧规则必须已删除（防止回退）
+      expect(script.contains('rect.left > 96'), isFalse);
+      expect(script.contains('limitTop'), isFalse);
     });
 
     test('「返回顶部」绝不能被当成返回（历史回归点）', () {

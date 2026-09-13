@@ -25,6 +25,7 @@ class DiagnosticsInputs {
     required this.statuses,
     required this.settings,
     required this.stats,
+    required this.bridgeHealth,
     required this.droppedMessages,
     required this.droppedDebugLines,
     required this.logs,
@@ -40,6 +41,9 @@ class DiagnosticsInputs {
 
   /// 设备短 id → (计数键 → 值)。
   final Map<String, Map<String, int>> stats;
+
+  /// 设备短 id → 主 frame 桥令牌状态（ok / missing）。
+  final Map<String, String> bridgeHealth;
   final int droppedMessages;
   final int droppedDebugLines;
   final List<String> logs;
@@ -61,6 +65,7 @@ abstract final class DiagnosticsBundle {
     required List<String> deviceIds,
     required Map<String, String> statuses,
     required Map<String, Map<String, int>> stats,
+    required Map<String, String> bridgeHealth,
     required bool biometric,
     required bool notificationsEnabled,
     required bool batteryIgnored,
@@ -87,6 +92,9 @@ abstract final class DiagnosticsBundle {
       },
       stats: {
         for (final entry in stats.entries) entry.key: entry.value,
+      },
+      bridgeHealth: {
+        for (final entry in bridgeHealth.entries) entry.key: entry.value,
       },
       droppedMessages: BridgeSchema.droppedMessages,
       droppedDebugLines: AppLog.droppedInRelease,
@@ -115,7 +123,11 @@ abstract final class DiagnosticsBundle {
       DiagnosticsSection('devices', [
         // 遍历原始 id（用于查状态），只把展示用的键截短。
         for (final id in inputs.deviceIds)
-          MapEntry(LogRedactor.shortId(id), _statusOf(inputs.statuses, id)),
+          MapEntry(
+            LogRedactor.shortId(id),
+            '${_statusOf(inputs.statuses, id)}'
+                '${_bridgeSuffix(inputs, id)}',
+          ),
       ]),
       DiagnosticsSection('observer', [
         MapEntry('bridgeDroppedMessages', '${inputs.droppedMessages}'),
@@ -171,4 +183,12 @@ abstract final class DiagnosticsBundle {
   /// 状态值本身不是敏感信息，但键可能是完整设备 id——两种形态都查一次。
   static String _statusOf(Map<String, String> statuses, String id) =>
       statuses[id] ?? statuses[LogRedactor.shortId(id)] ?? '-';
+
+  /// 设备行尾附桥令牌状态（`· bridge=ok|missing`）：真机诊断的第一现场。
+  static String _bridgeSuffix(DiagnosticsInputs inputs, String id) {
+    final short = LogRedactor.shortId(id);
+    final value = inputs.bridgeHealth[id] ?? inputs.bridgeHealth[short];
+    if (value == null) return '';
+    return ' · bridge=$value';
+  }
 }

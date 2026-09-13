@@ -26,8 +26,15 @@ DiagnosticsInputs _inputs({
   appVersion: appVersion,
   buildNumber: buildNumber,
   platform: platform ?? {'android': '14', 'sdkInt': '34', 'webview': '128.0'},
-  deviceIds: deviceIds ?? ['3f2a1b9c-1234-5678-9abc-def012345678'],
-  statuses: statuses ?? {'3f2a1b9c-1234-5678-9abc-def012345678': 'live'},
+  deviceIds:
+      deviceIds ??
+      ['3f2a1b9c-1234-5678-9abc-def012345678', 'aa11bb22-2222-3333-4444-555566667777'],
+  statuses:
+      statuses ??
+      {
+        '3f2a1b9c-1234-5678-9abc-def012345678': 'live',
+        'aa11bb22-2222-3333-4444-555566667777': 'loading',
+      },
   settings: const {
     'biometric': 'on',
     'notifications': 'on',
@@ -37,6 +44,10 @@ DiagnosticsInputs _inputs({
   stats: const {
     '3f2a1b9c-1234-5678-9abc-def012345678': {'wsMessages': 12, 'queueDropped': 0},
     'aa11bb22-2222-3333-4444-555566667777': {'wsMessages': 3},
+  },
+  bridgeHealth: const {
+    '3f2a1b9c-1234-5678-9abc-def012345678': 'ok',
+    'aa11bb22-2222-3333-4444-555566667777': 'missing',
   },
   droppedMessages: 2,
   droppedDebugLines: 7,
@@ -76,6 +87,9 @@ void main() {
       // 两台设备的计数各自成行（F18：交错上报不互相覆盖）
       expect(text.contains('3f2a1b9c.wsMessages = 12'), isTrue);
       expect(text.contains('aa11bb22.wsMessages = 3'), isTrue);
+      // 设备行尾附主 frame 桥令牌状态（真机诊断第一现场）
+      expect(text.contains('bridge=ok'), isTrue);
+      expect(text.contains('bridge=missing'), isTrue);
     });
 
     test('canary 零命中：把凭证塞进构建日志后，诊断包整段无 canary', () {
@@ -91,6 +105,9 @@ void main() {
           statuses: const {'3f2a1b9c-1234-5678-9abc-def012345678': 'live'},
           stats: const {
             '3f2a1b9c-1234-5678-9abc-def012345678': {'wsMessages': 1},
+          },
+          bridgeHealth: const {
+            '3f2a1b9c-1234-5678-9abc-def012345678': 'ok',
           },
           biometric: true,
           notificationsEnabled: true,

@@ -31,6 +31,7 @@ enum LogEvent {
 
   // bridge / 观测
   bridgeTokenMissing('BR200'),
+  bridgeTokenReady('BR204'),
   bridgeTokenRotated('BR201'),
   bridgeMessageDropped('BR202'),
   observerStatsSkipped('BR203'),

@@ -279,6 +279,7 @@ function backEl({
   role = null,
   tabindex = null,
   disabled = false,
+  icon = null,
   computedStyle = null,
   onActivate = null,
 } = {}) {
@@ -289,8 +290,11 @@ function backEl({
     disabled,
     clicks: 0,
     attrs: {},
+    icon: icon === null ? { tagName: 'SVG' } : icon,
     computedStyle,
     getAttribute: (name) => (name in element.attrs ? element.attrs[name] : null),
+    // 几何兜底会问"是不是图标键"：有 svg 子节点即视为图标（脚本里的判据之一）。
+    querySelector: (selector) => (selector === 'svg' ? element.icon : null),
     getBoundingClientRect: () => ({
       ...rect,
       right: rect.left + rect.width,
@@ -406,6 +410,10 @@ function backPayload(posted, index = 0) {
   return { args, body: JSON.parse(args[1]) };
 }
 
+function boxDocumentTitle(box, value) {
+  box.document.title = value;
+}
+
 function runBack(box) {
   vm.runInContext(back, box.context, { filename: 'in_page_back.js' });
   flushTimers(box);
@@ -445,7 +453,30 @@ await check('在受控环境安装钩子不抛错', () => {
   assert(typeof window.__zrStats === 'object', '遥测计数应已初始化');
 });
 
-// 3) F03：令牌未注入前不得裸发；注入后在途消息按序补发并携带令牌。
+// 3) F03 引导路径：document-start 预置的 window.__zrToken 必须直接生效
+//    （真机回归：运行时注入有时打空，钩子改为一安装就读预置值）。
+await check('F03 钩子在安装时读取 document-start 预置令牌', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'preset-token'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=preset');
+  ws.listeners.message({
+    data: JSON.stringify({ type: 'data', payload: 'preset' }),
+  });
+  // preset+flush 由 __zrSetToken 触发；这里直接调一次（Dart 侧仍会调用它）。
+  vm.runInContext("window.__zrSetToken && window.__zrSetToken('preset-token')", box.context);
+  assert(box.posted.length === 1, `预置令牌应在补发时随消息带上（实际 ${box.posted.length}）`);
+  assert(box.posted[0][2] === 'preset-token', '第 3 个参数应为预置令牌');
+  assert(box.posted[0][1].includes('preset'), '补发的应是在途消息');
+});
+
+await check('F03 钩子安装时标记 __zrHookReady（诊断用）', () => {
+  const box = makeSandbox();
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  assert(box.window.__zrHookReady === true, '__zrHookReady 应为 true');
+});
+
+// 3b) F03：令牌未注入前不得裸发；注入后在途消息按序补发并携带令牌。
 await check('F03 令牌未注入前桥消息只入队、不裸发', () => {
   const ws = new window.WebSocket('wss://zcode.z.ai/ws?mid=token-probe');
   assert(
@@ -659,7 +690,8 @@ await check('纯图标返回键（无 aria-label）也能靠左上角几何启�
     elements: [
       content,
       backEl({
-        rect: { top: 36, left: 20, width: 44, height: 44 },
+        // 真实官方页面：返回键 (8,10,24,24)，纯图标无 aria-label。
+        rect: { top: 10, left: 8, width: 24, height: 24 },
         onActivate: () => {
           box.document.title = 'task-list';
         },
@@ -717,6 +749,47 @@ await check('第一个候选无效时继续试下一个候选', () => {
   runBack(box);
   assert(box.elements[0].clicks === 1, '先试第一个候选');
   assert(box.elements[1].clicks === 1, '第一个无效后必须继续试下一个');
+  assert(backPayload(box.posted).body.reason === 'clicked');
+});
+
+await check('几何兜底只认左上角图标键：列表页的宽控件不得被点（真机实测回归）', () => {
+  // 复现真机现象：列表页左上角没有返回键，但页面里存在"工作区选择/新建"这类
+  // 靠上偏左的控件。旧规则（左上 96px 内、宽 96px）会把它们点掉，表现为
+  // "越返回越往里走"。收紧到左上 56×40 的图标方块后必须一个都不点。
+  const workspacePicker = backEl({
+    ariaLabel: '切换工作区',
+    rect: { top: 40, left: 16, width: 120, height: 32 },
+    text: '杂事',
+    onActivate: () => {
+      boxDocumentTitle(box, 'switched');
+    },
+  });
+  const newTask = backEl({
+    rect: { top: 54, left: 68, width: 28, height: 28 },
+    onActivate: () => {},
+  });
+  const box = makeBackSandbox({ elements: [workspacePicker, newTask] });
+  runBack(box);
+  assert(workspacePicker.clicks === 0, '宽控件不得被当成返回键');
+  assert(newTask.clicks === 0, '偏右/偏下的图标键不得被当成返回键');
+  const { body } = backPayload(box.posted);
+  assert(body.ok === false, 'ok 应为 false');
+  assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+});
+
+await check('几何兜底仍然命中左上角纯图标返回键（8,10,24,24）', () => {
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        rect: { top: 10, left: 8, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 1, '左上角图标键必须命中');
   assert(backPayload(box.posted).body.reason === 'clicked');
 });
 
