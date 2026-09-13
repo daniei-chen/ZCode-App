@@ -7,6 +7,19 @@ import 'event_observer.dart';
 /// `_bridgeAllowed()` 解决"哪个页面可以调用 bridge"；这里解决"页面可以传
 /// 什么"：每个 handler 在进入业务逻辑前先过类型与长度校验，超限/类型不符
 /// 一律丢弃并计数，绝不进入解析路径。
+/// 桥调用来源策略（F03）。
+///
+/// 原生桥对象对所有 frame 可见，而 `getUrl()` 只能看到顶层文档——仅凭 URL
+/// 无法证明这条消息是主 frame 发的。Dart 会用 `evaluateJavascript`（只在主
+/// frame 执行）注入一个每代随机令牌，钩子每条消息都带上它；跨域子 frame
+/// 读不到主 frame 的变量，因此无法伪造。
+abstract final class BridgeAuthPolicy {
+  static bool tokenMatches(Object? provided, String? expected) {
+    if (expected == null || expected.isEmpty) return false;
+    return provided is String && provided.isNotEmpty && provided == expected;
+  }
+}
+
 abstract final class BridgeSchema {
   static const int maxThemeBytes = 256;
   static const int maxViewStateBytes = 64 * 1024;

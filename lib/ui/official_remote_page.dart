@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kDebugMode, mapEquals;
 import 'package:flutter/material.dart';
@@ -505,11 +506,46 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   bool _rendererGone = false;
   int _webviewGeneration = 0;
 
+  /// 主 frame 令牌（F03）：每个 WebView generation 一个，只在主 frame 注入。
+  String _bridgeToken = '';
+
+  void _rotateBridgeToken() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(24, (_) => random.nextInt(256));
+    _bridgeToken = base64Url.encode(bytes);
+  }
+
+  /// 把令牌注入主 frame（evaluateJavascript 只在主 frame 执行）。
+  Future<void> _injectBridgeToken() async {
+    final token = _bridgeToken;
+    if (token.isEmpty) return;
+    try {
+      await _controller?.evaluateJavascript(
+        source: "window.__zrSetToken && window.__zrSetToken('$token');",
+      );
+    } catch (_) {}
+  }
+
+  /// 页面就绪后复核令牌确实到位；缺失说明注入失败（观测会静默失效），
+  /// 补注一次并留下 release 可见告警。
+  Future<void> _verifyBridgeToken() async {
+    try {
+      final present = await _controller?.evaluateJavascript(
+        source: "window.__zrToken ? 'ok' : 'missing'",
+      );
+      if (present != 'ok') {
+        AppLog.warn('[ZR][Bridge] main-frame token missing after load stop');
+        await _injectBridgeToken();
+      }
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.backController?.attach(_handleBack);
+    _rotateBridgeToken();
     _armFirstLoadWatchdog();
   }
 
@@ -582,7 +618,16 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// W1 defense-in-depth：高权限 bridge 回调在被信任前，Dart 侧再次确认
   /// 当前主文档仍位于官方远控页面——不能只依赖"能调用 handler 的页面
   /// 一定可信"（UserScript origin 限制之外的第二道防线）。
-  Future<bool> _bridgeAllowed() async {
+  ///
+  /// PR04（F03）：同时校验主 frame 令牌。原生桥对象对子 frame 同样可见，
+  /// URL 检查只能证明"顶层文档可信"，不能证明"这条消息来自主 frame"。
+  Future<bool> _bridgeAllowed(List<dynamic> args) async {
+    if (!BridgeAuthPolicy.tokenMatches(
+      args.length > 1 ? args[1] : null,
+      _bridgeToken,
+    )) {
+      return false;
+    }
     try {
       final url = await _controller?.getUrl();
       return LinkBuilder.isTrustedRemotePage(url);
@@ -656,6 +701,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         _silentRetried = false;
         _firstPaintProbed = false;
       });
+      // 新 WebView = 新 JS 上下文：令牌必须同步轮换（旧令牌随旧文档一起失效）。
+      _rotateBridgeToken();
       _armFirstLoadWatchdog();
       return;
     }
@@ -935,7 +982,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrTheme',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxThemeBytes,
@@ -947,7 +994,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrEvents',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             if (!context.mounted) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
@@ -962,7 +1009,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrViewState',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxViewStateBytes,
@@ -974,7 +1021,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrSeen',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxSeenBytes,
@@ -986,7 +1033,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrStats',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is! String) return null;
                             // 解析前先限长（F04）：遥测本身很小，超限直接丢弃，
@@ -1012,7 +1059,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         controller.addJavaScriptHandler(
                           handlerName: 'zrWs',
                           callback: (args) async {
-                            if (!await _bridgeAllowed()) return null;
+                            if (!await _bridgeAllowed(args)) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxWsEventBytes,
@@ -1034,6 +1081,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         ref
                             .read(sessionStatusProvider.notifier)
                             .report(widget.device.id, SessionStatus.loading);
+                        unawaited(_injectBridgeToken());
                         unawaited(_applyWebTheme(_currentDark(context)));
                       },
                       onLoadStop: (_, uri) {
@@ -1048,6 +1096,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _firstLoadSettled = true;
                         _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
+                        unawaited(_injectBridgeToken());
+                        unawaited(_verifyBridgeToken());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {
                           // 文档加载完成 ≠ 远控可用（F06）：桌面离线、凭证失效

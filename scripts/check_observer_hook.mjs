@@ -59,7 +59,10 @@ function makeSandbox() {
   const window = {
     __zrStats: null,
     __zrHooked: false,
-    flutter_inappwebview: { callHandler: (name, body) => posted.push({ name, body }) },
+    flutter_inappwebview: {
+      // 记录全部实参：F03 要求每条桥消息都携带主 frame 令牌（第 3 个参数）。
+      callHandler: (...args) => posted.push(args),
+    },
     addEventListener: (type, fn) => {
       handlers[type] = fn;
     },
@@ -151,7 +154,21 @@ await check('在受控环境安装钩子不抛错', () => {
   assert(typeof window.__zrStats === 'object', '遥测计数应已初始化');
 });
 
-// 3) B08：超限的 WS 文本不得进入桥（cap+1 字符）。
+// 3) F03：令牌未注入前不得裸发；注入后在途消息按序补发并携带令牌。
+await check('F03 令牌未注入前桥消息只入队、不裸发', () => {
+  const ws = new window.WebSocket('wss://zcode.z.ai/ws?mid=token-probe');
+  assert(typeof ws.listeners.message === 'function', '官方 relay 的 WS 应挂上监听');
+  ws.listeners.message({ data: JSON.stringify({ type: 'data', payload: 'pre-token' }) });
+  assert(posted.length === 0, `令牌未就绪时不得发送（实际 ${posted.length} 条）`);
+});
+
+await check('F03 令牌注入后在途消息补发且携带令牌', () => {
+  vm.runInContext("window.__zrSetToken && window.__zrSetToken('test-token')", context);
+  assert(posted.length === 1, `在途消息应补发（实际 ${posted.length} 条）`);
+  assert(posted[0][2] === 'test-token', '桥消息第 3 个参数应为令牌');
+});
+
+// 4) B08：超限的 WS 文本不得进入桥（cap+1 字符）。
 await check('B08 超限 WS 文本被丢弃、不产生桥消息', () => {
   const ws = new window.WebSocket('wss://zcode.z.ai/ws?mid=1');
   assert(typeof ws.listeners.message === 'function', '官方 relay 的 WS 应挂上监听');
@@ -161,12 +178,16 @@ await check('B08 超限 WS 文本被丢弃、不产生桥消息', () => {
   assert(window.__zrStats.wsSkippedSize > 0, '应计入 wsSkippedSize');
 });
 
-// 4) B08 正例：正常大小的事件仍应送达。
+// 5) B08 正例：正常大小的事件仍应送达（且带令牌）。
 await check('B08 正常大小 WS 文本照常上报', () => {
   const ws = new window.WebSocket('wss://zcode.z.ai/ws?mid=2');
   const before = posted.length;
   ws.listeners.message({ data: JSON.stringify({ type: 'data', payload: 'ok' }) });
   assert(posted.length > before, '正常消息应产生桥消息');
+  assert(
+    posted.slice(before).every((args) => args[2] === 'test-token'),
+    '每条桥消息都必须携带令牌（F03）',
+  );
 });
 
 // 5) B17：非默认端口的官方 host 不得被观察。

@@ -86,4 +86,22 @@ void main() {
   test('事件字节上限与 JS 钩子保持一致', () {
     expect(BridgeSchema.eventCapMatchesHook, isTrue);
   });
+
+  group('BridgeAuthPolicy.tokenMatches（F03 主 frame 令牌）', () {
+    test('令牌一致才放行', () {
+      expect(BridgeAuthPolicy.tokenMatches('abc', 'abc'), isTrue);
+    });
+
+    test('缺失/类型不符/不一致一律拒绝', () {
+      expect(BridgeAuthPolicy.tokenMatches(null, 'abc'), isFalse);
+      expect(BridgeAuthPolicy.tokenMatches('', 'abc'), isFalse);
+      expect(BridgeAuthPolicy.tokenMatches('abd', 'abc'), isFalse);
+      expect(BridgeAuthPolicy.tokenMatches(123, 'abc'), isFalse);
+    });
+
+    test('期望值为空（未生成令牌）时拒绝一切', () {
+      expect(BridgeAuthPolicy.tokenMatches('abc', ''), isFalse);
+      expect(BridgeAuthPolicy.tokenMatches('abc', null), isFalse);
+    });
+  });
 }

@@ -11,6 +11,8 @@ abstract final class EventObserver {
   var q = [];
   var qBytes = 0;
   var qMaxEntries = 2048;
+  // 主 frame 令牌（F03）：由 Dart 注入，未就绪前消息只入队。
+  var zrToken = null;
   // 分片预算（F04/B11）：单片 base64 上限 + 每个逻辑帧在途总字节上限
   // （收齐后的最终帧上限仍由 $kMaxListenBytes 判定）。
   var kMaxFragmentBytes = 16 * 1024 * 1024;
@@ -24,8 +26,11 @@ abstract final class EventObserver {
         return;
       }
       var h = window.flutter_inappwebview;
-      if (h && h.callHandler) {
-        h.callHandler(name, body);
+      // 主 frame 令牌（F03）：拿到令牌之前一律入队等待，绝不裸发。
+      // 令牌由 Dart 用 evaluateJavascript 注入（只在主 frame 执行），
+      // 跨域子 frame 读不到主 frame 的变量，因此无法伪造桥消息。
+      if (zrToken && h && h.callHandler) {
+        h.callHandler(name, body, zrToken);
         return;
       }
       if (q.length >= qMaxEntries) {
@@ -44,12 +49,20 @@ abstract final class EventObserver {
   var flush = function() {
     var h = window.flutter_inappwebview;
     if (!h || !h.callHandler) return false;
+    // 令牌未就绪时不放行队列（fail-closed）：宁可稍后补发，也不裸发。
+    if (!zrToken) return false;
     while (q.length > 0) {
       var m = q.shift();
       qBytes -= m.b.length;
-      try { h.callHandler(m.n, m.b); } catch (e) {}
+      try { h.callHandler(m.n, m.b, zrToken); } catch (e) {}
     }
     return true;
+  };
+  // Dart 在主 frame 注入令牌后才放行（在途消息按序补发）。
+  window.__zrSetToken = function(t) {
+    if (typeof t !== 'string' || !t) return;
+    zrToken = t;
+    flush();
   };
   window.addEventListener('flutterInAppWebViewPlatformReady', function() { flush(); }, false);
   var flushTries = 0;

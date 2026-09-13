@@ -51,9 +51,19 @@ void main() {
     test('高权限 bridge 回调必须经过 _bridgeAllowed 守卫（W1 纵深防御）', () {
       final src = read('lib/ui/official_remote_page.dart');
       expect(
-        RegExp(r'await _bridgeAllowed\(\)').allMatches(src).length,
+        RegExp(r'await _bridgeAllowed\(args\)').allMatches(src).length,
         greaterThanOrEqualTo(5),
       );
+    });
+
+    test('bridge 守卫必须校验主 frame 令牌（PR04/F03）', () {
+      final page = read('lib/ui/official_remote_page.dart');
+      final hook = read('lib/services/event_observer.dart');
+      expect(page.contains('BridgeAuthPolicy.tokenMatches'), isTrue);
+      // 令牌由 Dart 注入主 frame（evaluateJavascript），钩子读取它并在未就绪时排队。
+      expect(page.contains('__zrSetToken'), isTrue);
+      expect(hook.contains('window.__zrSetToken'), isTrue);
+      expect(hook.contains('zrToken'), isTrue);
     });
 
     test('第三方 Cookie 保持最小化关闭（W3）', () {
