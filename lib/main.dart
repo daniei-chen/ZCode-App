@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'l10n/app_localizations.dart';
-import 'models/device.dart';
 import 'models/device_label.dart';
 import 'services/app_log.dart';
 import 'services/biometric.dart';
@@ -25,7 +24,7 @@ Future<void> main() async {
   // window visible until the first Flutter frame; serial secure-storage and
   // SharedPreferences reads made that window feel like a second splash.
   unawaited(NotifierService.instance.init());
-  final devicesFuture = _safeDevices(store.loadAll());
+  final devicesFuture = _readDevices(store.loadAllWithStatus());
   final lastDeviceFuture = _safeLastDevice(store.lastDeviceId());
   final securityPrefFuture = _readSecurityPref(store.biometricEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
@@ -34,7 +33,8 @@ Future<void> main() async {
   // Resolve the saved devices before the first Flutter frame. Otherwise the
   // provider briefly reports an empty list and paints the import launcher
   // before switching to the last WebView a moment later.
-  final initialDevices = await devicesFuture;
+  final initialDevicesResult = await devicesFuture;
+  final initialDevices = initialDevicesResult.devices;
   final lastDeviceId = await lastDeviceFuture;
   final initialSecurityPref = await securityPrefFuture;
   final initialThemeMode = await themeModeFuture;
@@ -58,6 +58,11 @@ Future<void> main() async {
         activeTabProvider.overrideWith(
           () => ActiveTabNotifier(initialIndex: initialActiveIndex),
         ),
+        deviceStoreUnavailableProvider.overrideWith(
+          () => DeviceStoreUnavailableNotifier(
+            initial: initialDevicesResult.unavailable,
+          ),
+        ),
         biometricProvider.overrideWith(
           () => BiometricNotifier(initial: initialSecurityPref.enabled),
         ),
@@ -76,13 +81,13 @@ Future<void> main() async {
   );
 }
 
-Future<List<RemoteDevice>> _safeDevices(
-  Future<List<RemoteDevice>> future,
-) async {
+Future<DeviceLoadResult> _readDevices(Future<DeviceLoadResult> future) async {
   try {
     return await future;
-  } catch (_) {
-    return const <RemoteDevice>[];
+  } catch (e) {
+    // loadAllWithStatus 不抛异常；这里兜底也要如实上报"读不到"，
+    // 绝不伪装成"没有设备"，否则用户会以为数据被删了。
+    return DeviceLoadResult(devices: const [], unavailable: true, cause: e);
   }
 }
 

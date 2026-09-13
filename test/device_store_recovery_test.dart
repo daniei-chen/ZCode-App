@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zremote/models/device.dart';
 import 'package:zremote/services/device_store.dart';
 
 void main() {
@@ -71,5 +72,56 @@ void main() {
     backing['zremote.device.bad'] = 'not-a-device';
 
     expect(await DeviceStore.instance.loadAll(), isEmpty);
+  });
+
+  test('索引键缺失但有设备记录 → 扫描重建，不显示为空库（D01）', () async {
+    // 首次 add 写完设备记录、还没写索引就崩溃：记录在，索引键不存在。
+    backing['zremote.device.dev-a'] = deviceJson('dev-a', DateTime(2026, 1, 1));
+
+    final result = await DeviceStore.instance.loadAllWithStatus();
+
+    expect(result.devices.map((d) => d.id), ['dev-a']);
+    expect(result.repaired, isTrue);
+    expect(result.unavailable, isFalse);
+    expect(backing['zremote.device.index'], '["dev-a"]');
+  });
+
+  test('索引损坏后 add：不得抹掉索引外的既有设备（F07）', () async {
+    backing['zremote.device.index'] = '{corrupted';
+    backing['zremote.device.old'] = deviceJson('old', DateTime(2026, 1, 1));
+
+    await DeviceStore.instance.add(
+      RemoteDevice.fromJson(
+        jsonDecode(deviceJson('new', DateTime(2026, 1, 2)))
+            as Map<String, dynamic>,
+      ),
+    );
+
+    final devices = await DeviceStore.instance.loadAll();
+    expect(devices.map((d) => d.id), ['old', 'new']);
+  });
+
+  test('secure storage 读取失败 → unavailable + typed error，不伪装空库（D05）', () async {
+    TestWidgetsFlutterBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'readAll' || call.method == 'read') {
+            throw PlatformException(code: 'storage_unavailable');
+          }
+          return null;
+        });
+
+    final result = await DeviceStore.instance.loadAllWithStatus();
+    expect(result.unavailable, isTrue);
+    expect(result.devices, isEmpty);
+
+    await expectLater(
+      DeviceStore.instance.add(
+        RemoteDevice.fromJson(
+          jsonDecode(deviceJson('x', DateTime(2026, 1, 1)))
+              as Map<String, dynamic>,
+        ),
+      ),
+      throwsA(isA<DeviceStoreUnavailableException>()),
+    );
   });
 }

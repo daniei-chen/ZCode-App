@@ -85,6 +85,11 @@ class ManagePage extends ConsumerWidget {
                 const SizedBox(height: 22),
                 if (devices.isEmpty)
                   _EmptyHint(
+                    storageUnavailable: ref.watch(
+                      deviceStoreUnavailableProvider,
+                    ),
+                    onRetry: () =>
+                        ref.read(deviceListProvider.notifier).reload(),
                     onScan: () => _openScanner(context, ref),
                     onPaste: () => _showPasteDialog(context, ref),
                   )
@@ -457,14 +462,26 @@ class _ImportActions extends StatelessWidget {
 }
 
 class _EmptyHint extends StatelessWidget {
-  const _EmptyHint({required this.onScan, required this.onPaste});
+  const _EmptyHint({
+    required this.storageUnavailable,
+    required this.onRetry,
+    required this.onScan,
+    required this.onPaste,
+  });
 
+  final bool storageUnavailable;
+  final VoidCallback onRetry;
   final VoidCallback onScan;
   final VoidCallback onPaste;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    if (storageUnavailable) {
+      // 读不到安全存储 ≠ 没有设备：把故障伪装成"等待接入设备"会让用户
+      // 以为数据被删了。这里给出可重试的明确故障状态。
+      return _StorageUnavailableCard(onRetry: onRetry);
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
@@ -511,6 +528,71 @@ class _EmptyHint extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           _ImportActions(onScan: onScan, onPaste: onPaste),
+        ],
+      ),
+    );
+  }
+}
+
+class _StorageUnavailableCard extends StatelessWidget {
+  const _StorageUnavailableCard({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 20),
+      decoration: BoxDecoration(
+        color: context.zt.danger.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: context.zt.danger.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(17),
+                  color: context.zt.surface,
+                  border: Border.all(color: context.zt.hairline),
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  size: 30,
+                  color: context.zt.danger,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.deviceStoreUnavailableTitle,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: context.zt.textHi,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            l10n.deviceStoreUnavailableBody,
+            style: TextStyle(fontSize: 13, color: context.zt.textLo),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(onPressed: onRetry, child: Text(l10n.retry)),
         ],
       ),
     );

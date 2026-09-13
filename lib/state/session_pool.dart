@@ -21,8 +21,15 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   }
 
   Future<void> _load() async {
-    state = await DeviceStore.instance.loadAll();
+    final result = await DeviceStore.instance.loadAllWithStatus();
+    // provider 已被销毁时不得写 state（Riverpod 会抛 UnmountedRefException）。
+    if (!ref.mounted) return;
+    state = result.devices;
+    ref.read(deviceStoreUnavailableProvider.notifier).set(result.unavailable);
   }
+
+  /// 供 UI 重试（存储恢复后无需重启应用）。
+  Future<void> reload() => _load();
 
   Future<void> add(RemoteDevice device) async {
     await DeviceStore.instance.add(device);
@@ -208,3 +215,23 @@ class SecurityPrefNotifier extends Notifier<bool> {
 
 final securityPrefUnreadableProvider =
     NotifierProvider<SecurityPrefNotifier, bool>(SecurityPrefNotifier.new);
+
+/// 设备存储是否不可用（secure storage 读取失败）。
+///
+/// 与"没有设备"严格区分：UI 据此显示可重试的故障状态，而不是引导用户
+/// 去接入第一台设备（那会让用户以为数据丢了）。
+class DeviceStoreUnavailableNotifier extends Notifier<bool> {
+  DeviceStoreUnavailableNotifier({this.initial = false});
+
+  final bool initial;
+
+  @override
+  bool build() => initial;
+
+  void set(bool value) => state = value;
+}
+
+final deviceStoreUnavailableProvider =
+    NotifierProvider<DeviceStoreUnavailableNotifier, bool>(
+      DeviceStoreUnavailableNotifier.new,
+    );
