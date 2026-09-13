@@ -44,7 +44,7 @@
 - [x] main Ruleset：Require PR + Required checks（check、android）
 - [x] 发布后 soak 流程写入 `docs/RELEASE-CHECKLIST.md`
 
-## v1.0.9 累积中（不发布，全部并入此版本）
+## v1.0.9（已发布 ✅）
 
 - [x] WS/SSE 白名单（W2）：只观察官方 relay（host + /ws 路径），其余透明计数
 - [x] Renderer 崩溃恢复（v1.2.0 D）：onRenderProcessGone → generation 重建
