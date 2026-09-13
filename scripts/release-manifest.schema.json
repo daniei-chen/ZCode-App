@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/2421873411a-rgb/ZCode-App/scripts/release-manifest.schema.json",
+  "title": "ZCode App release manifest",
+  "description": "release-manifest.json 的结构契约。发布工作在生成 manifest 后由 scripts/verify-release-artifacts.py 校验（该脚本实现本 schema 的受支持子集并保持同步）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "app",
+    "package",
+    "version",
+    "versionCode",
+    "commit",
+    "abi",
+    "apk",
+    "toolchain",
+    "generatedAt"
+  ],
+  "properties": {
+    "app": {"const": "ZCode App"},
+    "package": {"const": "com.zcode.app"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "versionCode": {"type": "integer", "minimum": 1},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "abi": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "apk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "sha256", "signerSha256"],
+      "properties": {
+        "fileName": {"type": "string", "pattern": "^ZCode-v[0-9]+\\.[0-9]+\\.[0-9]+\\.apk$"},
+        "sha256": {"type": "string", "pattern": "^[0-9A-F]{64}$"},
+        "signerSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flutter", "dart", "java"],
+      "properties": {
+        "flutter": {"type": "string", "minLength": 1},
+        "dart": {"type": "string", "minLength": 1},
+        "java": {"type": "string", "minLength": 1}
+      }
+    },
+    "sbom": {"type": "string", "minLength": 1},
+    "generatedAt": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
+  }
+}

@@ -21,8 +21,10 @@
 
 ### 恢复演练
 
-- 每半年做一次"清空环境变量与本地文件后用备份重建一次 debug 级签名构建"，
-  确认备份可用（不发布，只验证能解出 keystore 并通过 `apksigner verify`）。
+- 每半年做一次：`KEYSTORE_BASE64=... KEYSTORE_PASSWORD=... scripts/verify-keystore-backup.sh`
+  （脚本只从环境变量读取口令，验证备份可解出 keystore 且证书指纹与生产一致；
+  不发布、不打印任何口令或私钥）。指纹不一致时先解决备份问题，禁止发布。
+  完整演练还应临时用该备份构建一次 arm64 release 并执行 `apksigner verify`。
 
 ### 泄露处置
 

@@ -43,14 +43,15 @@ jobs:
       - run: flutter build apk --debug
 
   # Android 模拟器冒烟：真机环境跑 integration_test（非必需检查）。
-  # v1.2.0 C：API 矩阵覆盖"最低支持区间(30)"与"主流(34)"两个系统版本。
-  # 稳定性：API 30 镜像在 runner 上偶发"启动后死亡"（实测 Broken pipe /
-  # adb exit 224），API 34 曾挂满 6 小时——用作业级超时封顶，失败可见但
-  # 不无限烧时；debug 构建已是多 ABI（release 契约只作用于 release 变体），
-  # x86_64 模拟器可直接安装。
+  # v1.1.0（先落地 PR08 的最小动作）：实测无 KVM runner 上 API 34 单作业需
+  # 启动 745s + 构建 386s + 安装 318s，30 分钟预算必然被取消；因此把矩阵移出
+  # push/PR（只保留手动触发），避免每次变更白烧 ~60 runner-分钟。
+  # PR08 将补齐：单入口预构建 APK、分阶段超时、失败留 JUnit/logcat，
+  # 连续稳定通过后再恢复为每夜/按需的发布门禁。
   android-emulator:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -76,4 +77,5 @@ jobs:
           target: google_apis
           arch: x86_64
           emulator-boot-timeout: 900
-          script: flutter test integration_test
+          # 测试阶段硬性上限：作业超时是兜底，这里给测试本身封顶，避免静默挂死。
+          script: timeout 1500 flutter test integration_test

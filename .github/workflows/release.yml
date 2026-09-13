@@ -1,32 +1,123 @@
 name: release
 
+# 发布信任链（v1.1.0 / PR18*）。顺序不可调换：
+#   verify（来源门禁）→ build-sign（唯一接触 keystore 的作业）→ publish（校验/证明/发布）
+# 任何密钥只在 build-sign 恢复，并在构建后立即删除；publish 是独立作业，
+# 从不接触签名材料。
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只跑 verify 来源门禁（不恢复 keystore、不构建、不发布）；用于演练与负例验证"
+        type: boolean
+        default: false
+      allow_ancestor:
+        description: "允许发布提交是 main 的祖先而非 main HEAD（补救性重跑，默认关闭）"
+        type: boolean
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  apk:
+  # 1) 来源门禁：在恢复任何密钥之前，证明"要签的就是受保护 main 上的代码"。
+  verify:
     runs-on: ubuntu-latest
-    # v1.1.0：产物来源证明（attestation）需要 id-token 与 attestations 写权限。
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.provenance.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Verify provenance (tag version + commit must come from protected main)
+        id: provenance
+        env:
+          ALLOW_ANCESTOR: ${{ inputs.allow_ancestor }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          PUBSPEC_VERSION="$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\+.*//')"
+          if [ -z "${PUBSPEC_VERSION}" ]; then
+            echo "cannot read version from pubspec.yaml" >&2
+            exit 1
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "${TAG_VERSION}" != "${PUBSPEC_VERSION}" ]; then
+              echo "REFUSED: tag ${GITHUB_REF_NAME} does not match pubspec.yaml version ${PUBSPEC_VERSION}" >&2
+              exit 1
+            fi
+          else
+            echo "workflow_dispatch on ${GITHUB_REF_NAME}: tag/pubspec check skipped (dry_run=${DRY_RUN})"
+          fi
+
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "REFUSED: ${GITHUB_SHA} is not an ancestor of origin/main." >&2
+            echo "Signed releases may only be produced from commits merged into protected main." >&2
+            exit 1
+          fi
+          MAIN_HEAD="$(git rev-parse origin/main)"
+          if [ "${MAIN_HEAD}" != "${GITHUB_SHA}" ]; then
+            if [ "${ALLOW_ANCESTOR}" = "true" ]; then
+              echo "WARNING: ${GITHUB_SHA} is an ancestor of main but not main HEAD (${MAIN_HEAD}); allowed by explicit input"
+            else
+              echo "REFUSED: ${GITHUB_SHA} is not the current main HEAD (${MAIN_HEAD})." >&2
+              echo "If an intentional re-release is required, run workflow_dispatch with allow_ancestor=true." >&2
+              exit 1
+            fi
+          fi
+
+          echo "version=${PUBSPEC_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "provenance OK: ${GITHUB_SHA} (version ${PUBSPEC_VERSION})"
+
+  # 2) 唯一接触签名密钥的作业：构建 → 校验 → 立即删除密钥材料 → 产出候选资产。
+  build-sign:
+    needs: verify
+    if: ${{ github.ref_type == 'tag' && inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # production 环境承载发布审批（审阅者可先于密钥恢复拦截发布）。
+    environment: production
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # R01：tag 与 pubspec 版本不一致时直接失败，避免发出错误版本号的安装包。
-      - name: Verify tag matches pubspec version
+      # 版本与签名身份连续性：读不到上一稳定版 manifest 一律拒绝发布（fail-closed）。
+      # 注意：v1.1.0 计划先发 Pre-release，因此 releases/latest 在转正前仍指向
+      # 上一个正式版；这只会放宽"比较对象"，不会放宽递增与同签名要求本身。
+      - name: Verify versionCode advance and signer continuity vs previous stable release
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PUBSPEC_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/^version:[[:space:]]*//; s/\+.*//')
-          if [ -z "$PUBSPEC_VERSION" ] || [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
-            echo "tag ${GITHUB_REF_NAME} (version '${TAG_VERSION}') does not match pubspec.yaml version '${PUBSPEC_VERSION}'" >&2
+          set -euo pipefail
+          VERSION_CODE="$(grep -E '^version:' pubspec.yaml | sed -E 's/.*\+([0-9]+).*/\1/')"
+          PREV_URL="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/release-manifest.json"
+          if ! curl -fsSL --retry 3 --retry-all-errors --max-time 30 "${PREV_URL}" -o prev-manifest.json; then
+            echo "REFUSED: cannot read previous stable release manifest at ${PREV_URL}" >&2
+            echo "Without it, versionCode advance / signer continuity cannot be proven." >&2
             exit 1
           fi
+          PREV_CODE="$(python3 -c 'import json;print(json.load(open("prev-manifest.json"))["versionCode"])')"
+          PREV_SIGNER="$(python3 -c 'import json;print((json.load(open("prev-manifest.json")).get("apk") or {}).get("signerSha256","").lower())')"
+          if [ -z "${PREV_CODE}" ] || [ -z "${PREV_SIGNER}" ]; then
+            echo "REFUSED: previous manifest is missing versionCode or apk.signerSha256" >&2
+            exit 1
+          fi
+          if [ "${VERSION_CODE}" -le "${PREV_CODE}" ]; then
+            echo "REFUSED: versionCode ${VERSION_CODE} must be greater than published ${PREV_CODE}" >&2
+            exit 1
+          fi
+          echo "PREV_VERSION_CODE=${PREV_CODE}" >> "${GITHUB_ENV}"
+          echo "PREV_SIGNER_SHA256=${PREV_SIGNER}" >> "${GITHUB_ENV}"
+          echo "previous stable: versionCode=${PREV_CODE} signer=${PREV_SIGNER}"
 
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
@@ -59,8 +150,10 @@ jobs:
       - run: flutter build apk --release --target-platform=android-arm64
 
       # R2：自动验证产物只含 arm64-v8a，不靠文件名装样子。
-      - name: Verify arm64-only ABI
+      # PR18*：同时校验签名证书与上一稳定版一致（密钥轮换须走显式流程）。
+      - name: Verify arm64-only ABI and signer continuity
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import zipfile, sys
           names = zipfile.ZipFile('build/app/outputs/flutter-apk/app-release.apk').namelist()
@@ -69,25 +162,35 @@ jobs:
           if abis != {'arm64-v8a'}:
               sys.exit(f'unexpected ABIs: {sorted(abis)}')
           PY
+          BUILD_TOOLS="$(ls -d "${ANDROID_SDK_ROOT}/build-tools/"*/ | sort -V | tail -1)"
+          SIGNER="$("${BUILD_TOOLS}apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk \
+            | grep -m1 "SHA-256 digest" | awk '{print $NF}' | tr 'A-F' 'a-f')"
+          if [ -z "${SIGNER}" ]; then
+            echo "cannot read APK signer certificate digest" >&2
+            exit 1
+          fi
+          if [ "${SIGNER}" != "${PREV_SIGNER_SHA256:-}" ]; then
+            echo "REFUSED: APK signer ${SIGNER} != previous stable release signer ${PREV_SIGNER_SHA256:-<unknown>}" >&2
+            exit 1
+          fi
+          echo "APK_SIGNER_SHA256=${SIGNER}" >> "${GITHUB_ENV}"
+          echo "signer continuity OK: ${SIGNER}"
+
+      # PR18*：签名密钥只在本作业内存在，构建完成后立即从工作区移除。
+      - name: Remove signing material from the workspace
+        if: always()
+        run: rm -f android/app/zcode-app-release.jks android/key.properties
 
       # 资产名遵循应用内更新器的确定性契约：ZCode-v<version>.apk。
-      - name: Rename Android package and generate checksum
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/ZCode-v${VERSION}.apk"
-          cd build/app/outputs/flutter-apk
-          sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
-
-      # v1.4.0：SBOM（CycloneDX）+ release manifest（可审计事实集合）。
-      - name: Generate SBOM and release manifest
+      - name: Package candidate assets, SBOM and release manifest
+        id: package
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           cd build/app/outputs/flutter-apk
+          cp app-release.apk "ZCode-v${VERSION}.apk"
+          sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
           python3 "${GITHUB_WORKSPACE}/scripts/generate-sbom.py" > "ZCode-v${VERSION}.sbom.cyclonedx.json"
-          BUILD_TOOLS="$(ls -d "${ANDROID_SDK_ROOT}/build-tools/"*/ | sort -V | tail -1)"
-          SIGNER=$("${BUILD_TOOLS}apksigner" verify --print-certs "ZCode-v${VERSION}.apk" \
-            | grep -m1 "SHA-256 digest" | awk '{print $NF}')
           FLUTTER_VERSION=$(flutter --version --machine | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('frameworkVersion','unknown'))")
           DART_VERSION=$(flutter --version --machine | python3 -c \
@@ -100,24 +203,79 @@ jobs:
           MANIFEST_APK_SHA256="$(sha256sum "ZCode-v${VERSION}.apk" | awk '{print $1}')" \
           MANIFEST_FLUTTER="${FLUTTER_VERSION}" \
           MANIFEST_DART="${DART_VERSION}" \
-          MANIFEST_SIGNER_SHA256="${SIGNER}" \
+          MANIFEST_SIGNER_SHA256="${APK_SIGNER_SHA256}" \
           MANIFEST_SBOM="ZCode-v${VERSION}.sbom.cyclonedx.json" \
           python3 "${GITHUB_WORKSPACE}/scripts/generate-release-manifest.py" > release-manifest.json
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
-      # v1.1.0：APK 产物来源证明——用户可用 `gh attestation verify` 验证
-      # 这个 APK 确实由本仓库的 GitHub Actions 构建。
-      - name: Attest APK build provenance
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+      - name: Validate manifest and digest consistency
+        run: |
+          python3 scripts/verify-release-artifacts.py \
+            --dir build/app/outputs/flutter-apk \
+            --version "${GITHUB_REF_NAME#v}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          subject-path: build/app/outputs/flutter-apk/ZCode-v*.apk
+          name: zcode-app-release
+          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/ZCode-v*.apk
+            build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
+            build/app/outputs/flutter-apk/ZCode-v*.sbom.cyclonedx.json
+            build/app/outputs/flutter-apk/release-manifest.json
 
-      # v1.4.0 C：生成后立即自验证；证明不可验证的发布一律失败。
-      - name: Self-verify attestation
+  # 3) 发布作业：不接触任何签名材料，只做校验、来源证明与发布。
+  publish:
+    needs: [verify, build-sign]
+    if: ${{ github.ref_type == 'tag' && inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: zcode-app-release
+          path: dist
+
+      # 幂等：已存在的 Release 绝不覆盖（重发必须走新的补丁版本）。
+      - name: Refuse to overwrite an existing release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh attestation verify "build/app/outputs/flutter-apk/ZCode-v${GITHUB_REF_NAME#v}.apk" \
-            --repo "${GITHUB_REPOSITORY}"
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "REFUSED: release ${GITHUB_REF_NAME} already exists; publish a new patch version instead." >&2
+            exit 1
+          fi
+
+      - name: Validate manifest and digest consistency
+        run: |
+          python3 scripts/verify-release-artifacts.py \
+            --dir dist \
+            --version "${GITHUB_REF_NAME#v}"
+
+      # APK 产物来源证明——用户可用 `gh attestation verify` 验证这个 APK 由本仓库构建。
+      - name: Attest APK build provenance
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: dist/ZCode-v*.apk
+
+      # 生成后立即自验证，并交叉核对 attestation 主题摘要 == APK SHA256。
+      - name: Self-verify attestation and cross-check subject digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "dist/ZCode-v${GITHUB_REF_NAME#v}.apk" \
+            --repo "${GITHUB_REPOSITORY}" --format json > attestation.json
+          python3 scripts/verify-release-artifacts.py \
+            --dir dist \
+            --version "${GITHUB_REF_NAME#v}" \
+            --attestation-json attestation.json
 
       # 发布说明：优先使用 docs/releases/<tag>.md；缺失时退回自动生成。
       - name: Prepare release notes
@@ -128,22 +286,28 @@ jobs:
             echo "> 本次未提供 docs/releases/${GITHUB_REF_NAME}.md，以下条目由 GitHub 自动生成。" > release-notes.md
           fi
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: zcode-app-apk
-          path: |
-            build/app/outputs/flutter-apk/ZCode-v*.apk
-            build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
-            build/app/outputs/flutter-apk/ZCode-v*.sbom.cyclonedx.json
-            build/app/outputs/flutter-apk/release-manifest.json
-
-      - name: GitHub Release
+      # v1.1.0 计划：默认发 Pre-release（应用内更新器只认 /releases/latest，
+      # 不会向用户推送）；真机矩阵与 soak 完成后由维护者手动转正式：
+      #   gh release edit <tag> --prerelease=false
+      - name: GitHub Release (pre-release)
         uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2.3.3
         with:
           body_path: release-notes.md
           generate_release_notes: true
+          prerelease: true
           files: |
-            build/app/outputs/flutter-apk/ZCode-v*.apk
-            build/app/outputs/flutter-apk/ZCode-v*.apk.sha256
-            build/app/outputs/flutter-apk/ZCode-v*.sbom.cyclonedx.json
-            build/app/outputs/flutter-apk/release-manifest.json
+            dist/ZCode-v*.apk
+            dist/ZCode-v*.apk.sha256
+            dist/ZCode-v*.sbom.cyclonedx.json
+            dist/release-manifest.json
+
+      # 最终一致性：重新下载"已发布"的资产并再验一次摘要（证明上传后的字节正确）。
+      - name: Re-download published assets and re-verify digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --dir redownload
+          python3 scripts/verify-release-artifacts.py \
+            --dir redownload \
+            --version "${GITHUB_REF_NAME#v}"

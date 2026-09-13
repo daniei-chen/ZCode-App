@@ -26,11 +26,32 @@ pwsh -File scripts/package-source.ps1
 
 ## 发布凭证
 
-- Android release keystore 只通过 CI secret 恢复（`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD`，已在仓库配置）；不允许 debug key fallback。
+- Android release keystore 只通过 CI secret 恢复（`KEYSTORE_BASE64` / `KEYSTORE_PASSWORD`；生产审批由 `production` environment 承载，密钥材料只出现在 `build-sign` 作业并在构建后立即删除）；不允许 debug key fallback。
 - 新包的 versionCode 必须大于 GitHub 上最新已发布资产的 versionCode，否则用户会碰到"无法降级安装(-25)"；发布前用 `aapt dump badging` 核对，不要用 `--split-per-abi` 产物对外分发（其 versionCode 带 ABI×1000 偏移）。
 - 二维码中的 `sid`、`hash`、`remoteControlToken` 等同于密码，不进入日志、截图、issue 或交付包。
 - 发布包的 Android bundle identifier 为 `com.zcode.app`。
 - 发布后同步仓库门面：About 描述里的"当前版本"（`gh repo edit --description`）、README/README.en 的版本与测试数。
+
+## 发布信任链（v1.1.0 起）
+
+发布流程是三个作业，顺序不可调换：
+
+1. **verify**（来源门禁，恢复任何密钥之前）：tag 版本必须等于 `pubspec.yaml`；发布提交必须已合入受保护 `main`，默认还必须是 `main` 的 HEAD（有意重跑才允许 `allow_ancestor=true`）。`v*` tag 受规则集保护：不可删除、不可移动，仅维护者账号可创建。
+2. **build-sign**（唯一接触 keystore 的作业，承载 `production` 环境审批）：先核对上一稳定版 manifest 可读、`versionCode` 必须递增，再恢复 keystore 构建；APK 签名证书必须与上一稳定版一致；构建完成后立即从工作区删除密钥材料。
+3. **publish**（从不接触签名材料）：校验 manifest schema 与 digest 四重一致（重算 APK SHA256 = sidecar = manifest = attestation 主题）→ 生成并自验证来源证明 → 发布为 **Pre-release** → 重新下载已发布资产再验一次摘要。
+
+演练与负例（不签发任何东西）：
+
+```bash
+gh workflow run release.yml --ref main -f dry_run=true             # 正向：main HEAD 通过来源门禁
+gh workflow run release.yml --ref <feature-branch> -f dry_run=true # 负向：未合入 main 的提交被拒绝
+```
+
+**Pre-release → 正式**：默认发 Pre-release（应用内更新器只认 `/releases/latest`，不会向用户推送）。真机矩阵与 48h soak 完成后执行：
+
+```bash
+gh release edit v1.1.0 --prerelease=false --latest
+```
 
 ## CI 结果记录
 

@@ -30,6 +30,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      # 发布门禁脚本的行为自测（成功 / 篡改摘要 / 缺字段 / attestation 不匹配等负例）。
+      - run: python3 scripts/verify-release-artifacts.py --self-test
 
   # 依赖评审（仅 PR）：新增依赖的漏洞/许可证检查。
   # 非必需检查、不阻断合并：新建仓库的 Dependency Graph 数据生成前该动作会
@@ -44,5 +46,6 @@ jobs:
       pull-requests: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      # 官方 first-party action；网络恢复后按仓库惯例改为 SHA 固定。
-      - uses: actions/dependency-review-action@v4
+      # 官方 first-party action，已固定到 commit SHA（v4.9.0）。
+      # 依赖图数据就绪后按计划（PR19）评估移除 continue-on-error。
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
