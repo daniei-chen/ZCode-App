@@ -253,12 +253,18 @@ abstract final class InPageBack {
   };
   // 候选可能是"刚刚才挂上来"的：用户点开对话后立刻按返回时，返回键还没渲染完，
   // 直接判 not_found 会让返回键闪回设备页（长跑实测偶发）。给它一个 1.2s 的重试窗口。
+  // 窗口只在页面刚加载的几秒内生效：稳定状态下列表页永远没有返回控件，
+  // 每次返回都白等 1.2s，用户感知就是"返回键卡一秒"（真机诊断包实锤）。
   var searchSince = null;
   var start = function () {
     if (cancelled()) return;
     var queue = collect().slice(0, MAX);
     if (queue.length) {
       tryAt(queue, 0);
+      return;
+    }
+    if (window.performance && performance.now && performance.now() > 6000) {
+      done(false, 'not_found');
       return;
     }
     if (searchSince === null) searchSince = Date.now();

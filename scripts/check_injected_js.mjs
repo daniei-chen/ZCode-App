@@ -342,10 +342,11 @@ function matchAll(elements, selector) {
 }
 
 /** 返回脚本的受控环境：假 DOM + 可控时钟 + 可手动 flush 的定时器。 */
-function makeBackSandbox({ elements = [], token = 'tok', now = 1000 } = {}) {
+function makeBackSandbox({ elements = [], token = 'tok', now = 1000, perfNow = null } = {}) {
   const posted = [];
   const timers = [];
   const clock = { now };
+  const performance = perfNow === null ? null : { now: () => perfNow };
   const document = {
     title: 'conversation',
     body: { firstElementChild: { className: 'app-root', tagName: 'DIV' } },
@@ -356,6 +357,7 @@ function makeBackSandbox({ elements = [], token = 'tok', now = 1000 } = {}) {
   const window = {
     __zrToken: token,
     innerHeight: 800,
+    performance,
     getComputedStyle: (element) =>
       element.computedStyle || {
         display: 'block',
@@ -370,6 +372,7 @@ function makeBackSandbox({ elements = [], token = 'tok', now = 1000 } = {}) {
     window,
     document,
     location,
+    performance,
     Date: { now: () => clock.now },
     JSON,
     Math,
@@ -824,6 +827,27 @@ await check('候选始终不存在时，重试窗口用尽后如实报 not_found
   const { body } = backPayload(box.posted);
   assert(body.ok === false, 'ok 应为 false');
   assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+});
+
+await check('页面刚加载（<6s）无候选 → 仍走 1.2s 重试窗口（护住秒开秒返竞态）', () => {
+  const box = makeBackSandbox({ elements: [], perfNow: 3000 });
+  vm.runInContext(back, box.context, { filename: 'in_page_back.js' });
+  assert(box.posted.length === 0, '窗口期内不得立刻回执');
+  assert(box.timers.length > 0, '窗口期内应安排重试定时器');
+  flushTimers(box);
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('页面已稳定（加载超 6s）无候选 → 立即 not_found，不再白等 1.2s', () => {
+  // 真机诊断包（v1.1.3 连续 WV109/not_found）：列表页永远没有返回控件，
+  // 稳定态下每次返回都白等重试窗口，用户感知"返回键卡一秒"。
+  // 窗口只允许发生在页面刚加载的几秒内。
+  const box = makeBackSandbox({ elements: [], perfNow: 7000 });
+  runBack(box);
+  const { body } = backPayload(box.posted);
+  assert(body.ok === false, 'ok 应为 false');
+  assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+  assert(box.timers.length === 0, '稳定态不得安排任何重试定时器');
 });
 
 await check('disabled 与 pointer-events:none 的控件不点', () => {

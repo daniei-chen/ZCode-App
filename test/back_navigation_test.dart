@@ -12,17 +12,21 @@ import 'package:zremote/ui/manage_page.dart';
 import 'package:zremote/ui/official_remote_page.dart';
 import 'package:zremote/ui/settings_page.dart';
 
-/// 系统返回键的层级（用户上报回归）：
+/// 系统返回键的层级（2026-09-14 用户口径）：
 ///
-///   推入的页面（设置/诊断/扫码）→ 返回先弹掉它，回到上一个页面
-///   对话页 → 返回交给官方页面（页内路由）：对话 → 对话列表
-///   对话列表 → 返回露出设备页
+///   推入的页面（设置/诊断/扫码）→ 返回先弹掉它，回到设备列表页（普通弹栈，
+///     一次到位，不再"设置 → 对话页"绕行）
+///   对话页 → 返回交给官方页面（页内路由）：对话 → 对话列表（仅手机）
+///   对话列表 → 返回露出设备页（页面稳定后立即返回，无重试等待）
+///   平板（shortestSide ≥ 600）：对话 + 列表同屏，页内没有返回可控件——
+///     返回一次直接露出设备页，页内脚本根本不跑（避免误触对话区控件）
 ///   设备页 → 返回退出应用
 ///
 /// "对话页 → 对话列表"由 `lib/services/in_page_back.dart` 的脚本完成，
 /// 行为断言在 `scripts/check_injected_js.mjs`（含纯图标返回键、返回顶部排除、
-/// 点击后内容签名验证、令牌迟到补发）；这里覆盖 Dart 侧的层级决策与原生
-/// 页面栈的弹栈行为（WebView 插件在 widget 测试里无实现，因此不渲染远控页）。
+/// 点击后内容签名验证、令牌迟到补发、重试窗口仅页面刚加载时生效）；
+/// 这里覆盖 Dart 侧的层级决策与原生页面栈的弹栈行为（WebView 插件在
+/// widget 测试里无实现，因此不渲染远控页）。
 class _StubDevices extends DeviceListNotifier {
   _StubDevices(this.seed);
 
@@ -54,11 +58,7 @@ Future<void> _pressSystemBack(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
-class _ReturnCounter {
-  int calls = 0;
-}
-
-Future<void> _pumpLauncher(WidgetTester tester, [_ReturnCounter? counter]) {
+Future<void> _pumpLauncher(WidgetTester tester) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -71,9 +71,7 @@ Future<void> _pumpLauncher(WidgetTester tester, [_ReturnCounter? counter]) {
         // 关掉墨水扩散动画：Windows 测试引擎缺 ink_sparkle.frag 着色器，
         // 点击会抛环境异常（与代码无关）；CI 上不受影响。
         theme: ThemeData(splashFactory: NoSplash.splashFactory),
-        home: ManagePage(
-          onFullPageReturned: counter == null ? null : () => counter.calls++,
-        ),
+        home: const ManagePage(),
       ),
     ),
   );
@@ -116,6 +114,20 @@ void main() {
     });
   });
 
+  group('平板同屏布局判定（isTabletLayout）', () {
+    test('最短边 ≥600dp 为平板：返回一次直接露出设备页，页内脚本不跑', () {
+      expect(isTabletLayout(const Size(800, 1280)), isTrue, reason: '平板竖屏');
+      expect(isTabletLayout(const Size(1280, 800)), isTrue, reason: '平板横屏');
+      expect(isTabletLayout(const Size(1600, 2560)), isTrue, reason: '大平板');
+    });
+
+    test('手机正常走页内返回：对话页 → 对话列表', () {
+      expect(isTabletLayout(const Size(320, 640)), isFalse);
+      expect(isTabletLayout(const Size(411, 900)), isFalse);
+      expect(isTabletLayout(const Size(411, 900).flipped), isFalse);
+    });
+  });
+
   group('OfficialRemotePageController 契约', () {
     test('页面报告"已处理"时，返回键不再往下走', () async {
       final controller = OfficialRemotePageController();
@@ -136,31 +148,25 @@ void main() {
     });
   });
 
-  group('设置返回 → 对话页（用户要求的层级）', () {
-    testWidgets('从设置返回会通知外壳回到对话页（而不是停在设备页）', (tester) async {
-      final counter = _ReturnCounter();
-      await _pumpLauncher(tester, counter);
+  group('设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页）', () {
+    testWidgets('从设置返回停在设备页，外壳不会收到"回到对话页"的请求', (tester) async {
+      await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('设置'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(SettingsPage), findsOneWidget);
-      expect(counter.calls, 0, reason: '刚进设置不该触发');
 
       await _pressSystemBack(tester);
 
       expect(find.byType(SettingsPage), findsNothing);
-      expect(
-        counter.calls,
-        1,
-        reason: '从设置返回必须请求外壳回到对话页（设置 → 对话页 → 对话列表 → 设备页）',
-      );
+      expect(find.byType(ManagePage), findsOneWidget, reason: '一次返回即回设备列表页');
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets('从设置里进诊断页：返回只回设置，不回对话页', (tester) async {
-      final counter = _ReturnCounter();
-      await _pumpLauncher(tester, counter);
+    testWidgets('从设置里进诊断页：返回只回设置，再返回回设备页', (tester) async {
+      await _pumpLauncher(tester);
       await tester.pumpAndSettle();
       await tester.tap(find.text('设置'));
       await tester.pump();
@@ -171,10 +177,14 @@ void main() {
 
       await _pressSystemBack(tester);
       expect(find.byType(SettingsPage), findsOneWidget, reason: '第一层返回回设置');
-      expect(counter.calls, 0, reason: '还在设置里，不该回对话页');
 
       await _pressSystemBack(tester);
-      expect(counter.calls, 1, reason: '离开设置才回对话页');
+      expect(find.byType(ManagePage), findsOneWidget, reason: '第二层返回回设备页');
+      expect(
+        find.byType(OfficialRemotePage),
+        findsNothing,
+        reason: '设置链路的返回不应把远控页带出来（2026-09-14 口径回归点）',
+      );
     });
   });
 

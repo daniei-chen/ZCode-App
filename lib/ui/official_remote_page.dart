@@ -18,6 +18,7 @@ import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
 import '../state/bridge_health.dart';
+import '../state/back_stack.dart';
 import '../state/observer_stats.dart';
 import '../state/root_tabs.dart';
 import '../state/session_index.dart';
@@ -837,12 +838,21 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 系统返回键：先让官方页面自己处理"对话页 → 对话列表"这类页内路由，
   /// 页面确实没动（或没有返回控件）才交回 Dart 决定是否露出设备页。
   ///
-  /// 手机与平板走同一条路径：平板只是布局不同（对话与列表同屏），
-  /// 但官方页面自己的返回控件一样要能被系统返回键触发。
+  /// 平板例外（用户规则）：官方页面在平板上是"对话 + 列表同屏"，没有页内
+  /// 返回可控件——按返回应**一次到位**直接露出设备页。在平板上跑页内脚本
+  /// 只会误触对话区控件（真机诊断包 reason=no_change 实锤），直接跳过。
   Future<bool> _handleBack() async {
     if (!mounted) return false;
     final controller = _controller;
     if (controller == null) return false;
+    if (isTabletLayout(MediaQuery.of(context).size)) {
+      AppLog.event(LogEvent.webviewBackFailed, level: LogLevel.debug, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.reason: 'tablet_single_back',
+      });
+      return false;
+    }
 
     // 令牌没到位时脚本会按 fail-closed 拒绝回执，返回键看起来"没反应"：
     // 先给它一个短预算把令牌确认下来（真机诊断包里的 WV109/unavailable 根因）。

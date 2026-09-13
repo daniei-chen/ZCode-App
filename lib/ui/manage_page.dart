@@ -22,14 +22,9 @@ import 'settings_page.dart';
 import 'unread_badge.dart';
 
 class ManagePage extends ConsumerWidget {
-  const ManagePage({super.key, this.onOpenDevice, this.onFullPageReturned});
+  const ManagePage({super.key, this.onOpenDevice});
 
   final ValueChanged<int>? onOpenDevice;
-
-  /// 从"整页"（设置/诊断/扫码）返回时调用：外壳据此回到对话页，
-  /// 而不是停在设备页。用户要求的返回层级：
-  ///   设置 → 对话页 → 对话列表 → 设备页 —— 每一层一次返回。
-  final VoidCallback? onFullPageReturned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,7 +116,6 @@ class ManagePage extends ConsumerWidget {
                           device: devices[i],
                           index: i,
                           onOpenDevice: onOpenDevice,
-                          onFullPageReturned: onFullPageReturned,
                         ),
                     ],
                   ),
@@ -136,7 +130,7 @@ class ManagePage extends ConsumerWidget {
                 const ThemeSettingTile(),
                 const UpdateSettingTile(),
                 const SizedBox(height: 4),
-                _SettingsEntry(onReturned: onFullPageReturned),
+                _SettingsEntry(),
                 const VersionFooter(),
               ],
             ),
@@ -153,7 +147,6 @@ class ManagePage extends ConsumerWidget {
         builder: (_) => const ScannerPage(),
       ),
     );
-    onFullPageReturned?.call();
   }
 
   Future<void> _showPasteDialog(BuildContext context, WidgetRef ref) async {
@@ -664,7 +657,6 @@ class _DeviceCard extends ConsumerWidget {
     required this.device,
     required this.index,
     this.onOpenDevice,
-    this.onFullPageReturned,
   });
 
   final RemoteDevice device;
@@ -672,9 +664,6 @@ class _DeviceCard extends ConsumerWidget {
   final int index;
 
   final ValueChanged<int>? onOpenDevice;
-
-  /// 从"换链接"扫码等整页返回时，通知外壳回到对话页。
-  final VoidCallback? onFullPageReturned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -949,7 +938,6 @@ class _DeviceCard extends ConsumerWidget {
             builder: (_) => ScannerPage(replaceOf: device),
           ),
         );
-        onFullPageReturned?.call();
       case 'paste':
         final text = await showDialog<String>(
           context: context,
@@ -1007,10 +995,7 @@ class _DeviceCard extends ConsumerWidget {
 }
 
 class _SettingsEntry extends StatelessWidget {
-  const _SettingsEntry({this.onReturned});
-
-  /// 从设置页返回时的回调（外壳据此回到对话页）。
-  final VoidCallback? onReturned;
+  const _SettingsEntry();
 
   @override
   Widget build(BuildContext context) {
@@ -1036,12 +1021,11 @@ class _SettingsEntry extends StatelessWidget {
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         trailing: Icon(Icons.chevron_right, color: context.zt.textLo),
-        onTap: () async {
-          await Navigator.of(
+        onTap: () {
+          Navigator.of(
             context,
           ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
-          // 从设置返回 = 回到对话页（用户要求），再按返回才是对话列表→设备页。
-          onReturned?.call();
+          // 设置返回 = 回到进入前的设备列表页（普通页面栈弹出，一次到位）。
         },
       ),
     );
