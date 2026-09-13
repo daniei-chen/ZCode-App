@@ -989,6 +989,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                             if (!await _bridgeAllowed()) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is! String) return null;
+                            // 解析前先限长（F04）：遥测本身很小，超限直接丢弃，
+                            // 绝不先 jsonDecode 一个未知大小的字符串。
+                            if (body.length > BridgeSchema.maxStatsChars) {
+                              BridgeSchema.droppedMessages++;
+                              return null;
+                            }
                             try {
                               final stats = BridgeSchema.acceptStats(
                                 jsonDecode(body),

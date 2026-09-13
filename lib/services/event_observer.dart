@@ -11,8 +11,18 @@ abstract final class EventObserver {
   var q = [];
   var qBytes = 0;
   var qMaxEntries = 2048;
+  // 分片预算（F04/B11）：单片 base64 上限 + 每个逻辑帧在途总字节上限
+  // （收齐后的最终帧上限仍由 $kMaxListenBytes 判定）。
+  var kMaxFragmentBytes = 16 * 1024 * 1024;
+  var kMaxFragmentB64Chars = Math.ceil(kMaxFragmentBytes * 4 / 3) + 64;
   var post = function(name, body) {
     try {
+      // 单条消息预算（F04）：任何通道的文本在跨桥之前先判长——超限一律丢弃，
+      // 绝不把 4MiB+1 的正文送进 Dart（二进制路径另有各自的 size 检查）。
+      if (typeof body !== 'string' || body.length > $kMaxListenBytes) {
+        if (window.__zrStats) window.__zrStats.wsSkippedSize++;
+        return;
+      }
       var h = window.flutter_inappwebview;
       if (h && h.callHandler) {
         h.callHandler(name, body);
@@ -24,8 +34,10 @@ abstract final class EventObserver {
       }
       q.push({ n: name, b: body });
       qBytes += body.length;
-      while (qBytes > $kMaxListenBytes && q.length > 1) {
+      // 队列按字节收敛；q.length > 0 保证单条超限项不会被永久保留（F04/B10）。
+      while (qBytes > $kMaxListenBytes && q.length > 0) {
         qBytes -= q.shift().b.length;
+        if (window.__zrStats) window.__zrStats.queueDropped++;
       }
     } catch (e) {}
   };
@@ -52,7 +64,7 @@ abstract final class EventObserver {
   var stats = window.__zrStats = window.__zrStats || {
     fetch200: 0, fetchCloned: 0, fetchSkipped: 0,
     sseMessages: 0, sseIgnored: 0, wsMessages: 0, wsIgnored: 0,
-    wsSkippedSize: 0,
+    wsSkippedSize: 0, fetchSkippedSize: 0,
     framesDecoded: 0, invalidFragments: 0, expiredFragments: 0,
     queueDropped: 0, seenDropped: 0
   };
@@ -128,21 +140,40 @@ abstract final class EventObserver {
           bump('invalidFragments');
           return;
         }
+        // 单片 base64 长度上限：解码之前就挡住"单片即超限"的输入（F04/B11）。
+        if (p.dataBase64.length > kMaxFragmentB64Chars) {
+          bump('invalidFragments');
+          return;
+        }
         var slot = asm[id];
         if (!slot) {
           if (asmOrder.length > 32) { delete asm[asmOrder.shift()]; }
-          slot = asm[id] = { parts: {}, got: 0, total: fc, t: Date.now() };
+          slot = asm[id] = { parts: {}, got: 0, bytes: 0, total: fc, t: Date.now() };
           asmOrder.push(id);
         }
         slot.t = Date.now();
-        if (!(fi in slot.parts)) slot.got++;
-        slot.parts[fi] = b64Bytes(p.dataBase64);
+        var part = b64Bytes(p.dataBase64);
+        if (fi in slot.parts) {
+          slot.bytes -= slot.parts[fi].length;
+        } else {
+          slot.got++;
+        }
+        slot.bytes += part.length;
+        // 在途总预算（F04/B11）：边收边算，超限立即丢弃并释放，
+        // 不等到收齐才算（避免"未完成分片"长期占内存）。
+        if (slot.bytes > kMaxFragmentBytes) {
+          delete asm[id];
+          var dropIdx = asmOrder.indexOf(id);
+          if (dropIdx >= 0) asmOrder.splice(dropIdx, 1);
+          bump('invalidFragments');
+          return;
+        }
+        slot.parts[fi] = part;
         if (slot.got < slot.total) return;
         delete asm[id];
         var idx = asmOrder.indexOf(id);
         if (idx >= 0) asmOrder.splice(idx, 1);
-        var size = 0;
-        for (var q = 0; q < slot.total; q++) size += (slot.parts[q] || {length:0}).length;
+        var size = slot.bytes;
         if (size > $kMaxListenBytes) return;
         bytes = new Uint8Array(size);
         var off = 0;
@@ -228,18 +259,71 @@ abstract final class EventObserver {
             '/mobile-view-state', '/session', '/task', '/workspace',
             '/conversation', '/broadcast', '/event'
           ];
+          // F15/B17：先解析 URL 并确认官方 origin/端口，再在 pathname 上匹配
+          // 路径段——query 里的 "/session" 不再授予观察权限。
+          var officialPath = null;
+          try {
+            var fu = new URL(url, location.href);
+            if (fu.protocol === 'https:' &&
+                fu.hostname.toLowerCase() === 'zcode.z.ai' &&
+                (fu.port === '' || fu.port === '443')) {
+              officialPath = fu.pathname;
+            }
+          } catch (e2) {}
           var urlOk = false;
-          for (var ai = 0; ai < cloneAllow.length; ai++) {
-            if (url && url.indexOf(cloneAllow[ai]) >= 0) { urlOk = true; break; }
+          if (officialPath) {
+            for (var ai = 0; ai < cloneAllow.length; ai++) {
+              if (officialPath.indexOf(cloneAllow[ai]) >= 0) { urlOk = true; break; }
+            }
           }
           if (!urlOk) {
             bump('fetchSkipped');
             return res;
           }
           bump('fetchCloned');
-          res.clone().text().then(function(t) {
-            if (t && t.length > 0 && t.length < $kMaxListenBytes) sendWithDecode(t);
-          }).catch(function() {});
+          // 有界读取（F04/B15）：优先流式读取，超限立即取消副本读取；
+          // 环境不支持流时退回 text()（读毕立刻判长）。
+          var clone = res.clone();
+          var reader = (clone.body && clone.body.getReader) ? clone.body.getReader() : null;
+          if (!reader) {
+            clone.text().then(function(t) {
+              if (t && t.length > 0 && t.length < $kMaxListenBytes) sendWithDecode(t);
+            }).catch(function() {});
+          } else {
+            var chunks = [];
+            var total = 0;
+            var stopped = false;
+            var pump = function() {
+              reader.read().then(function(r) {
+                if (stopped) return;
+                if (r.done) {
+                  if (total > 0) {
+                    try {
+                      var buf = new Uint8Array(total);
+                      var off = 0;
+                      for (var ci = 0; ci < chunks.length; ci++) {
+                        buf.set(chunks[ci], off);
+                        off += chunks[ci].length;
+                      }
+                      var ftext = new TextDecoder('utf-8', {fatal: false}).decode(buf);
+                      if (ftext.length > 0) sendWithDecode(ftext);
+                    } catch (e3) {}
+                  }
+                  return;
+                }
+                total += r.value.length;
+                if (total > $kMaxListenBytes) {
+                  stopped = true;
+                  bump('fetchSkippedSize');
+                  try { reader.cancel(); } catch (e4) {}
+                  return;
+                }
+                chunks.push(r.value);
+                pump();
+              }).catch(function() {});
+            };
+            pump();
+          }
         } catch (e) {}
         return res;
       });
@@ -253,7 +337,11 @@ abstract final class EventObserver {
   var allowedHost = function(urlStr, scheme) {
     try {
       var u = new URL(urlStr, location.href);
-      return u.protocol === scheme && u.hostname.toLowerCase() === 'zcode.z.ai';
+      if (u.protocol !== scheme || u.hostname.toLowerCase() !== 'zcode.z.ai') {
+        return false;
+      }
+      // 端口必须与 Dart 侧信任规则一致（F15/B17）：默认端口或 443。
+      return u.port === '' || u.port === '443';
     } catch (e) { return false; }
   };
   var wsAllowed = function(urlStr) {
@@ -262,6 +350,7 @@ abstract final class EventObserver {
       if (u.protocol !== 'wss:' || u.hostname.toLowerCase() !== 'zcode.z.ai') {
         return false;
       }
+      if (u.port !== '' && u.port !== '443') return false;
       return u.pathname === '/ws' || u.pathname.indexOf('/ws/') === 0;
     } catch (e) { return false; }
   };

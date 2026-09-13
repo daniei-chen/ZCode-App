@@ -32,6 +32,9 @@ jobs:
       - run: flutter test
       # 发布门禁脚本的行为自测（成功 / 篡改摘要 / 缺字段 / attestation 不匹配等负例）。
       - run: python3 scripts/verify-release-artifacts.py --self-test
+      # 观测钩子（JS）藏在 Dart 字符串里，analyze 覆盖不到：语法 + 边界行为断言
+      # （超限文本不得过桥、非默认端口/跨域 query 不得获得观察权限）。
+      - run: node scripts/check_observer_hook.mjs
 
   # 依赖评审（仅 PR）：新增依赖的漏洞/许可证检查。
   # 非必需检查、不阻断合并：新建仓库的 Dependency Graph 数据生成前该动作会

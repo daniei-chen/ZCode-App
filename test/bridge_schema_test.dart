@@ -32,6 +32,15 @@ void main() {
       expect(BridgeSchema.acceptString(tooLong, maxBytes: 64), isNull);
       expect(BridgeSchema.droppedMessages, 1);
     });
+
+    test('按真实 UTF-8 字节数判定：多字节字符不得用字符数蒙混过关（F04）', () {
+      // 21 个汉字 = 63 字节（≤64）→ 通过；22 个 = 66 字节（>64）→ 丢弃，
+      // 尽管字符数都远小于上限。
+      final ok = '中' * 21;
+      final tooLong = '中' * 22;
+      expect(BridgeSchema.acceptString(ok, maxBytes: 64), ok);
+      expect(BridgeSchema.acceptString(tooLong, maxBytes: 64), isNull);
+    });
   });
 
   group('acceptStats', () {

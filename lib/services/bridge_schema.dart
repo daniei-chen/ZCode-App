@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'event_observer.dart';
 
 /// Bridge 消息 schema 与尺寸门禁（v1.1.0）。
@@ -13,10 +15,17 @@ abstract final class BridgeSchema {
   static const int maxWsEventBytes = 4 * 1024 * 1024;
   static const int maxStatsKeys = 32;
 
+  /// 遥测 JSON 的解析前上限（8 KiB 足够；超限在 jsonDecode 之前丢弃）。
+  static const int maxStatsChars = 8 * 1024;
+
   /// Dart 侧桥消息丢弃计数（类型不符/超长），诊断页可见。
   static int droppedMessages = 0;
 
   /// 只接受非空且不超长的字符串；类型不符或超长计入丢弃。
+  ///
+  /// 先做字符数硬上限（避免为超大字符串复制等长字节数组），再按**真实
+  /// UTF-8 字节数**判定——`String.length` 是 UTF-16 code unit，不是字节数，
+  /// 直接拿它当 Bytes 会让中文/emoji 内容实际超过预算（F04）。
   static String? acceptString(Object? body, {required int maxBytes}) {
     if (body is! String) {
       droppedMessages++;
@@ -24,6 +33,10 @@ abstract final class BridgeSchema {
     }
     if (body.isEmpty) return null;
     if (body.length > maxBytes) {
+      droppedMessages++;
+      return null;
+    }
+    if (utf8.encode(body).length > maxBytes) {
       droppedMessages++;
       return null;
     }
