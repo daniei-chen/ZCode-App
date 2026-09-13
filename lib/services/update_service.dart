@@ -193,23 +193,43 @@ class UpdateService {
       // Anonymous API requests can be rate-limited. The public page redirect
       // still gives us the release tag, from which the canonical APK URL can
       // be formed without opening a browser.
-      return await _checkReleasePage(
+      return await _checkReleasePageOrFailed(
         httpClient,
         current: current,
         timeout: timeout,
       );
     } on TimeoutException {
-      return UpdateCheckResult(
-        status: UpdateCheckStatus.failed,
-        currentVersion: current,
+      // F13：API 的 DNS/连接超时/断流不代表"检查更新失败"——网页回退是另一条
+      // 独立通道，异常路径同样要有界地试一次（总预算 ≤ 2×timeout）。
+      return _checkReleasePageOrFailed(
+        httpClient,
+        current: current,
+        timeout: timeout,
       );
+    } catch (_) {
+      return _checkReleasePageOrFailed(
+        httpClient,
+        current: current,
+        timeout: timeout,
+      );
+    } finally {
+      if (ownsClient) httpClient.close();
+    }
+  }
+
+  /// 回退到发布页；回退本身也失败时返回 failed（绝不假装"已是最新版"）。
+  Future<UpdateCheckResult> _checkReleasePageOrFailed(
+    http.Client client, {
+    required String current,
+    required Duration timeout,
+  }) async {
+    try {
+      return await _checkReleasePage(client, current: current, timeout: timeout);
     } catch (_) {
       return UpdateCheckResult(
         status: UpdateCheckStatus.failed,
         currentVersion: current,
       );
-    } finally {
-      if (ownsClient) httpClient.close();
     }
   }
 

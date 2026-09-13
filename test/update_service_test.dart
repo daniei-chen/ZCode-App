@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -439,5 +440,50 @@ void main() {
         await deleteDirEventually(directory);
       }
     });
+  });
+
+  test('API 抛异常（DNS/超时/断流）也要走网页回退（F13）', () async {
+    final client = MockClient((request) async {
+      if (request.url == UpdateService.latestReleaseApi) {
+        throw TimeoutException('api down');
+      }
+      if (request.url == UpdateService.latestReleasePage) {
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+          },
+        );
+      }
+      return http.Response('${'b' * 64}  ZCode-v1.0.1.apk\n', 200);
+    });
+
+    final result = await UpdateService.instance.checkForUpdate(
+      client: client,
+      currentVersion: '1.0.0',
+    );
+
+    expect(
+      result.status,
+      UpdateCheckStatus.updateAvailable,
+      reason: 'API 异常不应让检查直接失败——网页回退是独立通道',
+    );
+    expect(result.latestVersion, '1.0.1');
+    expect(result.canDownload, isTrue, reason: '回退路径同样要能恢复自动下载');
+  });
+
+  test('API 与发布页都不可达 → failed，绝不显示“已是最新版”（F13）', () async {
+    final client = MockClient((request) async {
+      throw const SocketException('offline');
+    });
+
+    final result = await UpdateService.instance.checkForUpdate(
+      client: client,
+      currentVersion: '1.0.0',
+    );
+
+    expect(result.status, UpdateCheckStatus.failed);
   });
 }
