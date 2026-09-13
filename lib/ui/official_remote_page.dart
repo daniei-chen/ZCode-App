@@ -115,7 +115,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (!document.body) return;
     var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
     var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    var candidates = Array.prototype.slice.call(document.body.querySelectorAll('*'))
+    var candidates = Array.prototype.slice.call(document.body.querySelectorAll('div,section,main,aside,form,dialog'))
       .filter(function (node) {
         if (!(node instanceof HTMLElement)) return false;
         var text = normalizedText(node);
@@ -129,7 +129,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
           rect.height < viewportHeight * 0.90;
         return isOverlay || isCard;
       });
-    if (!candidates.length) return;
+    if (!candidates.length) return false;
 
     // Prefer the outermost card, not each individual line inside it.
     var roots = candidates.filter(function (node) {
@@ -140,17 +140,47 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     roots.forEach(function (node) {
       node.style.setProperty('display', 'none', 'important');
     });
+    return roots.length > 0;
   }
 
-  hide();
-  new MutationObserver(hide).observe(document.documentElement, {
+  // 握手卡片的观察是**有界**的（F17）：命中即断开；最多观察 5 秒；
+  // 去抖 150ms。页面进入流式输出后这里已经不再有任何 DOM 扫描。
+  var deadline = Date.now() + 5000;
+  var observer = null;
+  var debounce = null;
+  function stopWatching() {
+    if (observer) {
+      try { observer.disconnect(); } catch (e) {}
+      observer = null;
+    }
+    if (debounce) {
+      clearTimeout(debounce);
+      debounce = null;
+    }
+  }
+  function runHide() {
+    if (observer === null) return;
+    if (Date.now() > deadline) { stopWatching(); return; }
+    if (hide()) stopWatching();
+  }
+  function schedule() {
+    if (observer === null || debounce) return;
+    debounce = window.setTimeout(function () {
+      debounce = null;
+      runHide();
+    }, 150);
+  }
+  runHide();
+  observer = new MutationObserver(schedule);
+  observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
     characterData: true
   });
-  window.setTimeout(hide, 0);
-  window.setTimeout(hide, 250);
-  window.setTimeout(hide, 1000);
+  window.setTimeout(schedule, 0);
+  window.setTimeout(schedule, 250);
+  window.setTimeout(schedule, 1000);
+  window.setTimeout(stopWatching, 5000);
 })();
 ''';
 
@@ -360,11 +390,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     applyTheme();
     if (!window.__zcodeControlThemeObserver) {
       window.__zcodeControlThemeObserver = new MutationObserver(applyTheme);
+      // 主题只体现在 <html> 的属性/类名上：只观察 attributes（并限定了
+      // 属性名），不再监听整棵子树的 childList/characterData（F17）。
       window.__zcodeControlThemeObserver.observe(root, {
         attributes: true,
-        childList: true,
-        subtree: true,
-        characterData: true
+        attributeFilter: ['class', 'data-theme', 'style']
       });
     }
   }
