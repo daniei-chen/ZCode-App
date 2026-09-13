@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "只跑 verify 来源门禁（不恢复 keystore、不构建、不发布）；用于演练与负例验证"
+        description: "演练：构建并签名、跑完整校验链，但不发布（tag 上触发时才生效）"
         type: boolean
         default: false
       allow_ancestor:
@@ -104,9 +104,11 @@ jobs:
           echo "provenance OK: ${GITHUB_SHA} (version ${PUBSPEC_VERSION})"
 
   # 2) 唯一接触签名密钥的作业：构建 → 校验 → 立即删除密钥材料 → 产出候选资产。
+  #    dry_run 只影响 publish：演练要覆盖"真的能签出包"这一段，否则演练没有意义
+  #    （审计要求演练能证明整条链，而不是只证明门禁分支）。
   build-sign:
     needs: verify
-    if: ${{ github.ref_type == 'tag' && inputs.dry_run != true }}
+    if: ${{ github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # production 环境承载发布审批（审阅者可先于密钥恢复拦截发布）。
