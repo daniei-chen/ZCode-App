@@ -44,8 +44,13 @@ jobs:
 
   # Android 模拟器冒烟：真机环境跑 integration_test（非必需检查）。
   # v1.2.0 C：API 矩阵覆盖"最低支持区间(30)"与"主流(34)"两个系统版本。
+  # 稳定性：API 30 镜像在 runner 上偶发"启动后死亡"（实测 Broken pipe /
+  # adb exit 224），API 34 曾挂满 6 小时——用作业级超时封顶，失败可见但
+  # 不无限烧时；debug 构建已是多 ABI（release 契约只作用于 release 变体），
+  # x86_64 模拟器可直接安装。
   android-emulator:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -70,4 +75,5 @@ jobs:
           api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
+          emulator-boot-timeout: 900
           script: flutter test integration_test
