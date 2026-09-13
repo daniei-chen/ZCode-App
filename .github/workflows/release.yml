@@ -219,8 +219,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/sbom
-          # gradlew 在仓库里没有可执行位（Windows 检出），显式用 sh 调用。
-          (cd android && sh ./gradlew \
+          # gradlew 是 bash 脚本（Ubuntu 的 /bin/sh 是 dash，会在 wrapper 的
+          # bash 语法上报 "Syntax error: ( unexpected"）；仓库里也没有可执行位
+          # （Windows 检出），所以显式用 bash 调用。
+          (cd android && bash ./gradlew \
             -I "${GITHUB_WORKSPACE}/scripts/sbom/gradle-inventory.gradle" \
             zrSbomInventory \
             -PzrSbomOut="${GITHUB_WORKSPACE}/build/sbom/gradle-inventory.json" \
