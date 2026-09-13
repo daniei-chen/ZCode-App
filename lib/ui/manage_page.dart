@@ -191,6 +191,8 @@ class ManagePage extends ConsumerWidget {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+          // 200% 字体下正文会变高：允许滚动，确认按钮始终可达（PR22/F25）。
+          scrollable: true,
           title: Text(l10n.manyDevicesTitle),
           content: Text(l10n.manyDevicesBody),
           actions: [
@@ -966,6 +968,8 @@ class _DeviceCard extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        // 设备名可能很长：200% 字体下允许滚动（PR22/F25）。
+        scrollable: true,
         title: Text(l10n.deleteDeviceTitle(device.displayName(l10n))),
         content: Text(l10n.deleteDeviceBody),
         actions: [

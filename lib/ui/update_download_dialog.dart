@@ -251,6 +251,8 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
                   IconButton(
                     onPressed: _busy ? null : _close,
                     visualDensity: VisualDensity.compact,
+                    // 纯图标按钮必须可朗读（TalkBack，PR22/F25）。
+                    tooltip: l10n.commonCancel,
                     icon: Icon(Icons.close, color: palette.textLo),
                   ),
                 ],

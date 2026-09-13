@@ -368,6 +368,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        // 200% 字体/横屏下内容会超出可视区：允许滚动，按钮始终可达（PR22/F25）。
+        scrollable: true,
         title: Text(l10n.biometricWipeDataConfirmTitle),
         content: Text(l10n.biometricWipeDataConfirmBody),
         actions: [

@@ -101,6 +101,8 @@ class SettingsPage extends ConsumerWidget {
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
                         visualDensity: VisualDensity.compact,
+                        // 纯图标按钮必须可朗读（TalkBack）：tooltip 同时充当语义标签。
+                        tooltip: l10n.commonBack,
                         icon: Icon(Icons.arrow_back, color: context.zt.textLo),
                       ),
                     Text(

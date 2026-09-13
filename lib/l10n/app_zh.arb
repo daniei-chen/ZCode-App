@@ -6,6 +6,8 @@
   "@commonSave": {"description": "Dialog confirm-save button"},
   "commonGotIt": "知道了",
   "@commonGotIt": {"description": "Acknowledge button in info dialogs"},
+  "commonBack": "返回",
+  "@commonBack": {"description": "Accessibility label for the icon-only back button"},
 
   "manageTitle": "设备管理",
   "@manageTitle": {"description": "Manage page header"},
