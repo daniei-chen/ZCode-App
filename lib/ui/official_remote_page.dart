@@ -104,14 +104,19 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 
   function isHandshake(text) {
     var lower = text.toLowerCase();
-    var chinese = text.indexOf('正在加载工作区') >= 0 ||
+    // 2026-09：官方页新文案是「正在配对工作区 / 加载工作区中」（用户真机
+    // 实测反馈）——按词根匹配，同时兼容旧文案。
+    var chinese = text.indexOf('加载工作区') >= 0 ||
+      text.indexOf('配对工作区') >= 0 ||
       text.indexOf('同步桌面端工作区') >= 0 ||
       text.indexOf('等待桌面端配对') >= 0;
     var english = (lower.indexOf('loading workspace') >= 0 ||
       lower.indexOf('syncing workspace') >= 0 ||
-      lower.indexOf('syncing desktop workspace') >= 0) &&
+      lower.indexOf('syncing desktop workspace') >= 0 ||
+      lower.indexOf('pairing workspace') >= 0) &&
       (lower.indexOf('paired') >= 0 ||
-       lower.indexOf('connection established') >= 0);
+       lower.indexOf('connection established') >= 0 ||
+       lower.indexOf('desktop') >= 0);
     var waiting = lower.indexOf('waiting for desktop pairing') >= 0 ||
       lower.indexOf('phone is ready') >= 0 ||
       (lower.indexOf('connect to relay service') >= 0 &&
@@ -151,9 +156,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     return roots.length > 0;
   }
 
-  // 握手卡片的观察是**有界**的（F17）：命中即断开；最多观察 5 秒；
+  // 握手卡片的观察是**有界**的（F17）：命中即断开；最多观察 30 秒
+  // （慢设备/慢配对下卡片可能在 5 秒后才出现——真机 v1.1.4 反馈）；
   // 去抖 150ms。页面进入流式输出后这里已经不再有任何 DOM 扫描。
-  var deadline = Date.now() + 5000;
+  var deadline = Date.now() + 30000;
   var observer = null;
   var debounce = null;
   function stopWatching() {
@@ -197,14 +203,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 (function () {
   var requestedDark = ${dark ? 'true' : 'false'};
   var requestedTheme = requestedDark ? 'dark' : 'light';
-  // Native/app-driven changes are never reported back as if they were a
-  // human click inside the WebView. The user-gesture observer below checks
-  // this deadline before sending a theme change to Flutter.
-  window.__zcodeControlThemeSuppressUntil = Date.now() + 800;
-  // This injection is an app-owned decision. If it follows a manual choice
-  // from the WebView, it must be allowed to win immediately; the gesture
-  // window is only for the page's own DOM/storage mutations to settle.
-  window.__zcodeControlUserThemeGestureUntil = 0;
+  // 双向同步（2026-09 用户口径）：应用的决定在这里**一次性**生效并打上
+  // __zcodeControlAppliedTheme 基准；页面里手动切换主题时由观察者上报应用，
+  // 应用重新注入同一决定——不再有"强制回写/手势时间窗"把页面锁死。
   // ZCode's renderer does not key its palette from a generic data-theme
   // attribute. It persists `zcode-theme` and derives these two theme classes
   // from the effective value. Mirror that contract so the WebView follows the
@@ -222,15 +223,6 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     var state = window.__zcodeControlThemeState;
     var currentRoot = document.documentElement;
     if (!state || !currentRoot) return;
-
-    // A theme menu click in the official page changes its DOM and/or storage
-    // asynchronously. Do not race that change by immediately painting the
-    // old native theme back over it. The user observer below will report the
-    // settled value to Flutter, which then reinjects this script with the new
-    // app-owned decision.
-    if (Date.now() <= (window.__zcodeControlUserThemeGestureUntil || 0)) {
-      return;
-    }
 
     var theme = state.theme;
     var dark = state.dark;
@@ -283,7 +275,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     window.__zcodeControlUserThemeLast = requestedTheme;
 
     var previous = window.__zcodeControlAppliedTheme;
-    window.__zcodeControlAppliedTheme = rendererTheme;
+    // 基准存**归一化**值（dark/light），与观察者的 currentUserTheme() 同一
+    // 口径，页面自己的变更才能被识别为"与基准不一致"。
+    window.__zcodeControlAppliedTheme = theme;
     if (previous !== rendererTheme && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new CustomEvent('zcode-control-theme-change', {
         detail: { theme: theme, dark: dark, officialTheme: rendererTheme }
@@ -299,26 +293,18 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       return;
     }
     applyTheme();
-    if (!window.__zcodeControlThemeObserver) {
-      window.__zcodeControlThemeObserver = new MutationObserver(applyTheme);
-      // 主题只体现在 <html> 的属性/类名上：只观察 attributes（并限定了
-      // 属性名），不再监听整棵子树的 childList/characterData（F17）。
-      window.__zcodeControlThemeObserver.observe(root, {
-        attributes: true,
-        attributeFilter: ['class', 'data-theme', 'style']
-      });
-    }
   }
   install();
 
-  // The official page remains the source of the WebView UI, but its manual
-  // light/dark choice should also become the app-wide choice. Watch the
-  // renderer's persisted value and classes only after a real pointer/touch
-  // or keyboard gesture. This keeps page/bootstrap mutations and system
-  // brightness changes from rewriting the native setting by themselves.
+  // 双向同步的"页面 → 应用"方向：官方页里手动切换主题后，页面的
+  // localStorage / <html> 类名会变化。这里做**确定性比较**——生效主题与
+  // 应用最后一次写入的基准（__zcodeControlAppliedTheme）不一致时上报
+  // zrTheme，应用更新后重新注入同一决定（此时比较相等，天然收敛）。
+  // 不再使用手势时间窗：旧机制要求"点击后 2.2 秒内完成"，官方页的主题
+  // 菜单是两步异步操作，窗口一过就会把用户的选择改回去（真机反馈"被
+  // 强制锁定"的根因）。
   if (!window.__zcodeControlUserThemeObserverInstalled) {
     window.__zcodeControlUserThemeObserverInstalled = true;
-    window.__zcodeControlUserThemeGestureUntil = 0;
 
     function normalizeUserTheme(raw) {
       if (raw === null || raw === undefined) return null;
@@ -350,42 +336,34 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     window.__zcodeControlUserThemeLast =
       currentUserTheme() || window.__zcodeControlThemeState.theme;
 
-    function notifyUserThemeIfChanged() {
-      if (Date.now() > window.__zcodeControlUserThemeGestureUntil) return;
-      if (Date.now() < (window.__zcodeControlThemeSuppressUntil || 0)) return;
-      var theme = currentUserTheme();
-      if (!theme || theme === window.__zcodeControlUserThemeLast) return;
-      var bridge = window.flutter_inappwebview;
-      if (!bridge || typeof bridge.callHandler !== 'function') return;
-      window.__zcodeControlUserThemeLast = theme;
-      try {
-        bridge.callHandler('zrTheme', JSON.stringify({
-          theme: theme,
-          source: 'user'
-        }));
-      } catch (e) {}
+    var reportTimer = null;
+    function scheduleReportIfChanged() {
+      if (reportTimer) return;
+      reportTimer = window.setTimeout(function () {
+        reportTimer = null;
+        if (!window.__zcodeControlThemeState) return;
+        var theme = currentUserTheme();
+        if (!theme) return;
+        // 与应用基准一致（包括应用自己写入触发的变更）：只校准基线，不上报。
+        if (theme === window.__zcodeControlAppliedTheme) {
+          window.__zcodeControlUserThemeLast = theme;
+          return;
+        }
+        // 页面自己的变更：与上次已上报值相同就不重复报。
+        if (theme === window.__zcodeControlUserThemeLast) return;
+        window.__zcodeControlUserThemeLast = theme;
+        var bridge = window.flutter_inappwebview;
+        if (!bridge || typeof bridge.callHandler !== 'function') return;
+        try {
+          // 第 3 参数是主 frame 令牌：Dart 侧 _bridgeAllowed 会校验，
+          // 缺令牌的回执一律被拒（v1.1.4 真机"主题不同步"的根因）。
+          bridge.callHandler('zrTheme', JSON.stringify({
+            theme: theme,
+            source: 'user'
+          }), window.__zrToken);
+        } catch (e) {}
+      }, 120);
     }
-
-    function scheduleUserThemeCheck() {
-      [0, 80, 260, 700, 1400].forEach(function (delay) {
-        window.setTimeout(notifyUserThemeIfChanged, delay);
-      });
-    }
-
-    function markUserThemeGesture() {
-      window.__zcodeControlUserThemeGestureUntil = Date.now() + 2200;
-      scheduleUserThemeCheck();
-    }
-
-    ['click', 'pointerup', 'touchend'].forEach(function (eventName) {
-      document.addEventListener(eventName, markUserThemeGesture, true);
-    });
-    document.addEventListener('keydown', function (event) {
-      if (event.key === 'Enter' || event.key === ' ' ||
-          event.key === 'Spacebar') {
-        markUserThemeGesture();
-      }
-    }, true);
 
     function installUserThemeObserver() {
       var root = document.documentElement;
@@ -394,23 +372,18 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         return;
       }
       try {
-        new MutationObserver(function () {
-          if (Date.now() <= window.__zcodeControlUserThemeGestureUntil) {
-            scheduleUserThemeCheck();
-          }
-        }).observe(root, {
+        // 只观察 <html> 的属性（F17 有界原则），不监听整棵子树。
+        new MutationObserver(scheduleReportIfChanged).observe(root, {
           attributes: true,
           attributeFilter: ['class', 'data-theme',
-            'data-zcode-browser-theme-surface'],
-          subtree: true
+            'data-zcode-browser-theme-surface']
         });
       } catch (e) {}
+      window.addEventListener('storage', function (event) {
+        if (event.key === 'zcode-theme') scheduleReportIfChanged();
+      }, true);
     }
     installUserThemeObserver();
-
-    window.addEventListener('storage', function (event) {
-      if (event.key === 'zcode-theme') scheduleUserThemeCheck();
-    }, true);
   }
 })();
 ''';
@@ -428,9 +401,27 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 })();
 ''';
 
+  /// 工作区就绪探测：任务列表行、输入区或会话正文任一出现即算真实内容，
+  /// 品牌盖板可以揭开了（对齐用户口径：盖住"配对/加载工作区"启动过程）。
+  static const String _workspaceReadyProbeScript = '''
+(() => {
+  const rows = document.querySelectorAll('[data-testid^="task-item-"]').length;
+  const composer = document.querySelector('textarea, [contenteditable="true"], [data-testid*="composer"], [data-testid*="input"]');
+  const bodyText = (document.body && document.body.innerText ? document.body.innerText : '');
+  const handshake = bodyText.indexOf('加载工作区') >= 0 || bodyText.indexOf('配对工作区') >= 0;
+  return JSON.stringify({ rows: rows, composer: !!composer, handshake: handshake });
+})()
+''';
+
   InAppWebViewController? _controller;
   bool _failed = false;
   bool _loading = true;
+  // 品牌启动覆盖层（用户口径：首次加载用应用图标页盖住官方页的
+  // "正在配对工作区 / 加载工作区中"，不露出 web 的启动过程）。
+  // onLoadStop 只代表文档就绪，工作区 UI 还在挂载——用探针确认真实内容
+  // （任务列表/输入区出现）才揭盖；超时兜底防止离线时永久遮盖。
+  bool _bootCover = true;
+  Timer? _bootCoverWatchdog;
   // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
   // 首次加载 20s 内没有 onLoadStop，或 stop 后页面持续空白，就静默 reload
   // 一次；只自动重试一次，之后交给错误卡与手动重试。
@@ -566,6 +557,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   void _armFirstLoadWatchdog() {
+    _armBootCover();
     _firstLoadWatchdog?.cancel();
     _firstLoadWatchdog = Timer(const Duration(seconds: 20), () {
       if (!mounted || _firstLoadSettled || _failed) return;
@@ -581,6 +573,48 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       }
       unawaited(_silentReloadOnce('first load timeout'));
     });
+  }
+
+  /// 品牌盖板（重新）挂上：任何一次全新文档加载（首启/静默重载/渲染进程
+  /// 重建）都会经过这里。盖板在探针确认真实内容或超时后揭开。
+  void _armBootCover() {
+    _bootCoverWatchdog?.cancel();
+    if (!mounted) return;
+    // initState 路径下字段初始就是 true，避免"构造期 setState"；只有
+    // reload/重建路径（盖板已被揭开过）才需要重新挂上。
+    if (!_bootCover) setState(() => _bootCover = true);
+    _bootCoverWatchdog = Timer(const Duration(seconds: 12), () {
+      if (!mounted || !_bootCover) return;
+      // 探针一直没等到真实内容（离线/慢配对）：揭盖交给状态层表达，
+      // 不能把用户永久挡在盖板后面。
+      AppLog.event(LogEvent.webviewBootCoverTimeout, level: LogLevel.warn, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+      });
+      setState(() => _bootCover = false);
+    });
+  }
+
+  /// onLoadStop 后轮询工作区就绪探针；出现真实内容（任务列表/输入区）即揭盖。
+  Future<void> _probeWorkspaceReadyUntilReveal() async {
+    for (var i = 0; i < 40; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!mounted || !_bootCover || _failed) return;
+      try {
+        final result = await _controller?.evaluateJavascript(
+          source: _workspaceReadyProbeScript,
+        );
+        final payload = jsonDecode(result?.toString() ?? '{}');
+        final ready = payload is Map &&
+            ((payload['rows'] as int? ?? 0) > 0 ||
+                payload['composer'] == true);
+        if (ready) break;
+      } catch (_) {
+        // 探针失败不算失败：下一轮再试，超时兜底会揭盖。
+      }
+    }
+    if (!mounted || !_bootCover || _failed) return;
+    setState(() => _bootCover = false);
   }
 
   /// 首载失败出口：进入错误卡（可重试 / 可回设备中心），并同步设备状态。
@@ -1053,6 +1087,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     WidgetsBinding.instance.removeObserver(this);
     _warmupTimer?.cancel();
     _firstLoadWatchdog?.cancel();
+    _bootCoverWatchdog?.cancel();
     _jumpWatchdog?.cancel();
     _sync?.forget();
     super.dispose();
@@ -1353,6 +1388,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _firstLoadSettled = true;
                         _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
+                        unawaited(_probeWorkspaceReadyUntilReveal());
                         unawaited(_injectBridgeToken());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {
@@ -1444,6 +1480,38 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                       },
                       onRenderProcessResponsive: (_, uri) async => null,
                     ),
+                    if (_bootCover && !_failed)
+                      Positioned.fill(
+                        // 品牌启动盖板（用户口径）：盖住官方页的
+                        // "正在配对工作区 / 加载工作区中"启动过程，探针确认
+                        // 真实内容（任务列表/输入区）或 12s 超时后揭开。
+                        child: ColoredBox(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Image.asset(
+                                    'assets/brand/mark.png',
+                                    width: 72,
+                                    height: 72,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     if (_failed)
                       Positioned.fill(
                         child: _RemotePageError(

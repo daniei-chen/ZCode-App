@@ -316,7 +316,15 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
           if (_launcherVisible)
             Positioned.fill(
-              child: ManagePage(onOpenDevice: _openDevice),
+              child: ManagePage(
+                onOpenDevice: _openDevice,
+                // 平板：设置返回先回"对话+列表同屏"页，再一次返回才到设备页
+                // （手机不触发此回调，设置返回停在设备列表页）。
+                onSettingsReturned: () {
+                  if (!mounted || !_launcherVisible) return;
+                  setState(() => _launcherVisible = false);
+                },
+              ),
             ),
           if (_floatingNotice != null)
             Positioned(

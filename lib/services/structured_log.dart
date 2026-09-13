@@ -28,6 +28,7 @@ enum LogEvent {
   webviewBackHandled('WV112'),
   webviewConsoleDropped('WV110'),
   webviewStorageCleared('WV111'),
+  webviewBootCoverTimeout('WV113'),
 
   // bridge / 观测
   bridgeTokenMissing('BR200'),

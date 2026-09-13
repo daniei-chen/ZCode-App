@@ -12,10 +12,11 @@ import 'package:zremote/ui/manage_page.dart';
 import 'package:zremote/ui/official_remote_page.dart';
 import 'package:zremote/ui/settings_page.dart';
 
-/// 系统返回键的层级（2026-09-14 用户口径）：
+/// 系统返回键的层级（2026-09-15 用户口径，双端区分）：
 ///
-///   推入的页面（设置/诊断/扫码）→ 返回先弹掉它，回到设备列表页（普通弹栈，
-///     一次到位，不再"设置 → 对话页"绕行）
+///   推入的页面（设置/诊断/扫码）→ 返回先弹掉它。
+///     手机：停在设备列表页（一次到位）。
+///     平板：设置返回先回"对话 + 列表同屏"页，再一次返回才到设备页。
 ///   对话页 → 返回交给官方页面（页内路由）：对话 → 对话列表（仅手机）
 ///   对话列表 → 返回露出设备页（页面稳定后立即返回，无重试等待）
 ///   平板（shortestSide ≥ 600）：对话 + 列表同屏，页内没有返回可控件——
@@ -58,7 +59,10 @@ Future<void> _pressSystemBack(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
-Future<void> _pumpLauncher(WidgetTester tester) {
+Future<void> _pumpLauncher(
+  WidgetTester tester, [
+  VoidCallback? onSettingsReturned,
+]) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -71,7 +75,7 @@ Future<void> _pumpLauncher(WidgetTester tester) {
         // 关掉墨水扩散动画：Windows 测试引擎缺 ink_sparkle.frag 着色器，
         // 点击会抛环境异常（与代码无关）；CI 上不受影响。
         theme: ThemeData(splashFactory: NoSplash.splashFactory),
-        home: const ManagePage(),
+        home: ManagePage(onSettingsReturned: onSettingsReturned),
       ),
     ),
   );
@@ -185,6 +189,58 @@ void main() {
         findsNothing,
         reason: '设置链路的返回不应把远控页带出来（2026-09-14 口径回归点）',
       );
+    });
+  });
+
+  group('平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径）', () {
+    testWidgets('平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(800, 1280);
+      addTearDown(tester.view.reset);
+      var calls = 0;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            deviceListProvider.overrideWith(() => _StubDevices([_device('a')])),
+          ],
+          child: MaterialApp(
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+            home: ManagePage(onSettingsReturned: () => calls++),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SettingsPage), findsOneWidget);
+      expect(calls, 0, reason: '还在设置页不该触发');
+
+      await _pressSystemBack(tester);
+
+      expect(find.byType(SettingsPage), findsNothing);
+      expect(calls, 1, reason: '平板：设置返回 = 对话/列表同屏页，再返回才是设备页');
+    });
+
+    testWidgets('手机尺寸下设置返回不触发 onSettingsReturned', (tester) async {
+      // 显式设为手机尺寸：默认测试视口 800×600 的最短边恰好 600，
+      // 会被 isTabletLayout 判成平板。
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(411, 900);
+      addTearDown(tester.view.reset);
+      var calls = 0;
+      await _pumpLauncher(tester, () => calls++);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await _pressSystemBack(tester);
+      expect(find.byType(SettingsPage), findsNothing);
+      expect(calls, 0, reason: '手机：设置返回停在设备列表页，不揭示远控页');
     });
   });
 

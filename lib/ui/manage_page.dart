@@ -12,6 +12,7 @@ import '../services/app_settings.dart';
 import '../services/device_import.dart';
 import '../services/link_builder.dart';
 import '../services/structured_log.dart';
+import '../state/back_stack.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
 import '../state/event_feed.dart';
@@ -22,9 +23,14 @@ import 'settings_page.dart';
 import 'unread_badge.dart';
 
 class ManagePage extends ConsumerWidget {
-  const ManagePage({super.key, this.onOpenDevice});
+  const ManagePage({super.key, this.onOpenDevice, this.onSettingsReturned});
 
   final ValueChanged<int>? onOpenDevice;
+
+  /// 从设置页返回后调用（**仅平板**会触发，见 [_SettingsEntry]）：
+  /// 平板的对话与列表同屏，设置返回先回到该页，再一次返回才到设备页；
+  /// 手机的设置返回就是普通弹栈，停在设备列表页（用户 2026-09-14 口径）。
+  final VoidCallback? onSettingsReturned;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,7 +136,7 @@ class ManagePage extends ConsumerWidget {
                 const ThemeSettingTile(),
                 const UpdateSettingTile(),
                 const SizedBox(height: 4),
-                _SettingsEntry(),
+                _SettingsEntry(onReturned: onSettingsReturned),
                 const VersionFooter(),
               ],
             ),
@@ -995,7 +1001,12 @@ class _DeviceCard extends ConsumerWidget {
 }
 
 class _SettingsEntry extends StatelessWidget {
-  const _SettingsEntry();
+  const _SettingsEntry({this.onReturned});
+
+  /// 设置页返回后的回调。**只在平板布局下触发**：平板从设置返回要先回到
+  /// "对话 + 列表同屏"页，再一次返回才到设备页；手机就是普通弹栈停在
+  /// 设备列表页（回调不会被调用）。
+  final VoidCallback? onReturned;
 
   @override
   Widget build(BuildContext context) {
@@ -1021,11 +1032,17 @@ class _SettingsEntry extends StatelessWidget {
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         trailing: Icon(Icons.chevron_right, color: context.zt.textLo),
-        onTap: () {
-          Navigator.of(
+        onTap: () async {
+          // 跨 async gap 前先取布局判定：push 返回后 context 可能已失效。
+          final tablet = isTabletLayout(MediaQuery.of(context).size);
+          await Navigator.of(
             context,
           ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
-          // 设置返回 = 回到进入前的设备列表页（普通页面栈弹出，一次到位）。
+          // 手机：设置返回 = 设备列表页（一次到位，普通弹栈）。
+          // 平板：设置返回 = 对话/列表同屏页（onReturned），再返回才到设备页。
+          if (tablet && context.mounted) {
+            onReturned?.call();
+          }
         },
       ),
     );
