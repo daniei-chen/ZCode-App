@@ -180,7 +180,18 @@ class DeviceStore {
   Future<List<RemoteDevice>> loadAll() async =>
       (await loadAllWithStatus()).devices;
 
-  Future<void> add(RemoteDevice device) async {
+  /// 写操作串行队列（F09）：add/update/remove/saveOrder 都是"读-改-写"，
+  /// 并发调用会各自基于旧索引计算、后写覆盖前写（例如两个 add 同时进行时
+  /// 只有一个能留在索引里）。读操作不受影响。
+  Future<void> _writeQueue = Future<void>.value();
+
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final result = _writeQueue.then((_) => action());
+    _writeQueue = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<void> add(RemoteDevice device) => _serialized(() async {
     final ids = await _readIndexForMutation();
     if (!ids.contains(device.id)) ids.add(device.id);
     await _secure.write(
@@ -188,29 +199,31 @@ class DeviceStore {
       value: jsonEncode(device.toJson()),
     );
     await _secure.write(key: _indexKey, value: jsonEncode(ids));
-  }
+  });
 
-  Future<void> update(RemoteDevice device) => _secure.write(
-    key: _deviceKey(device.id),
-    value: jsonEncode(device.toJson()),
+  Future<void> update(RemoteDevice device) => _serialized(
+    () => _secure.write(
+      key: _deviceKey(device.id),
+      value: jsonEncode(device.toJson()),
+    ),
   );
 
-  Future<void> remove(String id) async {
+  Future<void> remove(String id) => _serialized(() async {
     await _secure.delete(key: _deviceKey(id));
     await _secure.delete(key: _warmupKey(id));
     final ids = await _readIndexForMutation();
     ids.remove(id);
     await _secure.write(key: _indexKey, value: jsonEncode(ids));
-  }
+  });
 
-  Future<void> saveOrder(List<String> ids) async {
+  Future<void> saveOrder(List<String> ids) => _serialized(() async {
     final current = await _readIndexForMutation();
     if (current.length != ids.length) return;
     final idSet = ids.toSet();
     if (idSet.length != ids.length) return;
     if (!current.toSet().containsAll(idSet)) return;
     await _secure.write(key: _indexKey, value: jsonEncode(ids));
-  }
+  });
 
   /// 变更前的索引读取：先做一致性收敛再返回，避免"索引损坏 → 空列表 →
   /// 覆盖写回"把其他设备从索引里抹掉（F07）。存储不可用时抛 typed error，

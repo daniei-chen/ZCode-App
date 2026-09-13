@@ -33,6 +33,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
 
   Future<void> add(RemoteDevice device) async {
     await DeviceStore.instance.add(device);
+    if (!ref.mounted) return;
     state = [...state, device];
   }
 
@@ -47,6 +48,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     if (target == null || label.trim().isEmpty) return;
     final updated = target.copyWith(label: label.trim());
     await DeviceStore.instance.update(updated);
+    if (!ref.mounted) return;
     state = [
       for (final d in state)
         if (d.id == id) updated else d,
@@ -55,6 +57,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
 
   Future<void> remove(String id) async {
     await DeviceStore.instance.remove(id);
+    if (!ref.mounted) return;
     state = state.where((d) => d.id != id).toList();
   }
 
@@ -72,6 +75,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     reordered.insert(newIndex, moved);
 
     await DeviceStore.instance.saveOrder([for (final d in reordered) d.id]);
+    if (!ref.mounted) return;
     state = reordered;
 
     if (activeId != null) {
@@ -101,6 +105,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     await DeviceStore.instance.update(updated);
     // 旧链接对应的请求签名可能指向另一台桌面端，不能在新凭证下重放。
     await DeviceStore.instance.setWarmupScript(id, null);
+    if (!ref.mounted) return;
     state = [
       for (final d in state)
         if (d.id == id) updated else d,
@@ -146,6 +151,7 @@ class ActiveTabNotifier extends Notifier<int> {
     if (_restoreDone || _jumpedBeforeRestore) return;
     _restoreDone = true;
     final id = await DeviceStore.instance.lastDeviceId();
+    if (!ref.mounted) return;
     if (_jumpedBeforeRestore) return;
     if (id == null) return;
     final index = ref.read(deviceListProvider).indexWhere((d) => d.id == id);
@@ -174,11 +180,14 @@ class BiometricNotifier extends Notifier<bool> {
   }
 
   Future<void> _load() async {
-    state = await DeviceStore.instance.biometricEnabled();
+    final value = await DeviceStore.instance.biometricEnabled();
+    if (!ref.mounted) return;
+    state = value;
   }
 
   Future<void> set(bool value) async {
     await DeviceStore.instance.setBiometricEnabled(value);
+    if (!ref.mounted) return;
     state = value;
   }
 
@@ -186,7 +195,9 @@ class BiometricNotifier extends Notifier<bool> {
   /// 调用方据此保持锁定（fail-closed），绝不把"读不到"当成"未启用"。
   Future<bool> reload() async {
     try {
-      state = await DeviceStore.instance.biometricEnabled();
+      final value = await DeviceStore.instance.biometricEnabled();
+      if (!ref.mounted) return false;
+      state = value;
       return true;
     } catch (_) {
       return false;

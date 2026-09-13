@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zremote/models/device.dart';
 import 'package:zremote/services/device_store.dart';
 
 /// v1.3.0 DeviceStore 混沌测试：损坏/畸形存储必须不崩溃、尽可能恢复、
@@ -109,5 +110,29 @@ void main() {
     backing['zremote.warmup.a'] = '[]';
 
     expect(await DeviceStore.instance.loadAll(), isEmpty);
+  });
+
+  test('并发 add 全部保留，索引不被后写覆盖（F09 写入串行化）', () async {
+    const ids = ['a', 'b', 'c', 'd', 'e'];
+    await Future.wait([
+      for (final id in ids)
+        DeviceStore.instance.add(
+          RemoteDevice.fromJson(
+            jsonDecode(deviceJson(id)) as Map<String, dynamic>,
+          ),
+        ),
+    ]);
+
+    // 关键断言：索引本身必须完整——不能靠读取时扫描孤儿记录兜底
+    // （那说明写入仍然是竞态的，只是被读取路径掩盖了）。
+    final index = (jsonDecode(backing['zremote.device.index']!) as List)
+        .cast<String>();
+    expect(index.toSet(), ids.toSet(), reason: '并发写必须串行化，不得互相覆盖');
+
+    final loaded = (await DeviceStore.instance.loadAll())
+        .map((d) => d.id)
+        .toList()
+      ..sort();
+    expect(loaded, ids);
   });
 }
