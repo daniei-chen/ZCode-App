@@ -54,7 +54,11 @@ Future<void> _pressSystemBack(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 400));
 }
 
-Future<void> _pumpLauncher(WidgetTester tester) {
+class _ReturnCounter {
+  int calls = 0;
+}
+
+Future<void> _pumpLauncher(WidgetTester tester, [_ReturnCounter? counter]) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -67,7 +71,9 @@ Future<void> _pumpLauncher(WidgetTester tester) {
         // 关掉墨水扩散动画：Windows 测试引擎缺 ink_sparkle.frag 着色器，
         // 点击会抛环境异常（与代码无关）；CI 上不受影响。
         theme: ThemeData(splashFactory: NoSplash.splashFactory),
-        home: const ManagePage(),
+        home: ManagePage(
+          onFullPageReturned: counter == null ? null : () => counter.calls++,
+        ),
       ),
     ),
   );
@@ -127,6 +133,48 @@ void main() {
 
     test('未挂载处理器（页面尚未建立）时返回 false', () async {
       expect(await OfficialRemotePageController().handleBack(), isFalse);
+    });
+  });
+
+  group('设置返回 → 对话页（用户要求的层级）', () {
+    testWidgets('从设置返回会通知外壳回到对话页（而不是停在设备页）', (tester) async {
+      final counter = _ReturnCounter();
+      await _pumpLauncher(tester, counter);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(SettingsPage), findsOneWidget);
+      expect(counter.calls, 0, reason: '刚进设置不该触发');
+
+      await _pressSystemBack(tester);
+
+      expect(find.byType(SettingsPage), findsNothing);
+      expect(
+        counter.calls,
+        1,
+        reason: '从设置返回必须请求外壳回到对话页（设置 → 对话页 → 对话列表 → 设备页）',
+      );
+    });
+
+    testWidgets('从设置里进诊断页：返回只回设置，不回对话页', (tester) async {
+      final counter = _ReturnCounter();
+      await _pumpLauncher(tester, counter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('诊断信息'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await _pressSystemBack(tester);
+      expect(find.byType(SettingsPage), findsOneWidget, reason: '第一层返回回设置');
+      expect(counter.calls, 0, reason: '还在设置里，不该回对话页');
+
+      await _pressSystemBack(tester);
+      expect(counter.calls, 1, reason: '离开设置才回对话页');
     });
   });
 

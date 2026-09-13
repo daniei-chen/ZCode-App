@@ -793,6 +793,39 @@ await check('几何兜底仍然命中左上角纯图标返回键（8,10,24,24）
   assert(backPayload(box.posted).body.reason === 'clicked');
 });
 
+await check('候选迟到（刚切到对话页）时先重试再判 not_found', () => {
+  // 长跑实测偶发：点开对话后立刻按返回，返回键还没挂上 → 直接 not_found 会让
+  // 返回键闪回设备页。脚本必须有一个短重试窗口（1.2s）。
+  const box = makeBackSandbox({ elements: [] });
+  box.window.__late = () => {
+    box.elements.push(
+      backEl({
+        ariaLabel: '返回任务首页',
+        rect: { top: 10, left: 8, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'task-list';
+        },
+      }),
+    );
+  };
+  vm.runInContext(back, box.context, { filename: 'in_page_back.js' });
+  // 第一次收集为空 → 只应排队重试，不应回执
+  flushTimers(box, { maxSteps: 2 });
+  assert(box.posted.length === 0, '候选为空时不得立刻回执 not_found');
+  vm.runInContext('window.__late()', box.context);
+  flushTimers(box);
+  const { body } = backPayload(box.posted);
+  assert(body.reason === 'clicked', `迟到候选应被点到（实际 ${body.reason}）`);
+});
+
+await check('候选始终不存在时，重试窗口用尽后如实报 not_found', () => {
+  const box = makeBackSandbox({ elements: [] });
+  runBack(box);
+  const { body } = backPayload(box.posted);
+  assert(body.ok === false, 'ok 应为 false');
+  assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+});
+
 await check('disabled 与 pointer-events:none 的控件不点', () => {
   const disabled = backEl({ ariaLabel: '返回', disabled: true });
   const noPointer = backEl({

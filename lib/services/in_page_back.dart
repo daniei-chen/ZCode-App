@@ -223,12 +223,7 @@ abstract final class InPageBack {
   var done = function (ok, reason) {
     report(ok, reason);
   };
-  var queue = collect().slice(0, MAX);
-  if (!queue.length) {
-    done(false, 'not_found');
-    return 'not_found';
-  }
-  var tryAt = function (index) {
+  var tryAt = function (queue, index) {
     if (cancelled()) return;
     if (index >= queue.length) {
       // 走到这里说明至少点过一个候选：点到东西了，但页面没换
@@ -249,14 +244,31 @@ abstract final class InPageBack {
         return;
       }
       if (Date.now() > deadline) {
-        tryAt(index + 1);
+        tryAt(queue, index + 1);
         return;
       }
       setTimeout(poll, 80);
     };
     setTimeout(poll, 120);
   };
-  tryAt(0);
+  // 候选可能是"刚刚才挂上来"的：用户点开对话后立刻按返回时，返回键还没渲染完，
+  // 直接判 not_found 会让返回键闪回设备页（长跑实测偶发）。给它一个 1.2s 的重试窗口。
+  var searchSince = null;
+  var start = function () {
+    if (cancelled()) return;
+    var queue = collect().slice(0, MAX);
+    if (queue.length) {
+      tryAt(queue, 0);
+      return;
+    }
+    if (searchSince === null) searchSince = Date.now();
+    if (Date.now() - searchSince > 1200) {
+      done(false, 'not_found');
+      return;
+    }
+    setTimeout(start, 150);
+  };
+  start();
   return 'async';
 })()''';
 }

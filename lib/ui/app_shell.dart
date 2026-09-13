@@ -315,7 +315,17 @@ class _AppShellState extends ConsumerState<AppShell> {
             ],
           ),
           if (_launcherVisible)
-            Positioned.fill(child: ManagePage(onOpenDevice: _openDevice)),
+            Positioned.fill(
+              child: ManagePage(
+                onOpenDevice: _openDevice,
+                // 设置/诊断/扫码返回后回到对话页：用户要求的层级是
+                // 设置 → 对话页 → 对话列表 → 设备页（每层一次返回）。
+                onFullPageReturned: () {
+                  if (!mounted || !_launcherVisible) return;
+                  setState(() => _launcherVisible = false);
+                },
+              ),
+            ),
           if (_floatingNotice != null)
             Positioned(
               top: MediaQuery.of(context).padding.top + 12,
