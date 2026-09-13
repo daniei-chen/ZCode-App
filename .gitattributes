@@ -2,3 +2,8 @@
 # 避免 Windows(core.autocrlf) 检出成 CRLF 后在 Linux/Git Bash 上直接执行失败。
 *.sh text eol=lf
 *.py text eol=lf
+# PR24：脚本与工作流一律 LF（Windows 检出成 CRLF 会让 Linux 侧解释器直接失败）。
+*.mjs text eol=lf
+*.gradle text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

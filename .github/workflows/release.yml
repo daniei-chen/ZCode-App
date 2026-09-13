@@ -37,6 +37,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      # PR24/F23：文档与代码的漂移在发布前就必须拦住（SDK 下界、支持范围 vs
+      # minSdk、文档里的版本复述、关键文档可达性、脚本行尾）。
+      - name: Documentation anti-drift
+        run: python3 scripts/check-doc-drift.py
+
+      # PR24/F26：发行说明与 tag 必须同时存在且写明版本——审计点名的治理缺口
+      # 正是"发版靠记忆、文档与实物不一致"。
+      - name: Verify release notes match the tag
+        if: ${{ github.ref_type == 'tag' }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES="docs/releases/v${VERSION}.md"
+          if [ ! -f "${NOTES}" ]; then
+            echo "REFUSED: missing release notes ${NOTES}" >&2
+            echo "Create docs/releases/v${VERSION}.md describing this release before tagging." >&2
+            exit 1
+          fi
+          if ! grep -q "${VERSION}" "${NOTES}"; then
+            echo "REFUSED: ${NOTES} does not mention version ${VERSION}" >&2
+            exit 1
+          fi
+          echo "release notes OK: ${NOTES}"
+
       - name: Verify provenance (tag version + commit must come from protected main)
         id: provenance
         env:

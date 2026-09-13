@@ -16,6 +16,9 @@ const _nativeThemeChannel = MethodChannel('zremote/theme');
 ///
 /// 取值刻意与官方 `setting.themeMode` 对齐，将来同步设置时不用做映射。
 class ThemeModeNotifier extends Notifier<String> {
+  // 字段必须私有、参数名必须对外（命名参数不能以下划线开头），
+  // 因此无法改写成 `this._initial`；这里的 lint 抑制是有意为之。
+  // ignore: prefer_initializing_formals
   ThemeModeNotifier({String? initial}) : _initial = initial;
 
   final String? _initial;

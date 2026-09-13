@@ -7,7 +7,7 @@
 
 ## 支持范围
 
-- 仅支持**最新 Release 版本**（当前为 v1.0.8 线）。
+- 仅支持**最新 Release 版本**（版本号以 GitHub Releases 页与 `pubspec.yaml` 为准，本文不复述）。
 - 更早版本请先升级复现；旧版本不单独修复。
 - 项目仅支持 Android，不提供 iOS 支持。
 

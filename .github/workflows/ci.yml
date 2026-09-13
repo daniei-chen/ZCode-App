@@ -58,6 +58,10 @@ jobs:
           "${SBOM_PYTHON}" scripts/generate-sbom.py --out sbom-ci.json --allow-partial
           "${SBOM_PYTHON}" scripts/check-dependency-advisories.py \
             --sbom sbom-ci.json --fail-on critical --soft-fail-if-unreachable
+      # 文档与代码防漂移（F23/F26）：SDK 下界、支持范围 vs minSdk、
+      # 文档不复述当前版本号、关键文档互相可达、脚本行尾 LF。
+      - name: Documentation anti-drift
+        run: python3 scripts/check-doc-drift.py
       # 注入脚本（观测钩子 + 跳转脚本）藏在 Dart 字符串里，analyze 覆盖不到：
       # 语法 + 边界行为断言（超限文本不得过桥、非默认端口/跨域 query 不得获得
       # 观察权限、跳转必须回执 found/timeout/superseded 且带主 frame 令牌）。

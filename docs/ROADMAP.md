@@ -1,6 +1,7 @@
 # ROADMAP
 
-当前版本线：v1.0.8（纯 WebView，Android-only；三版内容一次性收口）。
+当前版本线：以 GitHub Releases 与 `pubspec.yaml` 为准（本文只记录范围与计划，不复述具体版本号）。
+支持范围与限制见 [SUPPORT.md](SUPPORT.md)。
 
 ## v1.0.8 — WebView Hardening & Architecture Cleanup（已发布 ✅）
 

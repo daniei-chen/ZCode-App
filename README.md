@@ -111,6 +111,21 @@ docs/           架构说明、协议记录、测试截图和设计资料
 test/           Dart 单元测试与 Widget 测试
 ```
 
+### 关键文档
+
+| 文档 | 内容 |
+| -- | -- |
+| [docs/SUPPORT.md](docs/SUPPORT.md) | **支持范围与限制**（Android 版本、ABI、不承诺的功能、质量门禁） |
+| [SECURITY.md](SECURITY.md) | 漏洞报告流程、凭证卫生、供应链门禁 |
+| [docs/PRIVACY.md](docs/PRIVACY.md) | 数据流、日志边界、WebView 本地存储清单与清理策略 |
+| [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | 合规红线（不绕过鉴权、不碰计费、不上传数据） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构与信任三层模型 |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 版本范围与计划 |
+| [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) | 发布前检查与签名/版本连续性要求 |
+
+版本号只有一处权威来源：`pubspec.yaml` 与 GitHub Releases（`scripts/check-doc-drift.py`
+会在 CI 拦截文档里的版本复述与支持范围漂移）。
+
 ## 测试状态
 
 质量门禁以 CI 为准（不手工维护测试数字）：

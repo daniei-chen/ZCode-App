@@ -6,7 +6,7 @@
 >
 > Built on top of the upstream open-source project [pjpv/zremote](https://github.com/pjpv/zremote): the original "scan-to-import + WebView session" app reworked into a ZCode mobile control client.
 
-ZCode App (v1.0.6) is a mobile companion app for ZCode desktop's mobile remote-control feature. The desktop shows a QR code; scan it once (or paste the control link) to import a device — it stays usable long-term. Multiple machines can be managed in parallel from one UI.
+ZCode App is a mobile companion app for ZCode desktop's mobile remote-control feature. The desktop shows a QR code; scan it once (or paste the control link) to import a device — it stays usable long-term. Multiple machines can be managed in parallel from one UI.
 
 <p align="center">
   <img src="docs/screenshots/device-light.png" width="260" alt="ZCode device management in light mode" />
