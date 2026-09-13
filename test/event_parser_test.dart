@@ -1123,4 +1123,64 @@ void main() {
       expect(ActiveSessionExtractor.parse(body), 'sess_fb');
     });
   });
+
+  group('EventDedupeGate（跨消息幂等，F12）', () {
+    ObservedEvent ev(String type, {String? taskId, String? summary}) =>
+        ObservedEvent(type: type, taskId: taskId, summary: summary);
+
+    test('窗口内同一事件只放行一次，重复投递被抑制', () {
+      final gate = EventDedupeGate();
+      final event = ev('completed', taskId: 't1', summary: '构建完成');
+      expect(gate.allow(event), isTrue);
+      expect(gate.allow(event), isFalse, reason: '重连重放不得重复提醒');
+    });
+
+    test('窗口过期后允许再次提醒，且不同事件不互相抑制', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final gate = EventDedupeGate(window: const Duration(minutes: 2))
+        ..clock = () => now;
+      final event = ev('completed', taskId: 't1', summary: '构建完成');
+      expect(gate.allow(event), isTrue);
+      expect(gate.allow(event), isFalse);
+      now = now.add(const Duration(minutes: 3));
+      expect(gate.allow(event), isTrue, reason: '窗口外是新的提醒');
+      expect(
+        gate.allow(ev('error', taskId: 't1', summary: '构建完成')),
+        isTrue,
+        reason: '不同类型不得互相抑制',
+      );
+      expect(
+        gate.allow(ev('completed', taskId: 't2', summary: '构建完成')),
+        isTrue,
+        reason: '不同任务不得互相抑制',
+      );
+    });
+
+    test('resolved 清理该任务的键：同一任务的新一轮照常提醒（N06）', () {
+      final gate = EventDedupeGate();
+      final request = ev(
+        'permission_request',
+        taskId: 't1',
+        summary: 'npm install',
+      );
+      expect(gate.allow(request), isTrue);
+      expect(gate.allow(request), isFalse);
+      expect(gate.allow(ev('resolved', taskId: 't1')), isTrue);
+      expect(
+        gate.allow(request),
+        isTrue,
+        reason: '用户已处理完上一轮，新请求必须提醒',
+      );
+    });
+
+    test('有界：大量不同事件不会无限增长', () {
+      final gate = EventDedupeGate(maxEntries: 8);
+      for (var i = 0; i < 200; i++) {
+        expect(
+          gate.allow(ev('completed', taskId: 't$i', summary: 's$i')),
+          isTrue,
+        );
+      }
+    });
+  });
 }

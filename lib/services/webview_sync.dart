@@ -31,6 +31,9 @@ class WebViewSyncController {
   final WidgetRef ref;
 
   final StateDiffer _stateDiffer = StateDiffer();
+
+  /// 跨消息幂等（F12）：重连重放/同帧多通道不会重复提醒。
+  final EventDedupeGate _dedupeGate = EventDedupeGate();
   String? _activeSessionId;
 
   void ingestMessage(String body, BuildContext context) {
@@ -102,6 +105,9 @@ class WebViewSyncController {
     final feed = ref.read(eventFeedProvider.notifier);
 
     for (final event in events) {
+      // 跨消息幂等（F12）：同一逻辑事件在窗口内重复到达只提醒一次；
+      // resolved 会清掉该任务的历史键，保证下一轮新请求照常提醒。
+      if (!_dedupeGate.allow(event)) continue;
       final session = event.taskId == null
           ? null
           : ref.read(sessionIndexProvider)[device.id]?[event.taskId];

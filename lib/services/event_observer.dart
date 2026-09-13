@@ -1493,3 +1493,56 @@ abstract final class NotificationGate {
     return !appForeground;
   }
 }
+
+/// 跨消息幂等闸门（F12）。
+///
+/// 一次投递内的重复由 [EventParser.dedupe] 处理；重连重放、同帧多通道投递
+/// 会让同一条逻辑事件跨消息再次到达，这里用一个**有界 + 带窗口**的表抑制它：
+/// - 窗口内完全相同的 (type, taskId, summary) 只放行一次；
+/// - 窗口外允许再次提醒（不压制合法的"新一轮"）；
+/// - 收到 resolved 时清掉该任务的历史键——用户处理完一轮后，
+///   同一任务的新请求必须照常提醒（N06）。
+class EventDedupeGate {
+  EventDedupeGate({
+    this.window = const Duration(minutes: 2),
+    this.maxEntries = 256,
+  });
+
+  final Duration window;
+  final int maxEntries;
+
+  final Map<String, DateTime> _recent = {};
+
+  /// 便于测试注入时钟。
+  DateTime Function() clock = DateTime.now;
+
+  static String keyOf(ObservedEvent event) =>
+      '${event.type}\u0000${event.taskId ?? ''}\u0000${event.summary ?? ''}';
+
+  /// true = 应提醒；false = 窗口内重复，抑制。
+  bool allow(ObservedEvent event) {
+    final now = clock();
+    _recent.removeWhere((_, at) => now.difference(at) >= window);
+    final taskId = event.taskId;
+    if (event.type == 'resolved') {
+      if (taskId != null && taskId.isNotEmpty) {
+        final marker = '\u0000$taskId\u0000';
+        _recent.removeWhere((key, _) => key.contains(marker));
+      }
+      return true;
+    }
+    final key = keyOf(event);
+    final last = _recent[key];
+    if (last != null && now.difference(last) < window) return false;
+    _recent[key] = now;
+    if (_recent.length > maxEntries) {
+      // 有界：按时间丢弃最旧的一半，绝不无限增长。
+      final entries = _recent.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      for (final entry in entries.take(entries.length - maxEntries ~/ 2)) {
+        _recent.remove(entry.key);
+      }
+    }
+    return true;
+  }
+}
