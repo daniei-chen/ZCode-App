@@ -96,5 +96,37 @@ void main() {
       notifier.ingest('d1', ev('resolved'));
       expect(container.read(eventFeedProvider).containsKey('d1'), isFalse);
     });
+
+    test('两个任务同时待批：解决一个不得清掉另一个（F11）', () {
+      final notifier = container.read(eventFeedProvider.notifier);
+      notifier.ingest('d1', ev('permission_request', summary: 'A', taskId: 'a'));
+      notifier.ingest('d1', ev('permission_request', summary: 'B', taskId: 'b'));
+      expect(
+        container.read(eventFeedProvider)['d1']?.pendingTasks,
+        {'a', 'b'},
+      );
+
+      notifier.ingest('d1', ev('resolved', taskId: 'a'));
+      expect(
+        container.read(eventFeedProvider)['d1']?.permPending,
+        isTrue,
+        reason: 'B 仍在等待批准，红点必须保留',
+      );
+
+      notifier.ingest('d1', ev('resolved', taskId: 'b'));
+      expect(
+        container.read(eventFeedProvider)['d1']?.permPending,
+        isFalse,
+        reason: '两个都解决了才落下红点',
+      );
+    });
+
+    test('补充输入类交互同样点亮红点，并按任务消除（F11）', () {
+      final notifier = container.read(eventFeedProvider.notifier);
+      notifier.ingest('d1', ev('elicitation_request', taskId: 't1'));
+      expect(container.read(eventFeedProvider)['d1']?.permPending, isTrue);
+      notifier.ingest('d1', ev('resolved', taskId: 't1'));
+      expect(container.read(eventFeedProvider)['d1']?.permPending, isFalse);
+    });
   });
 }
