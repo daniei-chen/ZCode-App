@@ -224,6 +224,8 @@ void main() {
       ),
       downloadFileName: 'ZCode.apk',
       downloadSize: 5,
+      assetDigest:
+          'sha256:74f81fe167d99b4cb41d6d0ccda82278caee9f3e2f25d5e5a3936ff3dcec60d0',
     );
     final progress = <int>[];
     final client = _StreamingClient((request) async {
@@ -267,8 +269,10 @@ void main() {
           'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
         ),
         downloadFileName: 'ZCode.apk',
-        downloadSize: 5,
-      );
+      downloadSize: 5,
+      assetDigest:
+          'sha256:74f81fe167d99b4cb41d6d0ccda82278caee9f3e2f25d5e5a3936ff3dcec60d0',
+    );
       final rangeHeaders = <String?>[];
       var calls = 0;
       final client = _StreamingClient((request) async {

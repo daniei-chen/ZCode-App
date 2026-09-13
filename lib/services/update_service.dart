@@ -456,6 +456,18 @@ class UpdateService {
     if (uri == null) {
       throw const UpdateDownloadException('该版本没有可下载的 APK');
     }
+    // 服务入口自身强校验（F14/U04）：安全不能依赖"按钮先做过 canDownload
+    // 检查"——直接调用下载服务时同样只接受官方仓库 HTTPS 发布路径（默认
+    // 端口、无 userInfo）且带非空摘要的资产。
+    if (_safeDownloadUri(uri.toString()) == null ||
+        uri.userInfo.isNotEmpty ||
+        uri.port != 443) {
+      throw const UpdateDownloadException('下载地址不在官方发布路径内，已拒绝');
+    }
+    final digest = result.assetDigest;
+    if (digest == null || digest.isEmpty) {
+      throw const UpdateDownloadException('缺少摘要，拒绝下载未经验证的安装包');
+    }
     final declared = result.downloadSize;
     if (declared != null && declared > _maxApkBytes) {
       throw UpdateDownloadException(
