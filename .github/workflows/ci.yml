@@ -28,10 +28,36 @@ jobs:
           cache: true
 
       - run: flutter pub get
+      # PR19/F22：SBOM 生成器的依赖固定在小文件里，用 venv 安装，避免 runner 漂移。
+      - name: Set up pinned SBOM toolchain
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/sbom-venv"
+          "${RUNNER_TEMP}/sbom-venv/bin/pip" install --disable-pip-version-check -q \
+            -r scripts/requirements-sbom.txt
+          echo "SBOM_PYTHON=${RUNNER_TEMP}/sbom-venv/bin/python3" >> "${GITHUB_ENV}"
       - run: flutter analyze
       - run: flutter test
-      # 发布门禁脚本的行为自测（成功 / 篡改摘要 / 缺字段 / attestation 不匹配等负例）。
-      - run: python3 scripts/verify-release-artifacts.py --self-test
+      # 发布门禁脚本的行为自测（成功 / 篡改摘要 / 缺字段 / attestation 不匹配、
+      # SBOM schema/三层覆盖/许可/APK 绑定、OSV 门禁的严重度与例外规则等负例）。
+      # generate-sbom 的自测里还会把夹具 SBOM 交给 verify-release-artifacts 校验，
+      # 防止"生成器改了字段、校验器没跟上"的漂移只在发布时才暴露。
+      - name: Release-gate script self-tests
+        run: |
+          set -euo pipefail
+          "${SBOM_PYTHON}" scripts/verify-release-artifacts.py --self-test
+          "${SBOM_PYTHON}" scripts/generate-sbom.py --self-test
+          "${SBOM_PYTHON}" scripts/check-dependency-advisories.py --self-test
+      # 依赖漏洞门禁（PR 侧）：报告 high/critical，但只在 critical 上阻断，且
+      # OSV 不可达时只告警——避免上游网络抖动卡住日常 PR。发布侧是 fail-closed。
+      # --allow-partial 只允许这里用：CI 没有 APK，只扫 Dart 层；发布校验器仍要求
+      # 完整三层，部分 SBOM 过不了发布门禁。
+      - name: Dependency advisory report (OSV, non-blocking on infra)
+        run: |
+          set -euo pipefail
+          "${SBOM_PYTHON}" scripts/generate-sbom.py --out sbom-ci.json --allow-partial
+          "${SBOM_PYTHON}" scripts/check-dependency-advisories.py \
+            --sbom sbom-ci.json --fail-on critical --soft-fail-if-unreachable
       # 注入脚本（观测钩子 + 跳转脚本）藏在 Dart 字符串里，analyze 覆盖不到：
       # 语法 + 边界行为断言（超限文本不得过桥、非默认端口/跨域 query 不得获得
       # 观察权限、跳转必须回执 found/timeout/superseded 且带主 frame 令牌）。

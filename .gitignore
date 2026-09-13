@@ -58,6 +58,9 @@ lib/l10n/*.dart
 tools/
 artifacts/
 
+# CI 的临时 SBOM（部分清单，仅用于 PR 侧依赖报告）
+sbom-ci.json
+
 # 本地材料：官方产物、交接文档、扫描工具状态，一律不入库
 reference/
 交接文档.md

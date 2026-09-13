@@ -1,0 +1,142 @@
+// 导出 Android release 运行时依赖清单（只读，经 --init-script 注入）。
+//
+// 为什么用 init script 而不是在 app/build.gradle.kts 里加插件：
+//   * 不改动应用的构建脚本，任何人都能单独运行它；
+//   * 不引入第三方 Gradle 插件，解析范围与产物完全由本仓库控制；
+//   * 依赖树/坐标来自 Gradle 自己的解析结果，而不是另一次猜测。
+//
+// 用法（在 android/ 目录下）：
+//   ./gradlew -I ../scripts/sbom/gradle-inventory.gradle zrSbomInventory \
+//       -PzrSbomOut=../build/sbom/gradle-inventory.json
+//
+// 产物是 JSON：{ gradle, configuration, artifacts[], edges[] }
+//   artifacts: { group, name, version, file, sha256, size }
+//   edges:     { from, to }（坐标三元组，供 CycloneDX dependencies 使用）
+
+import java.security.MessageDigest
+import groovy.json.JsonOutput
+
+def cliProps = gradle.startParameter.projectProperties
+def outPath = (cliProps['zrSbomOut'] ?: 'gradle-inventory.json').toString()
+def configurationName =
+    (cliProps['zrSbomConfiguration'] ?: 'releaseRuntimeClasspath').toString()
+
+def sha256Of = { File file ->
+  if (file == null || !file.isFile()) return null
+  def digest = MessageDigest.getInstance('SHA-256')
+  file.withInputStream { stream ->
+    byte[] buffer = new byte[65536]
+    int read
+    while ((read = stream.read(buffer)) > 0) {
+      digest.update(buffer, 0, read)
+    }
+  }
+  return digest.digest().collect { String.format('%02x', it) }.join()
+}
+
+def coordinatesOf = { id ->
+  // ModuleComponentIdentifier 才有 group/module/version。
+  def cls = id.getClass().getName()
+  if (cls.contains('ModuleComponentIdentifier')) {
+    return [group: id.group, name: id.module, version: id.version]
+  }
+  return null
+}
+
+gradle.projectsEvaluated {
+  // init script 也会作用到 included build（flutter_tools/gradle 自带的构建），
+  // 那里没有 :app 模块——静默跳过，只在真正的应用构建里注册任务。
+  def app = gradle.rootProject.findProject(':app')
+  if (app == null) {
+    logger.info('zrSbomInventory: 本项目没有 :app 模块，跳过注册')
+    return
+  }
+  def task = app.tasks.register('zrSbomInventory') {
+    group = 'verification'
+    description = '把 release 运行时依赖解析结果导出为 JSON（SBOM 输入）'
+    doLast {
+      def configuration = app.configurations.findByName(configurationName)
+      if (configuration == null) {
+        throw new GradleException("配置 ${configurationName} 不存在")
+      }
+      if (!configuration.canBeResolved) {
+        throw new GradleException("配置 ${configurationName} 不可解析")
+      }
+
+      def view = configuration.incoming.artifactView { it.lenient(true) }
+      def artifacts = []
+      def seen = new LinkedHashSet()
+      def skipped = []
+      view.artifacts.artifacts.each { artifact ->
+        def coords = coordinatesOf(artifact.id.componentIdentifier)
+        if (coords == null) {
+          skipped << artifact.id.componentIdentifier.displayName
+          return
+        }
+        def key = "${coords.group}:${coords.name}:${coords.version}"
+        if (!seen.add(key)) return
+        def file = artifact.file
+        artifacts << ([
+          group: coords.group,
+          name: coords.name,
+          version: coords.version,
+          file: file == null ? null : file.name,
+          sha256: sha256Of(file),
+          size: file == null || !file.isFile() ? null : file.length()
+        ])
+      }
+
+      def edges = []
+      def edgeSeen = new LinkedHashSet()
+      def unresolved = []
+      try {
+        configuration.incoming.resolutionResult.allComponents.each { component ->
+          // 根组件是工程本身（ProjectComponentIdentifier），不是 Maven 模块：
+          // 它到直接依赖的边同样要记，否则 SBOM 里"应用直接依赖谁"就断了。
+          def from = coordinatesOf(component.id)
+          def fromRoot = from == null &&
+              component.id.getClass().getName().contains('ProjectComponentIdentifier')
+          if (from == null && !fromRoot) return
+          component.dependencies.each { dependency ->
+            // 只用"解析成功"的边：请求版本与实际选中版本可能不同。
+            if (!(dependency instanceof org.gradle.api.artifacts.result.ResolvedDependencyResult)) {
+              unresolved << dependency.requested.displayName
+              return
+            }
+            def to = coordinatesOf(dependency.selected.id)
+            if (to == null) return
+            def edge = [from: fromRoot ? [root: true] : from, to: to]
+            def key = "${fromRoot ? 'ROOT' : "${from.group}:${from.name}:${from.version}"}" +
+                "->${to.group}:${to.name}:${to.version}"
+            if (edgeSeen.add(key)) edges << edge
+          }
+        }
+      } catch (Exception error) {
+        // 解析图不完整不应让整条发布链失败在这里：清单缺边会在 Dart/Python 侧
+        // 被记录为"无依赖图"，但仍能回答 APK 里有什么。
+        logger.warn("zrSbomInventory: 依赖图导出不完整：${error.message}")
+      }
+
+      def payload = [
+        gradle: gradle.gradleVersion,
+        java: System.getProperty('java.version'),
+        configuration: configurationName,
+        artifacts: artifacts.sort { a, b ->
+          "${a.group}:${a.name}".compareTo("${b.group}:${b.name}")
+        },
+        edges: edges,
+        unresolvedRequests: unresolved.unique(),
+        nonModuleComponents: skipped.unique()
+      ]
+
+      def out = new File(outPath)
+      if (!out.isAbsolute()) {
+        out = new File(app.projectDir, outPath)
+      }
+      out.parentFile?.mkdirs()
+      out.text = JsonOutput.prettyPrint(JsonOutput.toJson(payload)) + '\n'
+      logger.lifecycle("zrSbomInventory: ${artifacts.size()} 个构件 / ${edges.size()} 条依赖边 → ${out}")
+    }
+  }
+  task
+}

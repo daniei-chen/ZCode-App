@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""发布资产校验（v1.1.0 / PR18*）：manifest schema、digest 一致性、attestation 交叉核对。
+"""发布资产校验（v1.1.0 / PR18* + PR19）：manifest schema、digest 一致性、
+attestation 交叉核对、SBOM 完整性与"SBOM ↔ APK"绑定。
 
 用法：
   python3 scripts/verify-release-artifacts.py --dir <目录> --version <x.y.z> [--attestation-json <file>]
+  python3 scripts/verify-release-artifacts.py --dir <目录> --version <x.y.z> --sbom <sbom.json>
   python3 scripts/verify-release-artifacts.py --self-test
 
 `--dir` 必须包含：
@@ -14,7 +16,10 @@
   2. manifest.version == --version；apk.fileName == 期望文件名；
   3. 重新计算的 APK SHA-256 == sidecar == manifest.apk.sha256（大小写不敏感）；
   4. manifest 声明的 SBOM 文件存在；
-  5. 传入 --attestation-json 时：attestation 主题名与 sha256 必须与 APK 一致。
+  5. 传入 --attestation-json 时：attestation 主题名与 sha256 必须与 APK 一致；
+  6. 传入 --sbom 时：SBOM 符合 scripts/sbom.schema.json，且三层清单（dart/maven/
+     native）都有内容、bom-ref 唯一、依赖引用可解析、每个组件都有许可声明、
+     原生库都带哈希，并且 SBOM 里记录的 APK SHA-256 与实际 APK 一致。
 """
 from __future__ import annotations
 
@@ -29,6 +34,7 @@ import tempfile
 from pathlib import Path
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "release-manifest.schema.json"
+SBOM_SCHEMA_PATH = Path(__file__).resolve().parent / "sbom.schema.json"
 
 
 # ---------------------------------------------------------------- schema subset
@@ -131,10 +137,103 @@ def attestation_subjects(data: object) -> list[dict]:
     return subjects
 
 
+# ---------------------------------------------------------------- sbom checks
+
+
+def check_sbom(sbom_path: Path, version: str, apk_digest: str | None = None) -> list[str]:
+    """SBOM 结构与语义校验（F22）：schema + 三层清单 + 依赖图 + 许可 + APK 绑定。"""
+    errors: list[str] = []
+    if not sbom_path.is_file():
+        return [f"sbom not found: {sbom_path}"]
+    try:
+        sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return [f"sbom is not valid JSON: {exc}"]
+    try:
+        schema = json.loads(SBOM_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return [f"cannot load schema {SBOM_SCHEMA_PATH}: {exc}"]
+
+    errors.extend(f"sbom schema: {message}" for message in validate(sbom, schema))
+
+    metadata = sbom.get("metadata") or {}
+    root = metadata.get("component") or {}
+    if root.get("version") != version:
+        errors.append(f"sbom root version {root.get('version')!r} != expected {version!r}")
+
+    properties = {
+        str(entry.get("name")): str(entry.get("value"))
+        for entry in metadata.get("properties") or []
+        if isinstance(entry, dict)
+    }
+    for layer in ("zcode.inventory.dart", "zcode.inventory.maven", "zcode.inventory.native"):
+        raw = properties.get(layer)
+        if raw is None:
+            errors.append(f"sbom metadata 缺 {layer}（三层清单必须都有计数）")
+        else:
+            try:
+                if int(raw) <= 0:
+                    errors.append(f"sbom {layer} 为 {raw}，对应清单是空的")
+            except ValueError:
+                errors.append(f"sbom {layer} 不是整数: {raw!r}")
+
+    components = sbom.get("components") or []
+    refs: list[str] = []
+    for component in components:
+        ref = component.get("bom-ref")
+        if isinstance(ref, str):
+            refs.append(ref)
+        license_entries = component.get("licenses") or []
+        for entry in license_entries:
+            body = entry.get("license") or {}
+            if not (body.get("id") or body.get("name")):
+                errors.append(f"{component.get('name')}: 许可条目既无 id 也无 name")
+        properties_of = {
+            str(item.get("name")): str(item.get("value"))
+            for item in component.get("properties") or []
+            if isinstance(item, dict)
+        }
+        if properties_of.get("zcode.inventory") == "apk:lib":
+            algs = {str(item.get("alg")) for item in component.get("hashes") or []}
+            if "SHA-256" not in algs:
+                errors.append(f"{component.get('name')}: APK 原生库缺 SHA-256")
+
+    duplicates = sorted({ref for ref in refs if refs.count(ref) > 1})
+    if duplicates:
+        errors.append(f"sbom 有重复 bom-ref: {duplicates[:3]}")
+
+    known = set(refs) | {root.get("bom-ref")}
+    for entry in sbom.get("dependencies") or []:
+        if entry.get("ref") not in known:
+            errors.append(f"sbom dependencies 引用了未知组件: {entry.get('ref')}")
+        for target in entry.get("dependsOn") or []:
+            if target not in known:
+                errors.append(f"sbom dependsOn 引用了未知组件: {target}")
+
+    if apk_digest:
+        declared = {
+            str(item.get("content")).lower()
+            for item in root.get("hashes") or []
+            if str(item.get("alg")) == "SHA-256"
+        }
+        if not declared:
+            errors.append("sbom 根组件缺 APK SHA-256（无法把 SBOM 绑定到这次发布的 APK）")
+        elif apk_digest.lower() not in declared:
+            errors.append(
+                f"sbom 记录的 APK 摘要与实际 APK 不一致: {sorted(declared)} != {apk_digest.lower()}"
+            )
+    return errors
+
+
 # ---------------------------------------------------------------- checks
 
 
-def check_dir(directory: Path, version: str, attestation: Path | None = None) -> list[str]:
+def check_dir(
+    directory: Path,
+    version: str,
+    attestation: Path | None = None,
+    sbom: Path | None = None,
+) -> list[str]:
     errors: list[str] = []
     apk_name = f"ZCode-v{version}.apk"
     apk_path = directory / apk_name
@@ -179,9 +278,9 @@ def check_dir(directory: Path, version: str, attestation: Path | None = None) ->
     elif sidecar.lower() != actual:
         errors.append(f"sidecar sha256 mismatch: {sidecar.lower()} != computed {actual}")
 
-    sbom = manifest.get("sbom")
-    if isinstance(sbom, str) and sbom and not (directory / sbom).is_file():
-        errors.append(f"declared sbom missing on disk: {sbom}")
+    declared_sbom = manifest.get("sbom")
+    if isinstance(declared_sbom, str) and declared_sbom and not (directory / declared_sbom).is_file():
+        errors.append(f"declared sbom missing on disk: {declared_sbom}")
 
     if attestation is not None:
         try:
@@ -204,6 +303,9 @@ def check_dir(directory: Path, version: str, attestation: Path | None = None) ->
                     errors.append(
                         f"attestation subject does not match {apk_name} @ {actual} (subjects: {names})"
                     )
+
+    if sbom is not None:
+        errors.extend(check_sbom(sbom, version, apk_digest=actual))
     return errors
 
 
@@ -250,6 +352,84 @@ def _attestation_fixture(path: Path, apk_name: str, digest: str) -> None:
         "attestation": {},
     }
     path.write_text(json.dumps([entry]), encoding="utf-8")
+
+
+def _sbom_fixture(apk_digest: str, version: str = "9.9.9") -> dict:
+    """一份结构完整的最小 SBOM：三层清单都有内容、依赖图可解析、许可齐备。"""
+    components = []
+    for index in range(21):
+        components.append(
+            {
+                "type": "library",
+                "bom-ref": f"pkg:pub/pkg-{index}@1.0.0",
+                "name": f"pkg-{index}",
+                "version": "1.0.0",
+                "purl": f"pkg:pub/pkg-{index}@1.0.0",
+                "scope": "required",
+                "licenses": [{"license": {"id": "MIT"}}],
+                "properties": [{"name": "zcode.inventory", "value": "pubspec.lock"}],
+            }
+        )
+    components.append(
+        {
+            "type": "library",
+            "bom-ref": "pkg:maven/androidx.core/core@1.13.0",
+            "name": "core",
+            "version": "1.13.0",
+            "purl": "pkg:maven/androidx.core/core@1.13.0",
+            "scope": "required",
+            "licenses": [{"license": {"id": "Apache-2.0"}}],
+            "properties": [{"name": "zcode.inventory", "value": "gradle:releaseRuntimeClasspath"}],
+        }
+    )
+    components.append(
+        {
+            "type": "library",
+            "bom-ref": "pkg:generic/libapp.so@9.9.9?abi=arm64-v8a",
+            "name": "libapp.so",
+            "version": version,
+            "purl": "pkg:generic/libapp.so@9.9.9?abi=arm64-v8a",
+            "scope": "required",
+            "licenses": [{"license": {"id": "MIT"}}],
+            "hashes": [{"alg": "SHA-256", "content": "e" * 64}],
+            "properties": [{"name": "zcode.inventory", "value": "apk:lib"}],
+        }
+    )
+    root_ref = f"pkg:generic/zcode-app@{version}?packaging=apk"
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "version": 1,
+        "metadata": {
+            "timestamp": "2026-09-13T00:00:00Z",
+            "component": {
+                "type": "application",
+                "bom-ref": root_ref,
+                "name": "ZCode App",
+                "version": version,
+                "purl": root_ref,
+                "licenses": [{"license": {"id": "MIT"}}],
+                "hashes": [{"alg": "SHA-256", "content": apk_digest}],
+            },
+            "tools": {
+                "components": [
+                    {"type": "application", "name": "python", "version": "3.12.10"},
+                    {"type": "application", "name": "PyYAML", "version": "6.0.2"},
+                    {"type": "application", "name": "gradle", "version": "8.14"},
+                    {"type": "application", "name": "flutter", "version": "3.47.3"},
+                ]
+            },
+            "properties": [
+                {"name": "zcode.inventory.dart", "value": "21"},
+                {"name": "zcode.inventory.maven", "value": "1"},
+                {"name": "zcode.inventory.native", "value": "1"},
+                {"name": "zcode.package", "value": "com.zcode.app"},
+            ],
+        },
+        "components": components,
+        "dependencies": [{"ref": root_ref, "dependsOn": ["pkg:pub/pkg-0@1.0.0"]}]
+        + [{"ref": component["bom-ref"], "dependsOn": []} for component in components],
+    }
 
 
 def run_self_test() -> int:
@@ -324,6 +504,93 @@ def run_self_test() -> int:
             should_fail=True,
         )
 
+        # SBOM：正例 + 各种负例
+        good_sbom = root / "sbom-good.json"
+        good_sbom.write_text(json.dumps(_sbom_fixture(digest, version)), encoding="utf-8")
+        expect(
+            "valid sbom passes",
+            check_sbom(good_sbom, version, apk_digest=digest),
+            should_fail=False,
+        )
+        expect(
+            "sbom bound to a different apk fails",
+            check_sbom(good_sbom, version, apk_digest="f" * 64),
+            should_fail=True,
+        )
+
+        bad_sbom = root / "sbom-wrong-version.json"
+        bad_sbom.write_text(json.dumps(_sbom_fixture(digest, "1.2.3")), encoding="utf-8")
+        expect(
+            "sbom version mismatch fails",
+            check_sbom(bad_sbom, version, apk_digest=digest),
+            should_fail=True,
+        )
+
+        data = _sbom_fixture(digest, version)
+        data["metadata"]["properties"] = [
+            entry for entry in data["metadata"]["properties"] if entry["name"] != "zcode.inventory.native"
+        ]
+        missing_layer = root / "sbom-missing-layer.json"
+        missing_layer.write_text(json.dumps(data), encoding="utf-8")
+        expect(
+            "sbom without the native layer fails",
+            check_sbom(missing_layer, version),
+            should_fail=True,
+        )
+
+        data = _sbom_fixture(digest, version)
+        data["components"][0].pop("licenses", None)
+        no_license = root / "sbom-no-license.json"
+        no_license.write_text(json.dumps(data), encoding="utf-8")
+        expect(
+            "sbom component without licenses fails",
+            check_sbom(no_license, version),
+            should_fail=True,
+        )
+
+        data = _sbom_fixture(digest, version)
+        data["dependencies"].append({"ref": "pkg:pub/ghost@0.0.1", "dependsOn": []})
+        dangling = root / "sbom-dangling.json"
+        dangling.write_text(json.dumps(data), encoding="utf-8")
+        expect(
+            "sbom with a dangling dependency ref fails",
+            check_sbom(dangling, version),
+            should_fail=True,
+        )
+
+        data = _sbom_fixture(digest, version)
+        for component in data["components"]:
+            if component["name"] == "libapp.so":
+                component.pop("hashes", None)
+        no_hash = root / "sbom-native-no-hash.json"
+        no_hash.write_text(json.dumps(data), encoding="utf-8")
+        expect(
+            "sbom native library without a hash fails",
+            check_sbom(no_hash, version),
+            should_fail=True,
+        )
+
+        data = _sbom_fixture(digest, version)
+        data["components"][0]["purl"] = "https://example.invalid/pkg"
+        bad_purl = root / "sbom-bad-purl.json"
+        bad_purl.write_text(json.dumps(data), encoding="utf-8")
+        expect(
+            "sbom with a non-purl reference fails",
+            check_sbom(bad_purl, version),
+            should_fail=True,
+        )
+
+        expect(
+            "sbom integrated into check_dir passes",
+            check_dir(root, version, sbom=good_sbom),
+            should_fail=False,
+        )
+        expect(
+            "check_dir with a tampered sbom fails",
+            check_dir(root, version, sbom=no_hash),
+            should_fail=True,
+        )
+
     failed = [name for name, passed in cases if not passed]
     print(f"self-test: {len(cases) - len(failed)}/{len(cases)} passed")
     return 1 if failed else 0
@@ -337,6 +604,7 @@ def main() -> int:
     parser.add_argument("--dir", help="directory containing the release assets")
     parser.add_argument("--version", help="expected version, e.g. 1.1.0")
     parser.add_argument("--attestation-json", help="output of `gh attestation verify --format json`")
+    parser.add_argument("--sbom", help="SBOM to validate (schema + coverage + APK binding)")
     parser.add_argument("--self-test", action="store_true", help="run built-in positive/negative cases")
     args = parser.parse_args()
 
@@ -350,7 +618,8 @@ def main() -> int:
         print(f"not a directory: {directory}", file=sys.stderr)
         return 1
     attestation = Path(args.attestation_json) if args.attestation_json else None
-    errors = check_dir(directory, args.version, attestation=attestation)
+    sbom = Path(args.sbom) if args.sbom else None
+    errors = check_dir(directory, args.version, attestation=attestation, sbom=sbom)
     if errors:
         for message in errors:
             print(f"FAIL: {message}", file=sys.stderr)
@@ -358,6 +627,7 @@ def main() -> int:
     print(
         f"OK: {directory} — manifest schema, version, sidecar and digests consistent"
         + (", attestation subject verified" if attestation else "")
+        + (", sbom schema + coverage + apk binding verified" if sbom else "")
     )
     return 0
 

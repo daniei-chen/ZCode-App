@@ -1,0 +1,4 @@
+# SBOM 生成器的固定依赖（PR19 / F22）。
+# 审计指出旧 workflow 没有固定 PyYAML 版本：同一份 pubspec.lock 在不同 runner
+# 上可能得到不同的解析结果。这里写死版本，由 workflow 用 venv 安装。
+PyYAML==6.0.2

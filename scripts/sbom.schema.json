@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ZCode App SBOM（CycloneDX 1.5 受支持子集）",
+  "description": "由 scripts/generate-sbom.py 生成，由 scripts/verify-release-artifacts.py --sbom 校验；只声明我们真正产出的字段。",
+  "type": "object",
+  "required": ["bomFormat", "specVersion", "version", "metadata", "components", "dependencies"],
+  "properties": {
+    "bomFormat": { "const": "CycloneDX" },
+    "specVersion": { "enum": ["1.5", "1.6"] },
+    "version": { "type": "integer", "minimum": 1 },
+    "metadata": {
+      "type": "object",
+      "required": ["component", "tools", "properties"],
+      "properties": {
+        "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T" },
+        "component": {
+          "type": "object",
+          "required": ["type", "bom-ref", "name", "version", "licenses"],
+          "properties": {
+            "type": { "const": "application" },
+            "bom-ref": { "type": "string", "minLength": 8 },
+            "name": { "const": "ZCode App" },
+            "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+            "purl": { "type": "string", "pattern": "^pkg:" }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "required": ["components"],
+          "properties": {
+            "components": {
+              "type": "array",
+              "minItems": 4,
+              "items": {
+                "type": "object",
+                "required": ["type", "name", "version"],
+                "properties": {
+                  "type": { "type": "string" },
+                  "name": { "type": "string", "minLength": 2 },
+                  "version": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "properties": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["name", "value"],
+            "properties": {
+              "name": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["type", "bom-ref", "name", "version", "purl", "scope", "licenses"],
+        "properties": {
+          "type": { "enum": ["library", "framework", "application", "file"] },
+          "bom-ref": { "type": "string", "minLength": 4 },
+          "name": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 },
+          "purl": { "type": "string", "pattern": "^pkg:(pub|maven|generic)/" },
+          "scope": { "enum": ["required", "optional", "excluded"] },
+          "licenses": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["license"],
+              "properties": {
+                "license": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["ref"],
+        "properties": {
+          "ref": { "type": "string", "minLength": 4 },
+          "dependsOn": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 4 }
+          }
+        }
+      }
+    }
+  }
+}

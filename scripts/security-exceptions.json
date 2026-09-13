@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "description": "依赖漏洞门禁的例外清单（scripts/check-dependency-advisories.py）。每条必须带 reason 与 expires（UTC 日期，形如 2026-12-31）；过期的例外会让门禁失败，避免临时豁免永久留存。id 可以是 advisory id（OSV-XXXX-XXXX）或组件 purl，用 purl 字段可进一步限定到具体组件。",
+  "exceptions": []
+}

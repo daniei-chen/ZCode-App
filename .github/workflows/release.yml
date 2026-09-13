@@ -131,6 +131,16 @@ jobs:
           cache: true
 
       - run: flutter pub get
+      # PR19/F22：SBOM 依赖 PyYAML，版本必须固定（venv 安装，避免 runner 漂移）。
+      - name: Set up pinned SBOM toolchain
+        run: |
+          set -euo pipefail
+          python3 -m venv "${RUNNER_TEMP}/sbom-venv"
+          "${RUNNER_TEMP}/sbom-venv/bin/pip" install --disable-pip-version-check -q \
+            -r scripts/requirements-sbom.txt
+          echo "SBOM_PYTHON=${RUNNER_TEMP}/sbom-venv/bin/python3" >> "${GITHUB_ENV}"
+          "${RUNNER_TEMP}/sbom-venv/bin/python3" -c \
+            "import yaml; print('pinned PyYAML', yaml.__version__)"
       - run: flutter analyze
       - run: flutter test
 
@@ -176,12 +186,28 @@ jobs:
           echo "APK_SIGNER_SHA256=${SIGNER}" >> "${GITHUB_ENV}"
           echo "signer continuity OK: ${SIGNER}"
 
+      # PR19/F22：release 运行时依赖清单（只读）。用 init script 注入，不改动
+      # 应用构建脚本，也不引入第三方 Gradle 插件；必须趁签名材料还在时运行
+      # （release 变体的配置本身要求 keystore 存在）。
+      - name: Export Gradle runtime dependency inventory
+        run: |
+          set -euo pipefail
+          mkdir -p build/sbom
+          # gradlew 在仓库里没有可执行位（Windows 检出），显式用 sh 调用。
+          (cd android && sh ./gradlew \
+            -I "${GITHUB_WORKSPACE}/scripts/sbom/gradle-inventory.gradle" \
+            zrSbomInventory \
+            -PzrSbomOut="${GITHUB_WORKSPACE}/build/sbom/gradle-inventory.json" \
+            --console=plain)
+          test -s build/sbom/gradle-inventory.json
+
       # PR18*：签名密钥只在本作业内存在，构建完成后立即从工作区移除。
       - name: Remove signing material from the workspace
         if: always()
         run: rm -f android/app/zcode-app-release.jks android/key.properties
-
       # 资产名遵循应用内更新器的确定性契约：ZCode-v<version>.apk。
+      # PR19/F22：SBOM 合并三层清单（Dart lock + Gradle release 运行时 + APK 原生库），
+      # 并把这次 APK 的 SHA-256 写进 SBOM 根组件，使"SBOM ↔ 这份 APK"可核对。
       - name: Package candidate assets, SBOM and release manifest
         id: package
         run: |
@@ -190,11 +216,24 @@ jobs:
           cd build/app/outputs/flutter-apk
           cp app-release.apk "ZCode-v${VERSION}.apk"
           sha256sum "ZCode-v${VERSION}.apk" > "ZCode-v${VERSION}.apk.sha256"
-          python3 "${GITHUB_WORKSPACE}/scripts/generate-sbom.py" > "ZCode-v${VERSION}.sbom.cyclonedx.json"
-          FLUTTER_VERSION=$(flutter --version --machine | python3 -c \
+          FLUTTER_JSON=$(flutter --version --machine)
+          FLUTTER_VERSION=$(printf '%s' "${FLUTTER_JSON}" | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('frameworkVersion','unknown'))")
-          DART_VERSION=$(flutter --version --machine | python3 -c \
+          DART_VERSION=$(printf '%s' "${FLUTTER_JSON}" | python3 -c \
             "import json,sys; print(json.load(sys.stdin).get('dartSdkVersion','unknown'))")
+          ENGINE_REVISION=$(printf '%s' "${FLUTTER_JSON}" | python3 -c \
+            "import json,sys; print(json.load(sys.stdin).get('engineRevision',''))")
+          AGP_VERSION=$(grep -oE 'com\.android\.application"\) version "[0-9.]+' \
+            "${GITHUB_WORKSPACE}/android/settings.gradle.kts" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          "${SBOM_PYTHON}" "${GITHUB_WORKSPACE}/scripts/generate-sbom.py" \
+            --out "ZCode-v${VERSION}.sbom.cyclonedx.json" \
+            --version "${VERSION}" \
+            --gradle-inventory "${GITHUB_WORKSPACE}/build/sbom/gradle-inventory.json" \
+            --apk "ZCode-v${VERSION}.apk" \
+            --flutter-version "${FLUTTER_VERSION}" \
+            --dart-version "${DART_VERSION}" \
+            --engine-revision "${ENGINE_REVISION}" \
+            --agp-version "${AGP_VERSION}"
           VERSION_CODE=$(grep -E '^version:' "${GITHUB_WORKSPACE}/pubspec.yaml" | sed -E 's/.*\+([0-9]+).*/\1/')
           MANIFEST_VERSION="${VERSION}" \
           MANIFEST_VERSION_CODE="${VERSION_CODE}" \
@@ -208,11 +247,14 @@ jobs:
           python3 "${GITHUB_WORKSPACE}/scripts/generate-release-manifest.py" > release-manifest.json
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
-      - name: Validate manifest and digest consistency
+      - name: Validate manifest, digest consistency and SBOM coverage
         run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
           python3 scripts/verify-release-artifacts.py \
             --dir build/app/outputs/flutter-apk \
-            --version "${GITHUB_REF_NAME#v}"
+            --version "${VERSION}" \
+            --sbom "build/app/outputs/flutter-apk/ZCode-v${VERSION}.sbom.cyclonedx.json"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -252,11 +294,22 @@ jobs:
             exit 1
           fi
 
-      - name: Validate manifest and digest consistency
+      - name: Validate manifest, digest consistency and SBOM coverage
         run: |
+          set -euo pipefail
           python3 scripts/verify-release-artifacts.py \
             --dir dist \
-            --version "${GITHUB_REF_NAME#v}"
+            --version "${GITHUB_REF_NAME#v}" \
+            --sbom "dist/ZCode-v${GITHUB_REF_NAME#v}.sbom.cyclonedx.json"
+
+      # PR19/F22 依赖门禁：SBOM 里每个随包发布的组件都过一遍 OSV，
+      # high/critical 未豁免即拒绝发布（发布阶段 fail-closed，网络不可达也算失败：
+      # 不允许在"未知依赖状态"下发版；重跑 workflow 即可）。
+      - name: Dependency advisory gate (OSV)
+        run: |
+          python3 scripts/check-dependency-advisories.py \
+            --sbom "dist/ZCode-v${GITHUB_REF_NAME#v}.sbom.cyclonedx.json" \
+            --fail-on high
 
       # APK 产物来源证明——用户可用 `gh attestation verify` 验证这个 APK 由本仓库构建。
       - name: Attest APK build provenance
