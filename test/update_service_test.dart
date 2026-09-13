@@ -490,4 +490,156 @@ void main() {
 
     expect(result.status, UpdateCheckStatus.failed);
   });
+
+  group('出站 URL 策略（重定向逐跳校验）', () {
+    final apkBytes = [1, 2, 3, 4, 5];
+    final digest = sha256.convert(apkBytes).toString();
+
+    UpdateCheckResult resultFor(Uri downloadUri) => UpdateCheckResult(
+      status: UpdateCheckStatus.updateAvailable,
+      latestVersion: '1.1.0',
+      releaseUri: Uri.parse(
+        'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.1.0',
+      ),
+      downloadUri: downloadUri,
+      assetDigest: digest,
+      downloadFileName: 'ZCode-v1.1.0.apk',
+      downloadSize: apkBytes.length,
+      currentVersion: '1.0.0',
+    );
+
+    final officialUri = Uri.parse(
+      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.1.0/ZCode-v1.1.0.apk',
+    );
+
+    test('重定向到非白名单地址 → 拒绝下载（不跟随、不落盘）', () async {
+      final directory = await Directory.systemTemp.createTemp('zremote-policy');
+      var hitEvilHost = false;
+      final client = MockClient((request) async {
+        if (request.url.host == 'evil.com') {
+          hitEvilHost = true;
+          return http.Response.bytes(apkBytes, 200);
+        }
+        return http.Response(
+          '',
+          302,
+          headers: {'location': 'https://evil.com/ZCode-v1.1.0.apk'},
+        );
+      });
+      try {
+        await expectLater(
+          UpdateService.instance.downloadApk(
+            resultFor(officialUri),
+            client: client,
+            directory: directory,
+          ),
+          throwsA(isA<UpdateDownloadException>()),
+        );
+        expect(hitEvilHost, isFalse, reason: '被拒绝的重定向目标不得被请求');
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
+    test('重定向到私网地址 → 拒绝下载（不请求私网）', () async {
+      final directory = await Directory.systemTemp.createTemp('zremote-policy');
+      var hitPrivate = false;
+      final client = MockClient((request) async {
+        if (request.url.host == '10.0.0.5') {
+          hitPrivate = true;
+          return http.Response.bytes(apkBytes, 200);
+        }
+        return http.Response(
+          '',
+          302,
+          headers: {'location': 'https://10.0.0.5/ZCode-v1.1.0.apk'},
+        );
+      });
+      try {
+        await expectLater(
+          UpdateService.instance.downloadApk(
+            resultFor(officialUri),
+            client: client,
+            directory: directory,
+          ),
+          throwsA(isA<UpdateDownloadException>()),
+        );
+        expect(hitPrivate, isFalse, reason: '私网地址不得被请求');
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
+    test('重定向到发布资产 CDN（白名单内）→ 跟随并完成下载', () async {
+      final directory = await Directory.systemTemp.createTemp('zremote-policy');
+      final client = MockClient((request) async {
+        if (request.url.host == 'objects.githubusercontent.com') {
+          return http.Response.bytes(apkBytes, 200);
+        }
+        return http.Response(
+          '',
+          302,
+          headers: {
+            'location':
+                'https://objects.githubusercontent.com/github-production-release-asset/x?sig=y',
+          },
+        );
+      });
+      try {
+        final file = await UpdateService.instance.downloadApk(
+          resultFor(officialUri),
+          client: client,
+          directory: directory,
+        );
+        expect(await file.readAsBytes(), apkBytes);
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
+    test('下载入口拒绝非官方 host（策略 + 精确路径双重校验）', () async {
+      final directory = await Directory.systemTemp.createTemp('zremote-policy');
+      final client = MockClient(
+        (request) async => http.Response.bytes(apkBytes, 200),
+      );
+      try {
+        await expectLater(
+          UpdateService.instance.downloadApk(
+            resultFor(Uri.parse('https://evil.com/ZCode-v1.1.0.apk')),
+            client: client,
+            directory: directory,
+          ),
+          throwsA(isA<UpdateDownloadException>()),
+        );
+      } finally {
+        await deleteDirEventually(directory);
+      }
+    });
+
+    test('检查更新：发布页重定向到私网地址 → 不跟随（走失败分支）', () async {
+      var hitPrivate = false;
+      final client = MockClient((request) async {
+        if (request.url.host == '192.168.1.1') {
+          hitPrivate = true;
+          return http.Response('', 200);
+        }
+        if (request.url == UpdateService.latestReleaseApi) {
+          throw const SocketException('api down');
+        }
+        return http.Response(
+          '',
+          302,
+          headers: {'location': 'https://192.168.1.1/releases/tag/v1.1.0'},
+        );
+      });
+
+      final result = await UpdateService.instance.checkForUpdate(
+        client: client,
+        currentVersion: '1.0.0',
+      );
+
+      expect(result.status, UpdateCheckStatus.failed);
+      expect(hitPrivate, isFalse, reason: '私网重定向目标不得被请求');
+    });
+  });
 }

@@ -49,6 +49,7 @@ enum LogEvent {
   // 更新
   updateCheckFailed('UP600'),
   updateDownloadRejected('UP601'),
+  updateOutboundBlocked('UP602'),
 
   // 本地状态
   deviceStoreUnavailable('DS700'),

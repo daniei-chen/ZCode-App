@@ -10,6 +10,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'app_log.dart';
+import 'outbound_url_policy.dart';
+import 'structured_log.dart';
 import 'update_installer.dart';
 
 enum UpdateCheckStatus { upToDate, updateAvailable, noRelease, failed }
@@ -240,16 +243,41 @@ class UpdateService {
     Duration timeout, {
     bool followRedirects = true,
   }) async {
-    final request = http.Request('GET', uri)
-      ..headers.addAll({
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'ZCode-App/$current',
-      })
-      ..followRedirects = followRedirects
-      ..maxRedirects = followRedirects ? 5 : 0;
-    return http.Response.fromStream(
-      await client.send(request).timeout(timeout),
-    ).timeout(timeout);
+    final reason = OutboundUrlPolicy.rejectionReason(uri);
+    if (reason != null) {
+      AppLog.event(LogEvent.updateOutboundBlocked, level: LogLevel.warn, fields: {
+        LogField.reason: reason,
+      });
+      throw StateError('blocked outbound url: $reason');
+    }
+    // 客户端自动跟随重定向会绕过白名单（只校验了第一跳）：这里改为手动逐跳校验。
+    var hopUri = uri;
+    for (var hop = 0; hop <= OutboundUrlPolicy.maxRedirects; hop++) {
+      final request = http.Request('GET', hopUri)
+        ..headers.addAll({
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'ZCode-App/$current',
+        })
+        ..followRedirects = false
+        ..maxRedirects = 0;
+      final response = await http.Response.fromStream(
+        await client.send(request).timeout(timeout),
+      ).timeout(timeout);
+      final isRedirect = response.statusCode >= 300 && response.statusCode < 400;
+      if (!isRedirect || !followRedirects) return response;
+      final next = OutboundUrlPolicy.resolveRedirect(
+        hopUri,
+        response.headers['location'],
+      );
+      if (next == null) {
+        AppLog.event(LogEvent.updateOutboundBlocked, level: LogLevel.warn, fields: {
+          LogField.reason: 'redirect_not_allowed',
+        });
+        throw StateError('blocked redirect target');
+      }
+      hopUri = next;
+    }
+    throw StateError('too many redirects');
   }
 
   Future<UpdateCheckResult> _checkReleasePage(
@@ -461,7 +489,8 @@ class UpdateService {
     // 端口、无 userInfo）且带非空摘要的资产。
     if (_safeDownloadUri(uri.toString()) == null ||
         uri.userInfo.isNotEmpty ||
-        uri.port != 443) {
+        uri.port != 443 ||
+        OutboundUrlPolicy.rejectionReason(uri) != null) {
       throw const UpdateDownloadException('下载地址不在官方发布路径内，已拒绝');
     }
     final digest = result.assetDigest;
@@ -579,12 +608,42 @@ class UpdateService {
   }) async {
     final request = http.Request('GET', uri)
       ..headers['User-Agent'] = 'ZCode-App/${result.currentVersion}'
-      ..headers['Accept'] = 'application/vnd.android.package-archive';
+      ..headers['Accept'] = 'application/vnd.android.package-archive'
+      // 重定向由下面的逐跳校验处理。
+      ..followRedirects = false;
     final resume = received > 0;
     if (resume) {
       request.headers['Range'] = 'bytes=$received-';
     }
-    final response = await httpClient.send(request).timeout(timeout);
+    var response = await httpClient.send(request).timeout(timeout);
+
+    // 重定向逐跳校验：自动跟随会绕过 host 白名单与私网地址检查。
+    var hops = 0;
+    var requestUri = uri;
+    while (response.statusCode >= 300 &&
+        response.statusCode < 400 &&
+        hops < OutboundUrlPolicy.maxRedirects) {
+      final next = OutboundUrlPolicy.resolveRedirect(
+        requestUri,
+        response.headers['location'],
+      );
+      if (next == null) {
+        AppLog.event(LogEvent.updateOutboundBlocked, level: LogLevel.warn, fields: {
+          LogField.reason: 'redirect_not_allowed',
+        });
+        throw const UpdateDownloadException('下载被重定向到非官方地址，已拒绝');
+      }
+      requestUri = next;
+      hops++;
+      final hopRequest = http.Request('GET', requestUri)
+        ..headers['User-Agent'] = 'ZCode-App/${result.currentVersion}'
+        ..headers['Accept'] = 'application/vnd.android.package-archive'
+        ..followRedirects = false;
+      if (resume) {
+        hopRequest.headers['Range'] = 'bytes=$received-';
+      }
+      response = await httpClient.send(hopRequest).timeout(timeout);
+    }
 
     // 服务器不支持 Range（整包 200）→ 从头开始；416 → 断点已到文件尾。
     var offset = received;
