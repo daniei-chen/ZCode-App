@@ -529,6 +529,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   Timer? _firstLoadWatchdog;
   Timer? _warmupTimer;
   String? _pendingSessionId;
+  // 跳转确认（F12）：页面内脚本的搜索预算 20s，这里留出余量做兜底看门狗，
+  // 保证"点了通知没反应"至少会变成一条有原因的可解释结果。
+  int _jumpAttempt = 0;
+  int _reportedJumpAttempt = -1;
+  Timer? _jumpWatchdog;
+  String? _inFlightJumpTask;
   WebViewSyncController? _sync;
   WarmupMemoryNotifier? _warmup;
   // Renderer 恢复（v1.2.0）：Chromium 渲染进程被系统回收后，同一个 WebView
@@ -705,6 +711,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _warmup?.forget(widget.device.id);
       _sync?.forget();
       _sync = null;
+      _invalidateInFlightJump();
       setState(() {
         _webviewGeneration++;
         _failed = false;
@@ -721,6 +728,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   void _handleRendererGone(String detail) {
     AppLog.warn('[ZR][WebView] renderer gone: $detail');
     if (!mounted) return;
+    _invalidateInFlightJump();
     setState(() {
       _rendererGone = true;
       _failed = true;
@@ -733,6 +741,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   Future<void> _reload() async {
+    _invalidateInFlightJump();
     if (_rendererGone && mounted) {
       // 渲染进程已死：原地 loadUrl 无法恢复，用新 generation 重建 WebView。
       AppLog.warn('[ZR][WebView] rebuilding webview after renderer death');
@@ -882,10 +891,65 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     // workspace label; without it the probe never finds the target session.
     final workspace =
         ref.read(sessionIndexProvider)[widget.device.id]?[sessionId]?.workspace;
+    _jumpAttempt++;
+    final attempt = _jumpAttempt;
+    _inFlightJumpTask = sessionId;
+    _jumpWatchdog?.cancel();
+    _jumpWatchdog = Timer(const Duration(seconds: 24), () {
+      // 页面脚本没有回传（令牌缺失/主 frame 未跑）：本地兜底判定，
+      // 让这次跳转也有一个可解释的结局。
+      _onJumpOutcome(
+        JumpOutcome(
+          attemptId: attempt,
+          ok: false,
+          reason: JumpOutcome.reasonUndelivered,
+          taskId: sessionId,
+        ),
+      );
+    });
     unawaited(
       controller.evaluateJavascript(
-        source: SessionJump.jumpScript(sessionId, workspace: workspace),
+        source: SessionJump.jumpScript(
+          sessionId,
+          workspace: workspace,
+          attemptId: attempt,
+        ),
       ),
+    );
+  }
+
+  /// 页面回执（F12）：只有最新一代的结果算数，且每次尝试只报一次。
+  void _onJumpOutcome(JumpOutcome outcome) {
+    if (!mounted) return;
+    if (outcome.attemptId != _jumpAttempt) return;
+    _jumpWatchdog?.cancel();
+    _inFlightJumpTask = null;
+    if (_reportedJumpAttempt == outcome.attemptId) return;
+    _reportedJumpAttempt = outcome.attemptId;
+    if (outcome.ok) {
+      AppLog.debug(
+        '[ZR][Jump] attempt=${outcome.attemptId} found ${outcome.resolvedTaskId}',
+      );
+      return;
+    }
+    AppLog.warn(
+      '[ZR][Jump] attempt=${outcome.attemptId} failed '
+      'reason=${outcome.reason} task=${outcome.taskId}',
+    );
+    _showJumpFailure(outcome);
+  }
+
+  void _showJumpFailure(JumpOutcome outcome) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return;
+    final message = switch (outcome.reason) {
+      JumpOutcome.reasonTimeout => l10n.sessionJumpTimeout,
+      JumpOutcome.reasonUndelivered => l10n.sessionJumpPageNotReady,
+      JumpOutcome.reasonSuperseded => l10n.sessionJumpSuperseded,
+      _ => l10n.sessionJumpNotFound,
+    };
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
     );
   }
 
@@ -900,12 +964,25 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     });
   }
 
+  /// JS 上下文被替换（重建/reload/凭证变更）时，在途的跳转尝试随旧文档一起
+  /// 消失：取消看门狗、作废这一代尝试，并把它记为待跳转，在新页面 settle
+  /// 后重放一次——既不误报"未找到"，也不静默丢弃用户的那次点击。
+  void _invalidateInFlightJump() {
+    _jumpWatchdog?.cancel();
+    if (_inFlightJumpTask != null && _jumpAttempt > _reportedJumpAttempt) {
+      _pendingSessionId ??= _inFlightJumpTask;
+    }
+    _inFlightJumpTask = null;
+    _jumpAttempt++;
+  }
+
   @override
   void dispose() {
     widget.backController?.detach();
     WidgetsBinding.instance.removeObserver(this);
     _warmupTimer?.cancel();
     _firstLoadWatchdog?.cancel();
+    _jumpWatchdog?.cancel();
     _sync?.forget();
     super.dispose();
   }
@@ -1111,6 +1188,26 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                             if (body != null) {
                               _sync?.ingestWebSocketEvent(body);
                             }
+                            return null;
+                          },
+                        );
+                        // 跳转回执（F12）：脚本在页面内点了什么、有没有点到、
+                        // 为什么没点到，都从这里回到 Dart。
+                        controller.addJavaScriptHandler(
+                          handlerName: 'zrJump',
+                          callback: (args) async {
+                            if (!await _bridgeAllowed(args)) return null;
+                            final body = BridgeSchema.acceptString(
+                              args.isNotEmpty ? args.first : null,
+                              maxBytes: BridgeSchema.maxJumpBytes,
+                            );
+                            if (body == null) return null;
+                            final outcome = JumpOutcome.parse(body);
+                            if (outcome == null) {
+                              BridgeSchema.droppedMessages++;
+                              return null;
+                            }
+                            _onJumpOutcome(outcome);
                             return null;
                           },
                         );

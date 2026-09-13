@@ -28,6 +28,9 @@ abstract final class BridgeSchema {
   static const int maxWsEventBytes = 4 * 1024 * 1024;
   static const int maxStatsKeys = 32;
 
+  /// 跳转结果回执（F12）：只是一次确认，超过 2 KiB 说明不是本应用的消息。
+  static const int maxJumpBytes = 2 * 1024;
+
   /// 遥测 JSON 的解析前上限（8 KiB 足够；超限在 jsonDecode 之前丢弃）。
   static const int maxStatsChars = 8 * 1024;
 

@@ -99,7 +99,8 @@ void main() {
       expect(script.contains("__zrJumpGen"), isTrue);
       expect(script.contains('window[GEN] !== myGen'), isTrue);
       final staleCheck = script.indexOf('if (stale())');
-      final findAction = script.indexOf('if (find()) { stop(); return; }');
+      final findAction = script.indexOf('var hit = find();');
+      expect(findAction, isNot(-1));
       expect(staleCheck, lessThan(findAction));
       expect(staleCheck, lessThan(script.indexOf('Date.now() > deadline')));
     });
@@ -134,7 +135,7 @@ void main() {
 
     test('v2 升级仅在 find() 落空后发生（先找退按钮后查询，不打断直跳）', () {
       final script = SessionJump.jumpScript('abc');
-      final earlyReturn = script.indexOf('if (find()) return true;');
+      final earlyReturn = script.indexOf('if (first) { report(true');
       final backQueryCall = script.indexOf('var back = findBack();');
       expect(earlyReturn, isNot(-1));
       expect(backQueryCall, isNot(-1));
@@ -144,7 +145,135 @@ void main() {
     test('v3：异步引擎启动后返回 async（慢渲染等待语义替代 v2 的 false）', () {
       final script = SessionJump.jumpScript('abc');
       expect(script.contains("return 'async';"), isTrue);
-      expect(script.contains('if (!tid) return false;'), isTrue);
+      expect(
+        script.contains("if (!tid) { report(false, 'invalid', null); return false; }"),
+        isTrue,
+      );
+    });
+  });
+
+  group('F12 跳转回执', () {
+    test('回执带 attemptId / 结果 / 原因 / 句柄，且经主 frame 令牌发出', () {
+      final script = SessionJump.jumpScript('abc', attemptId: 42);
+      expect(script.contains('var attempt = 42;'), isTrue);
+      expect(script.contains("bridge.callHandler('zrJump'"), isTrue);
+      expect(script.contains('window.__zrToken'), isTrue);
+      // 第 3 个实参必须是令牌（Dart 侧 _bridgeAllowed 校验 args[1]）。
+      expect(
+        script.contains('}), window.__zrToken);'),
+        isTrue,
+      );
+      expect(script.contains('id: attempt'), isTrue);
+      expect(script.contains('resolvedTaskId: handle || null'), isTrue);
+    });
+
+    test('没有令牌时不裸发，改为短促重试（预算与常量一致）', () {
+      final script = SessionJump.jumpScript('abc');
+      expect(script.contains('if (!window.__zrToken) return false;'), isTrue);
+      expect(
+        script.contains('reportTries >= ${SessionJump.reportRetryMax}'),
+        isTrue,
+      );
+      expect(script.contains('setTimeout(function() { report('), isTrue);
+    });
+
+    test('三种终止路径都回执：found / timeout / superseded', () {
+      final script = SessionJump.jumpScript('abc');
+      expect(script.contains("report(true, 'found', first)"), isTrue);
+      expect(script.contains("report(true, 'found', hit)"), isTrue);
+      expect(script.contains("report(false, 'timeout', null)"), isTrue);
+      expect(script.contains("report(false, 'superseded', null)"), isTrue);
+      // 每次尝试只回执一次。
+      expect(script.contains('if (reported) return;'), isTrue);
+    });
+
+    test('回执不阻断检索：超时/stale 分支仍然复原试探组并停表', () {
+      final script = SessionJump.jumpScript('abc');
+      final timeoutReport = script.indexOf("report(false, 'timeout', null);");
+      final timeoutRestore = script.indexOf('for (; restoreProbe(); ) {}', timeoutReport);
+      final timeoutStop = script.indexOf('stop();', timeoutRestore);
+      expect(timeoutRestore, greaterThan(timeoutReport));
+      expect(timeoutStop, greaterThan(timeoutRestore));
+    });
+
+    test('句柄提取只取 id 合法字符段，不整串回传任意属性', () {
+      final script = SessionJump.jumpScript('abc');
+      expect(script.contains('var handleOf = function(testid)'), isTrue);
+      expect(script.contains('/[0-9A-Za-z_-]/'), isTrue);
+      expect(script.contains('testid.slice(left, right) || tid'), isTrue);
+    });
+  });
+
+  group('JumpOutcome.parse', () {
+    test('合法回执被解析', () {
+      final outcome = JumpOutcome.parse(
+        jsonEncode({
+          'id': 7,
+          'ok': true,
+          'reason': 'found',
+          'taskId': 'abc',
+          'resolvedTaskId': 'task-item-abc',
+        }),
+      )!;
+      expect(outcome.attemptId, 7);
+      expect(outcome.ok, isTrue);
+      expect(outcome.reason, JumpOutcome.reasonFound);
+      expect(outcome.taskId, 'abc');
+      expect(outcome.resolvedTaskId, 'task-item-abc');
+    });
+
+    test('可省略的句柄为 null 而不是空串', () {
+      final outcome = JumpOutcome.parse(
+        jsonEncode({'id': 1, 'ok': false, 'reason': 'timeout', 'taskId': 'abc'}),
+      )!;
+      expect(outcome.resolvedTaskId, isNull);
+    });
+
+    test('非法输入一律拒绝（不抛异常）', () {
+      expect(JumpOutcome.parse(null), isNull);
+      expect(JumpOutcome.parse(''), isNull);
+      expect(JumpOutcome.parse('not json'), isNull);
+      expect(JumpOutcome.parse('[]'), isNull);
+      // id 缺失/负数/类型不符
+      expect(JumpOutcome.parse(jsonEncode({'ok': true, 'reason': 'found'})), isNull);
+      expect(
+        JumpOutcome.parse(jsonEncode({'id': -1, 'ok': true, 'reason': 'found'})),
+        isNull,
+      );
+      expect(
+        JumpOutcome.parse(jsonEncode({'id': 'x', 'ok': true, 'reason': 'found'})),
+        isNull,
+      );
+      // ok 必须是 bool
+      expect(JumpOutcome.parse(jsonEncode({'id': 1, 'ok': 'yes', 'reason': 'found'})), isNull);
+      // reason 缺失/超长
+      expect(JumpOutcome.parse(jsonEncode({'id': 1, 'ok': false})), isNull);
+      expect(
+        JumpOutcome.parse(
+          jsonEncode({
+            'id': 1,
+            'ok': false,
+            'reason': List.filled(JumpOutcome.maxReasonChars + 1, 'x').join(),
+          }),
+        ),
+        isNull,
+      );
+      // taskId 类型不符 / 超长
+      expect(
+        JumpOutcome.parse(jsonEncode({'id': 1, 'ok': true, 'reason': 'found', 'taskId': 5})),
+        isNull,
+      );
+      expect(
+        JumpOutcome.parse(
+          jsonEncode({
+            'id': 1,
+            'ok': true,
+            'reason': 'found',
+            'taskId': List.filled(JumpOutcome.maxIdChars + 1, 'x').join(),
+          }),
+        ),
+        isNull,
+      );
     });
   });
 }

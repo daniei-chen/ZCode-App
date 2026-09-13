@@ -66,6 +66,21 @@ void main() {
       expect(hook.contains('zrToken'), isTrue);
     });
 
+    test('跳转回执同样受令牌与尺寸门禁约束（PR13b/F12）', () {
+      final page = read('lib/ui/official_remote_page.dart');
+      final jump = read('lib/services/session_jump.dart');
+      // 页面侧：只有拿到主 frame 令牌才发回执。
+      expect(jump.contains('if (!window.__zrToken) return false;'), isTrue);
+      expect(jump.contains('bridge.callHandler('), isTrue);
+      // Dart 侧：先过 _bridgeAllowed，再过字节门禁，最后才是业务解析。
+      expect(page.contains("handlerName: 'zrJump'"), isTrue);
+      expect(page.contains('BridgeSchema.maxJumpBytes'), isTrue);
+      expect(
+        read('lib/services/bridge_schema.dart').contains('maxJumpBytes'),
+        isTrue,
+      );
+    });
+
     test('第三方 Cookie 保持最小化关闭（W3）', () {
       expect(
         read('lib/ui/official_remote_page.dart').contains(
