@@ -174,8 +174,37 @@ class BiometricNotifier extends Notifier<bool> {
     await DeviceStore.instance.setBiometricEnabled(value);
     state = value;
   }
+
+  /// 重新读取偏好。读取失败返回 false 且**不改变**当前状态——
+  /// 调用方据此保持锁定（fail-closed），绝不把"读不到"当成"未启用"。
+  Future<bool> reload() async {
+    try {
+      state = await DeviceStore.instance.biometricEnabled();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 final biometricProvider = NotifierProvider<BiometricNotifier, bool>(
   BiometricNotifier.new,
 );
+
+/// 安全偏好读取状态：`true` = 读取失败。
+///
+/// 读取失败时门禁保持锁定（fail-closed），由锁屏提供"重试"；
+/// 只有确实读到 false 才允许直接进入内容。
+class SecurityPrefNotifier extends Notifier<bool> {
+  SecurityPrefNotifier({this.initial = false});
+
+  final bool initial;
+
+  @override
+  bool build() => initial;
+
+  void setUnreadable(bool value) => state = value;
+}
+
+final securityPrefUnreadableProvider =
+    NotifierProvider<SecurityPrefNotifier, bool>(SecurityPrefNotifier.new);

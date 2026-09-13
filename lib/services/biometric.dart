@@ -56,6 +56,29 @@ class BiometricService {
       rethrow;
     }
   }
+
+  /// 恢复路径专用：允许用系统锁屏凭据（PIN/图案/密码）证明身份。
+  ///
+  /// 与 [authenticate] 的 `biometricOnly: true` 不同，这条路径只在生物识别
+  /// 已经不可用时使用；它仍然必须由使用者完成一次系统验证才能解锁，
+  /// 绝不允许"只能免验证放行"。取消/超时一律返回 false（保持锁定）。
+  Future<bool> authenticateWithDeviceCredential(String reason) async {
+    try {
+      final ok = await _auth.authenticate(
+        localizedReason: reason,
+        biometricOnly: false,
+        persistAcrossBackgrounding: true,
+      );
+      if (ok) _lastSuccess = DateTime.now();
+      return ok;
+    } on LocalAuthException catch (e) {
+      if (cancelCodes.contains(e.code)) return false;
+      if (unavailableCodes.contains(e.code)) {
+        throw BiometricUnavailableException(e);
+      }
+      rethrow;
+    }
+  }
 }
 
 class BiometricUnavailableException implements Exception {

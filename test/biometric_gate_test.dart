@@ -18,15 +18,45 @@ class _FakeBiometricNotifier extends BiometricNotifier {
 }
 
 class _MutableBiometricNotifier extends BiometricNotifier {
-  _MutableBiometricNotifier(this._value);
+  _MutableBiometricNotifier(this._value, {this.reloadSucceeds = false});
 
   bool _value;
+  final bool reloadSucceeds;
 
   @override
   bool build() => _value;
 
   @override
   Future<void> set(bool value) async {
+    _value = value;
+    state = value;
+  }
+
+  @override
+  Future<bool> reload() async => reloadSucceeds;
+}
+
+class _FakeSecurityPrefNotifier extends SecurityPrefNotifier {
+  _FakeSecurityPrefNotifier(this.value);
+
+  final bool value;
+
+  @override
+  bool build() => value;
+}
+
+class _MutableSecurityPrefNotifier extends SecurityPrefNotifier {
+  _MutableSecurityPrefNotifier(this._value);
+
+  bool _value;
+
+  bool get value => _value;
+
+  @override
+  bool build() => _value;
+
+  @override
+  void setUnreadable(bool value) {
     _value = value;
     state = value;
   }
@@ -38,6 +68,10 @@ Future<void> pumpGate(
   required Duration relockAfter,
   required Future<bool> Function(String reason) authenticate,
   BiometricNotifier Function()? notifier,
+  bool prefUnreadable = false,
+  SecurityPrefNotifier Function()? securityPrefNotifier,
+  Future<bool> Function(String reason)? authenticateWithDeviceCredential,
+  Future<void> Function()? wipeProtectedData,
   Widget child = const Text('SECRET'),
 }) {
   return tester.pumpWidget(
@@ -46,11 +80,19 @@ Future<void> pumpGate(
         biometricProvider.overrideWith(
           () => notifier?.call() ?? _FakeBiometricNotifier(enabled),
         ),
+        securityPrefUnreadableProvider.overrideWith(
+          () =>
+              securityPrefNotifier?.call() ??
+              _FakeSecurityPrefNotifier(prefUnreadable),
+        ),
       ],
       child: MaterialApp(
         home: BiometricGate(
           relockAfter: relockAfter,
           authenticate: authenticate,
+          authenticateWithDeviceCredential:
+              authenticateWithDeviceCredential ?? (reason) async => false,
+          wipeProtectedData: wipeProtectedData ?? () async {},
           child: child,
         ),
       ),
@@ -174,7 +216,45 @@ void main() {
     expect(calls, 1);
   });
 
-  testWidgets('永久不可用（无任何凭据）：保持锁定，需用户明确关闭门禁', (tester) async {
+  testWidgets('永久不可用：保持锁定；恢复必须经系统凭据验证，绝不免验证放行', (tester) async {
+    final mutable = _MutableBiometricNotifier(true);
+    var deviceCredentialCalls = 0;
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) => throw BiometricUnavailableException(
+        const LocalAuthException(
+          code: LocalAuthExceptionCode.noBiometricsEnrolled,
+        ),
+      ),
+      authenticateWithDeviceCredential: (reason) async {
+        deviceCredentialCalls++;
+        return true;
+      },
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    expect(visibleSecret, findsNothing);
+    expect(visibleLock, findsOneWidget);
+    expect(
+      find.text('确认关闭门禁'),
+      findsNothing,
+      reason: '免验证关闭门禁的入口必须不存在（F01）',
+    );
+    expect(mutable._value, isTrue);
+
+    await tester.tap(find.text('使用系统锁屏凭据解锁'));
+    await tester.pump();
+    await tester.pump();
+    expect(deviceCredentialCalls, 1);
+    expect(visibleSecret, findsOneWidget);
+    expect(mutable._value, isTrue, reason: '验证通过只解锁本次，不改写偏好');
+  });
+
+  testWidgets('恢复验证被取消：停在锁屏，不放行', (tester) async {
     final mutable = _MutableBiometricNotifier(true);
     await pumpGate(
       tester,
@@ -185,19 +265,134 @@ void main() {
           code: LocalAuthExceptionCode.noBiometricsEnrolled,
         ),
       ),
+      authenticateWithDeviceCredential: (reason) async => false,
       notifier: () => mutable,
     );
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pump();
 
+    await tester.tap(find.text('使用系统锁屏凭据解锁'));
+    await tester.pump();
+    await tester.pump();
     expect(visibleSecret, findsNothing);
     expect(visibleLock, findsOneWidget);
     expect(mutable._value, isTrue);
+  });
 
-    await tester.tap(find.text('确认关闭门禁'));
+  testWidgets('无系统凭据可用：明确告知只能清除本机数据', (tester) async {
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) => throw BiometricUnavailableException(
+        const LocalAuthException(
+          code: LocalAuthExceptionCode.noBiometricsEnrolled,
+        ),
+      ),
+      authenticateWithDeviceCredential: (reason) =>
+          throw BiometricUnavailableException(
+            const LocalAuthException(
+              code: LocalAuthExceptionCode.noCredentialsSet,
+            ),
+          ),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
     await tester.pump();
-    expect(visibleSecret, findsOneWidget);
+
+    await tester.tap(find.text('使用系统锁屏凭据解锁'));
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.text('本机未设置可用的屏幕锁凭据，无法验证身份；只能清除本机数据后重新接入。'),
+      findsOneWidget,
+    );
+    expect(visibleSecret, findsNothing);
+  });
+
+  testWidgets('清除本机数据：必须确认；确认后清除并关闭门禁', (tester) async {
+    final mutable = _MutableBiometricNotifier(true);
+    var wipeCalls = 0;
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) => throw BiometricUnavailableException(
+        const LocalAuthException(
+          code: LocalAuthExceptionCode.noBiometricsEnrolled,
+        ),
+      ),
+      wipeProtectedData: () async => wipeCalls++,
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    await tester.tap(find.text('清除本机数据并关闭门禁'));
+    await tester.pumpAndSettle();
+    expect(wipeCalls, 0, reason: '确认之前不得删除任何数据');
+
+    await tester.tap(find.text('清除并关闭'));
+    await tester.pumpAndSettle();
+    expect(wipeCalls, 1);
     expect(mutable._value, isFalse);
+    expect(visibleSecret, findsOneWidget);
+  });
+
+  testWidgets('清除本机数据：取消后保持锁定且不删除', (tester) async {
+    final mutable = _MutableBiometricNotifier(true);
+    var wipeCalls = 0;
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) => throw BiometricUnavailableException(
+        const LocalAuthException(
+          code: LocalAuthExceptionCode.noBiometricsEnrolled,
+        ),
+      ),
+      wipeProtectedData: () async => wipeCalls++,
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    await tester.tap(find.text('清除本机数据并关闭门禁'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(wipeCalls, 0);
+    expect(visibleSecret, findsNothing);
+    expect(mutable._value, isTrue);
+  });
+
+  testWidgets('安全偏好读取失败：保持锁定；重试成功后回到正常解锁', (tester) async {
+    final mutable = _MutableBiometricNotifier(true, reloadSucceeds: true);
+    final securityPref = _MutableSecurityPrefNotifier(true);
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) async => true,
+      securityPrefNotifier: () => securityPref,
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    expect(visibleSecret, findsNothing, reason: '读不到安全偏好时必须 fail-closed');
+    expect(
+      find.text('安全设置读取失败，已保持锁定以避免暴露数据。恢复系统存储后点击重试。'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    await tester.pump();
+    expect(securityPref.value, isFalse);
+    expect(
+      find.text('安全设置读取失败，已保持锁定以避免暴露数据。恢复系统存储后点击重试。'),
+      findsNothing,
+    );
   });
 
   testWidgets('锁定时不构建受保护的 AppShell 子树', (tester) async {

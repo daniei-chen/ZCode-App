@@ -27,7 +27,7 @@ Future<void> main() async {
   unawaited(NotifierService.instance.init());
   final devicesFuture = _safeDevices(store.loadAll());
   final lastDeviceFuture = _safeLastDevice(store.lastDeviceId());
-  final biometricFuture = _safeBool(store.biometricEnabled());
+  final securityPrefFuture = _readSecurityPref(store.biometricEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
   final startupTargetFuture = _safeString(store.startupTarget(), 'lastDevice');
 
@@ -36,7 +36,7 @@ Future<void> main() async {
   // before switching to the last WebView a moment later.
   final initialDevices = await devicesFuture;
   final lastDeviceId = await lastDeviceFuture;
-  final initialBiometric = await biometricFuture;
+  final initialSecurityPref = await securityPrefFuture;
   final initialThemeMode = await themeModeFuture;
   final startupTarget = await startupTargetFuture;
   final recentIndex = lastDeviceId == null
@@ -59,7 +59,10 @@ Future<void> main() async {
           () => ActiveTabNotifier(initialIndex: initialActiveIndex),
         ),
         biometricProvider.overrideWith(
-          () => BiometricNotifier(initial: initialBiometric),
+          () => BiometricNotifier(initial: initialSecurityPref.enabled),
+        ),
+        securityPrefUnreadableProvider.overrideWith(
+          () => SecurityPrefNotifier(initial: initialSecurityPref.unreadable),
         ),
         themeModeProvider.overrideWith(
           () => ThemeModeNotifier(initial: initialThemeMode),
@@ -91,11 +94,22 @@ Future<String?> _safeLastDevice(Future<String?> future) async {
   }
 }
 
-Future<bool> _safeBool(Future<bool> future) async {
+/// 安全偏好读取结果：`unreadable` 表示读取失败。
+///
+/// 读取失败必须保持锁定（fail-closed），不能等价于"未启用保护"：
+/// 锁屏会提供重试，恢复读取后才允许进入内容。
+class _SecurityPref {
+  const _SecurityPref(this.enabled, {this.unreadable = false});
+
+  final bool enabled;
+  final bool unreadable;
+}
+
+Future<_SecurityPref> _readSecurityPref(Future<bool> future) async {
   try {
-    return await future;
+    return _SecurityPref(await future);
   } catch (_) {
-    return false;
+    return const _SecurityPref(true, unreadable: true);
   }
 }
 
@@ -162,6 +176,9 @@ class BiometricGate extends ConsumerStatefulWidget {
     required this.child,
     this.relockAfter = const Duration(seconds: 10),
     this.authenticate = _defaultAuthenticate,
+    this.authenticateWithDeviceCredential =
+        _defaultDeviceCredentialAuthenticate,
+    this.wipeProtectedData = _defaultWipeProtectedData,
   });
 
   final Widget child;
@@ -170,8 +187,21 @@ class BiometricGate extends ConsumerStatefulWidget {
 
   final Future<bool> Function(String reason) authenticate;
 
+  /// 恢复路径：生物识别不可用时，必须用系统锁屏凭据验证身份才解锁。
+  final Future<bool> Function(String reason) authenticateWithDeviceCredential;
+
+  /// 破坏性恢复路径：清除本机受保护数据；数据既已删除，此后免验证放行才成立。
+  final Future<void> Function() wipeProtectedData;
+
   static Future<bool> _defaultAuthenticate(String reason) =>
       BiometricService.instance.authenticate(reason);
+
+  static Future<bool> _defaultDeviceCredentialAuthenticate(String reason) =>
+      BiometricService.instance.authenticateWithDeviceCredential(reason);
+
+  static Future<void> _defaultWipeProtectedData() async {
+    await DeviceStore.instance.clearAll();
+  }
 
   @override
   ConsumerState<BiometricGate> createState() => _BiometricGateState();
@@ -185,6 +215,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   DateTime? _leftAt;
   bool _authCovered = false;
   bool _unavailable = false;
+  bool _noDeviceCredential = false;
+  bool _wipeBusy = false;
 
   @override
   void initState() {
@@ -193,7 +225,10 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _startupPrompted = true;
-      if (ref.read(biometricProvider)) _unlock();
+      if (ref.read(biometricProvider) &&
+          !ref.read(securityPrefUnreadableProvider)) {
+        _unlock();
+      }
     });
   }
 
@@ -218,6 +253,7 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
       _authCovered = false;
       final leftAt = _leftAt;
       _leftAt = null;
+      if (ref.read(securityPrefUnreadableProvider)) return;
       if (!ref.read(biometricProvider)) return;
       if (!_startupPrompted) return;
       if (covered) {
@@ -249,6 +285,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
 
   Future<void> _unlock() async {
     if (_authenticating) return;
+    // 安全偏好读取失败时不得凭一次验证就放行：先让用户在锁屏重试读取。
+    if (ref.read(securityPrefUnreadableProvider)) return;
     _authenticating = true;
     try {
       final reason = (AppLocalizations.of(context) ?? l10nZh).unlockReason;
@@ -272,20 +310,87 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     }
   }
 
-  Future<void> _disableAfterUnavailable() async {
-    await ref.read(biometricProvider.notifier).set(false);
-    if (mounted) {
-      setState(() {
-        _authed = true;
-        _unavailable = false;
-      });
+  /// 恢复路径一：用系统锁屏凭据（PIN/图案/密码）验证身份后解锁。
+  /// 不写入任何偏好——验证通过只代表"这次是本人"，不代表可以关闭保护。
+  Future<void> _unlockWithDeviceCredential() async {
+    if (_authenticating) return;
+    setState(() {
+      _authenticating = true;
+      _noDeviceCredential = false;
+    });
+    try {
+      final reason = (AppLocalizations.of(context) ?? l10nZh).unlockReason;
+      final ok = await widget.authenticateWithDeviceCredential(reason);
+      if (mounted && ok) {
+        setState(() {
+          _authed = true;
+          _unavailable = false;
+        });
+      }
+    } on BiometricUnavailableException {
+      if (mounted) setState(() => _noDeviceCredential = true);
+    } catch (e) {
+      AppLog.warn('[ZR] device credential unlock failed: $e');
+    } finally {
+      if (mounted) setState(() => _authenticating = false);
     }
+  }
+
+  /// 恢复路径二（破坏性）：清除本机受保护数据后关闭门禁。
+  /// 这是唯一免验证放行的路径——前提是凭证与设备记录已经删除（无可暴露的数据）。
+  Future<void> _wipeAndDisable() async {
+    final l10n = AppLocalizations.of(context) ?? l10nZh;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.biometricWipeDataConfirmTitle),
+        content: Text(l10n.biometricWipeDataConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.biometricWipeCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.biometricWipeDataConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _wipeBusy = true);
+    try {
+      await widget.wipeProtectedData();
+      await ref.read(biometricProvider.notifier).set(false);
+      if (mounted) {
+        setState(() {
+          _authed = true;
+          _unavailable = false;
+          _noDeviceCredential = false;
+        });
+      }
+    } catch (e) {
+      AppLog.warn('[ZR] wipe protected data failed: $e');
+    } finally {
+      if (mounted) setState(() => _wipeBusy = false);
+    }
+  }
+
+  /// 安全偏好读取失败后的重试：只有确实读到值才解除"读取失败"状态。
+  Future<void> _retrySecurityPref() async {
+    final ok = await ref.read(biometricProvider.notifier).reload();
+    if (!mounted || !ok) return;
+    ref.read(securityPrefUnreadableProvider.notifier).setUnreadable(false);
+    setState(() {});
+    if (ref.read(biometricProvider)) _unlock();
   }
 
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(biometricProvider);
-    final locked = enabled && !_authed;
+    final prefUnreadable = ref.watch(securityPrefUnreadableProvider);
+    // fail-closed：读不到安全偏好时同样锁定，直到重试成功。
+    final locked = (enabled || prefUnreadable) && !_authed;
     final l10n = AppLocalizations.of(context) ?? l10nZh;
     if (!locked) return widget.child;
     // Do not keep the protected subtree as a sibling under a visual overlay.
@@ -334,9 +439,9 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                             ),
                           ),
                           const SizedBox(height: 28),
-                          if (_unavailable) ...[
+                          if (prefUnreadable) ...[
                             Text(
-                              l10n.biometricGateUnavailable,
+                              l10n.securityPrefUnreadable,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 13,
@@ -345,16 +450,50 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                             ),
                             const SizedBox(height: 16),
                             OutlinedButton(
-                              onPressed: _disableAfterUnavailable,
-                              child: Text(l10n.biometricDisableButton),
+                              onPressed: _retrySecurityPref,
+                              child: Text(l10n.retry),
+                            ),
+                            const SizedBox(height: 12),
+                          ] else if (_unavailable) ...[
+                            Text(
+                              l10n.biometricGateUnavailable,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: context.zt.danger,
+                              ),
+                            ),
+                            if (_noDeviceCredential) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.biometricNoDeviceCredential,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            OutlinedButton(
+                              onPressed: _authenticating
+                                  ? null
+                                  : _unlockWithDeviceCredential,
+                              child: Text(l10n.biometricUseDeviceCredential),
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: _wipeBusy ? null : _wipeAndDisable,
+                              child: Text(l10n.biometricWipeDataButton),
                             ),
                             const SizedBox(height: 12),
                           ],
-                          FilledButton.icon(
-                            onPressed: _unlock,
-                            icon: const Icon(Icons.lock_open, size: 18),
-                            label: Text(l10n.unlockButton),
-                          ),
+                          if (!prefUnreadable)
+                            FilledButton.icon(
+                              onPressed: _unlock,
+                              icon: const Icon(Icons.lock_open, size: 18),
+                              label: Text(l10n.unlockButton),
+                            ),
                         ],
                       ),
                     ),

@@ -198,7 +198,9 @@ class DeviceStore {
     await prefs.setString(_startupTargetKey, value);
   }
 
-  static String _warmupKey(String id) => 'zremote.warmup.$id';
+  static const _warmupKeyPrefix = 'zremote.warmup.';
+
+  static String _warmupKey(String id) => '$_warmupKeyPrefix$id';
 
   /// 面板预热请求的录制存档（warmup 服务用，JSON 数组）。
   ///
@@ -214,5 +216,26 @@ class DeviceStore {
     } else {
       await _secure.write(key: _warmupKey(deviceId), value: json);
     }
+  }
+
+  /// 清除本机全部远控数据：设备凭证、索引、warmup 脚本与"最近设备"指针。
+  ///
+  /// 用途是"无法验证身份时的恢复"与后续的清除数据入口：清掉受保护数据本身
+  /// 不需要再验证身份（没有数据可暴露了）。主题/通知等非敏感偏好不在此范围。
+  /// 返回被删除的 secure storage 键数量，供调用方记录。
+  Future<int> clearAll() async {
+    var cleared = 0;
+    final all = await _secure.readAll();
+    for (final key in all.keys) {
+      if (key == _indexKey ||
+          key.startsWith(_deviceKeyPrefix) ||
+          key.startsWith(_warmupKeyPrefix)) {
+        await _secure.delete(key: key);
+        cleared++;
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastDeviceKey);
+    return cleared;
   }
 }
