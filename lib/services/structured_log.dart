@@ -29,6 +29,8 @@ enum LogEvent {
   webviewConsoleDropped('WV110'),
   webviewStorageCleared('WV111'),
   webviewBootCoverTimeout('WV113'),
+  /// 页面进入"被顶号"终态（另一台控制端接管）：盖板立即揭开，让用户看到原因。
+  webviewTakeoverDetected('WV114'),
 
   // bridge / 观测
   bridgeTokenMissing('BR200'),

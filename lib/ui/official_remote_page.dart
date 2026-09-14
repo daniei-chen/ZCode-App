@@ -30,6 +30,34 @@ import '../services/bridge_token.dart';
 import '../services/structured_log.dart';
 import '../services/webview_storage.dart';
 
+/// 盖板是否应该盖住官方页（纯函数，便于单测锁定真机上复现过的状态机）。
+///
+/// 输入来自 `_workspaceReadyProbeScript` 探针：
+/// * [rows] 任务列表行数；[composer] 输入区是否挂上；
+/// * [handshake] 是否处于"配对中/加载工作区/英文中转连接"过渡态；
+/// * [loadingRow] 左栏是否挂着"加载中..."占位行；
+/// * [takeover] 页面是否已进入"被顶号"终态；
+/// * [blank] 页面是否空白。
+///
+/// 规则：只有"页面已有真实内容（任务行或输入区）**且**不在任何过渡态"
+/// 才揭盖；被顶号是终态信息，永远揭盖让用户读到原因。
+///
+/// 真机教训（v1.0.0+21 及之前）：旧规则 `(handshake && !hasContent) || blank`
+/// 里 `hasContent` 只看"有任务行或输入区"，而官方页在列表数据回来之前就
+/// 先挂输入区——盖板提前揭开，用户看到左栏"加载中..."的半成品页面。
+bool shouldCoverOfficialPage({
+  required int rows,
+  required bool composer,
+  required bool handshake,
+  required bool loadingRow,
+  required bool takeover,
+  required bool blank,
+}) {
+  if (takeover) return false;
+  final ready = (rows > 0 || composer) && !handshake && !loadingRow;
+  return !ready || blank;
+}
+
 /// Bridge used by the app shell to give a mounted WebView the first chance
 /// to handle Android back.  The WebView remains in the IndexedStack, so this
 /// is intentionally a small imperative controller rather than a Navigator
@@ -176,6 +204,31 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     return hideFromElement(node.parentElement);
   }
 
+  // 左栏任务列表的"加载中..."占位行（真机实测：文本恰为 "加载中..."，
+  // 约 232x29，位于左栏）。它不是内容、也不是握手卡，会被 ≥2 关键词规则
+  // 放过，真机上表现为"盖板揭开后列表里挂着一行加载中"。判定收紧到
+  // **精确文本 + 小尺寸 + 左半屏**，聊天正文里的"加载中"不会命中
+  // （消息气泡远宽于 40% 视口或不在左栏窄条内）。
+  function hideLoadingRows() {
+    var hits = 0;
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var nodes = document.querySelectorAll('div,span,p,button');
+    var limit = Math.min(nodes.length, 4000);
+    for (var i = 0; i < limit; i++) {
+      var el = nodes[i];
+      if (!(el instanceof HTMLElement)) continue;
+      var t = String(el.textContent || '').trim();
+      if (t !== '加载中...' && t !== '加载中…' && t !== 'Loading...' && t !== 'Loading…') continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (rect.width >= vw * 0.4 || rect.height >= 60) continue;
+      if (rect.left > vw * 0.45) continue;
+      el.style.setProperty('display', 'none', 'important');
+      hits++;
+    }
+    return hits;
+  }
+
   // 第二层探测（不依赖文本节点结构）：在屏幕九宫格采样点做命中测试，
   // 卡片/覆盖层必然覆盖其中若干点；对其元素链做同样的标记+尺寸判定。
   // 解决"正文是单个超长文本节点 / 文本被包裹在闭包容器里"等结构差异。
@@ -212,7 +265,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 
   function sweep() {
     if (!document.body) return 0;
-    var hits = sweepPoints();
+    var hits = sweepPoints() + hideLoadingRows();
     var scanned = 0;
     var walker;
     try {
@@ -483,15 +536,77 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 品牌盖板可以揭开了（对齐用户口径：盖住"配对/加载工作区"启动过程）。
   static const String _workspaceReadyProbeScript = '''
 (() => {
+  const body = document.body;
+  const text = body && body.innerText ? body.innerText : '';
+  const lower = text.toLowerCase();
   const rows = document.querySelectorAll('[data-testid^="task-item-"]').length;
-  const composer = document.querySelector('textarea, [contenteditable="true"], [data-testid*="composer"], [data-testid*="input"]');
-  const bodyText = (document.body && document.body.innerText ? document.body.innerText : '');
-  const handshake = bodyText.indexOf('加载工作区') >= 0 || bodyText.indexOf('配对工作区') >= 0;
-  const blank = !bodyText.trim() && rows === 0 && !composer;
+  const composer = !!document.querySelector('textarea, [contenteditable="true"], [data-testid*="composer"]');
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const CN_WORDS = ['加载工作区', '配对工作区', '同步桌面端工作区', '等待桌面端配对',
+    '连接中转服务', '设备鉴权'];
+  const EN_WORDS = ['connecting relay service', 'establishing a connection between',
+    'loading workspace', 'pairing workspace'];
+  const hasWord = (value) => {
+    const l = String(value || '').toLowerCase();
+    for (let i = 0; i < CN_WORDS.length; i++) {
+      if (l.indexOf(CN_WORDS[i]) >= 0) return true;
+    }
+    for (let j = 0; j < EN_WORDS.length; j++) {
+      if (l.indexOf(EN_WORDS[j]) >= 0) return true;
+    }
+    return false;
+  };
+  // 聊天时间线里的同名字样不算过渡态：用户在对话里讨论"加载工作区"时，
+  // 正文命中关键词不该把整页盖住（真机上确实发生过这种讨论）。
+  const CONV_SELECTOR = '[data-testid="conversation"], [data-testid="conversation-column"],' +
+    '[data-testid^="v4-timeline"], [data-testid^="v4-row-"], [data-testid^="chat-"]';
+  // 1) 列表还没加载：过渡屏（配对卡 / 英文中转连接屏）就是整页文案。
+  let handshake = rows === 0 && hasWord(text);
+  // 2) 列表已加载：过渡卡是叠在页面上的居中面板（真机"切换会话又出现卡片"
+  //    的场景），按几何形态识别——宽度占视口 40%~99.5%、高度 12%~92%，
+  //    且在聊天时间线之外。消息气泡在时间线内，因此不会被误判。
+  if (!handshake) {
+    const boxes = document.querySelectorAll('div,section,main,aside');
+    const limit = Math.min(boxes.length, 3000);
+    for (let i = 0; i < limit; i++) {
+      const el = boxes[i];
+      if (el.closest && el.closest(CONV_SELECTOR)) continue;
+      const own = String(el.textContent || '').slice(0, 600);
+      if (!own || !hasWord(own)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < vw * 0.4 || r.width > vw * 0.995) continue;
+      if (r.height < vh * 0.12 || r.height > vh * 0.92) continue;
+      handshake = true;
+      break;
+    }
+  }
+  // 左栏任务列表的加载占位行（真机实测：文本恰为 "加载中..."，约 232x29，
+  // 位于左栏）。它出现时列表还没有真实内容，属于过渡态——旧探针对它完全
+  // 无感，盖板提前揭开，用户就看到半加载的列表（"加载中还是能看到"）。
+  let loadingRow = false;
+  const nodes = document.querySelectorAll('div,span,button,p');
+  const rowLimit = Math.min(nodes.length, 4000);
+  for (let i = 0; i < rowLimit; i++) {
+    const el = nodes[i];
+    const t = (el.textContent || '').trim();
+    if (t !== '加载中...' && t !== '加载中…' && t !== 'Loading...' && t !== 'Loading…') continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+    if (rect.width < vw * 0.4 && rect.height < 60) { loadingRow = true; break; }
+  }
+  // 被顶号是**终态**信息（"另一台控制端接管"）：盖板必须立刻揭开让用户看到
+  // 原因，否则用户面对永远盖着的品牌页，比看到英文卡片更糟。
+  const takeover = text.indexOf('Taken Over By Another Device') >= 0 ||
+    text.indexOf('Device takeover') >= 0;
+  const blank = !text.trim() && rows === 0 && !composer;
   return JSON.stringify({
     rows: rows,
-    composer: !!composer,
+    composer: composer,
     handshake: handshake,
+    loadingRow: loadingRow,
+    takeover: takeover,
+    textLen: text.length,
     blank: blank
   });
 })()
@@ -528,6 +643,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   // （任务列表/输入区出现）才揭盖；超时兜底防止离线时永久遮盖。
   bool _bootCover = true;
   Timer? _pageStateTimer;
+  // 盖板挂上的时刻（超时兜底用）：页面长期停在过渡态（桌面端离线等）时，
+  // 不能让用户被品牌页无限挡住。
+  DateTime? _coverShownSince;
+  // 被顶号日志只报一次（800ms 节拍会反复命中同一状态）。
+  bool _takeoverLogged = false;
   // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
   // 首次加载 20s 内没有 onLoadStop，或 stop 后页面持续空白，就静默 reload
   // 一次；只自动重试一次，之后交给错误卡与手动重试。
@@ -709,9 +829,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   /// 页面状态跟随（用户口径：卡片"要么冷处理、要么盖住"——这里用纯图标
-  /// 盖板覆盖官方页的"配对/加载工作区"过渡态，只要它还处于该状态，盖板
-  /// 就不揭；工作区出现（任务行/输入区）即揭盖。切换会话/重连时的卡片
-  /// 同样被覆盖，不再依赖对页面 DOM 结构的完美识别。
+  /// 盖板覆盖官方页的"配对 / 中转连接 / 列表加载中"过渡态，只要页面还处于
+  /// 任一过渡态就继续盖；只有页面真正可用（有任务行或输入区，且无过渡信号）
+  /// 才揭盖。切换会话/重连时的过渡态同样被覆盖，不依赖对页面 DOM 结构的
+  /// 完美识别。
   void _startPageStateWatch() {
     _pageStateTimer ??= Timer.periodic(const Duration(milliseconds: 800), (_) {
       unawaited(_syncCoverWithPage());
@@ -736,19 +857,53 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       final rows = payload['rows'] as int? ?? 0;
       final composer = payload['composer'] == true;
       final handshake = payload['handshake'] == true;
+      final loadingRow = payload['loadingRow'] == true;
+      final takeover = payload['takeover'] == true;
       final blank = payload['blank'] == true;
-      final hasContent = rows > 0 || composer;
-      // 规则（收敛为一条）：
-      //   过渡卡出现且没有真实内容（配对/加载页）→ 盖；
-      //   页面空白 → 盖；
-      //   其余（有真实内容且不在过渡态）→ 揭。
-      // "过渡卡"判定要求同时无任务行/无输入区：聊天正文里提到"加载工作区"
-      // 字样不会被误判（真机上用户正在讨论这个问题，误判会盖住正常对话）。
-      showCover = (handshake && !hasContent) || blank;
+      if (takeover) {
+        // 被顶号：终态信息优先于"美观"——立刻揭盖让用户读到原因。
+        if (!_takeoverLogged) {
+          _takeoverLogged = true;
+          AppLog.event(LogEvent.webviewTakeoverDetected, level: LogLevel.warn,
+              fields: {
+                LogField.device: widget.device.id,
+                LogField.generation: _webviewGeneration,
+              });
+        }
+        showCover = false;
+      } else {
+        // 规则见 [shouldCoverOfficialPage]：过渡态本身就是"不揭盖"的理由，
+        // 与内容是否部分就绪无关。
+        showCover = shouldCoverOfficialPage(
+          rows: rows,
+          composer: composer,
+          handshake: handshake,
+          loadingRow: loadingRow,
+          takeover: false,
+          blank: blank,
+        );
+      }
     } catch (_) {
       return; // 探针失败：保持现状，下一轮再试
     }
     if (!mounted) return;
+    if (showCover) {
+      _coverShownSince ??= DateTime.now();
+      // 超时兜底：过渡态持续 20s 仍未就绪（桌面端离线/中转不可达）→ 揭盖，
+      // 让用户看到页面的真实状态而不是永远的品牌图标。
+      final since = _coverShownSince;
+      if (since != null &&
+          DateTime.now().difference(since) > const Duration(seconds: 20)) {
+        AppLog.event(LogEvent.webviewBootCoverTimeout, level: LogLevel.warn,
+            fields: {
+              LogField.device: widget.device.id,
+              LogField.generation: _webviewGeneration,
+            });
+        showCover = false;
+      }
+    } else {
+      _coverShownSince = null;
+    }
     if (showCover != _bootCover) {
       setState(() => _bootCover = showCover);
     }

@@ -316,10 +316,10 @@ function backEl({
   return element;
 }
 
-/** 支持本脚本用到的选择器：tag、[attr]、[attr="v"]、[attr*="v"]、[attr^="v"]、逗号分组。 */
+/** 支持本脚本用到的选择器：tag、[attr]、[attr="v"]、[attr*="v"]、[attr^="v"]、[attr$="v"]、逗号分组。 */
 function matchesSelector(element, selector) {
   const part = selector.trim();
-  const match = /^([a-zA-Z]*)(?:\[([a-zA-Z-]+)(?:([*^]?=)"([^"]*)")?\])?$/.exec(part);
+  const match = /^([a-zA-Z]*)(?:\[([a-zA-Z-]+)(?:([*^$]?=)"([^"]*)")?\])?$/.exec(part);
   if (!match) return false;
   const [, tag, attr, op, value] = match;
   if (tag && element.tagName !== tag.toUpperCase()) return false;
@@ -330,6 +330,7 @@ function matchesSelector(element, selector) {
   if (op === '=') return actual === value;
   if (op === '*=') return actual.includes(value);
   if (op === '^=') return actual.startsWith(value);
+  if (op === '$=') return actual.endsWith(value);
   return false;
 }
 
@@ -443,6 +444,38 @@ const hook = extractHook(readFileSync(dartFile, 'utf8'));
 const jump = extractJumpScript(readFileSync(jumpFile, 'utf8'));
 const backFile = resolve(root, 'lib/services/in_page_back.dart');
 const back = extractBackScript(readFileSync(backFile, 'utf8'));
+
+/** 抽取 Dart 源里的 `static const [...] = [r]'''...'''` 注入脚本（原样文本）。 */
+function extractDartScripts(source) {
+  const out = [];
+  const re = /static const(?: String)?\s+(\w+)\s*=\s*(r?)'''([\s\S]*?)'''/g;
+  let match;
+  while ((match = re.exec(source)) !== null) {
+    let body = match[3];
+    if (match[2] !== 'r') {
+      // 非 raw 字符串：Dart 会处理转义，对齐到运行期文本。
+      body = body.split('\\\\').join('\\').split('\\$').join('$');
+    }
+    out.push({ name: match[1], body });
+  }
+  return out;
+}
+
+// 0) 页面注入脚本（探针 / 过渡卡隐藏器）：语法错误会让探针静默失败
+//    （盖板状态永不更新、过渡卡永不隐藏），比逻辑 bug 更难在真机上发现，
+//    所以这里对所有 `static const` 脚本统一做语法闸门。
+const remoteScripts = extractDartScripts(
+  readFileSync(resolve(root, 'lib/ui/official_remote_page.dart'), 'utf8'),
+);
+await check('official_remote_page 注入脚本全部通过 JS 语法检查', () => {
+  assert(
+    remoteScripts.length >= 3,
+    `至少应提取到 3 段注入脚本（实际 ${remoteScripts.length}）`,
+  );
+  for (const script of remoteScripts) {
+    new vm.Script(script.body, { filename: `${script.name}.js` });
+  }
+});
 
 // 1) 语法：单独的 JS 语法检查（不执行）。
 await check('提取出的钩子通过 JS 语法检查', () => {
@@ -771,6 +804,134 @@ await check('带 aria-expanded/aria-pressed 的开关类图标不算返回键', 
   runBack(box);
   assert(box.elements[0].clicks === 0, 'aria-expanded 开关不得被点击');
   assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('aria-label 含「设置」的图标键仍被负向词挡掉（负向过滤不许被放宽）', () => {
+  // 修 settings-back-button 误杀时**不能**把负向词整体去掉：几何路径上的
+  // 设置类图标键仍必须跳过，否则平板上又会误点侧栏图标。
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        ariaLabel: '设置',
+        rect: { top: 10, left: 8, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'settings-opened';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 0, '「设置」图标键不得被点击');
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('「改数据」控件绝不被返回键点到：v4-feedback-like-4（含 back 子串）必须跳过', () => {
+  // 真机复现（v1.0.0+22 验收）：官方页的消息行里有
+  // `v4-feedback-like-4` / `v4-feedback-dislike-4`，testid 里含 feed**back**
+  // 子串，被 `[data-testid*="back"]` 选中 → 平板上按返回键静默给用户消息点了赞
+  // （aria-label 变"已赞"、对话还被 scrollIntoView 滚到那条消息）。
+  const like = backEl({
+    testid: 'v4-feedback-like-4',
+    ariaLabel: '赞',
+    rect: { top: 10, left: 8, width: 24, height: 24 },
+    onActivate: () => {
+      // 点赞不会改变 testid 签名：正是旧实现把它当成"点了但没变化"继续乱点的原因
+    },
+  });
+  const dislike = backEl({
+    testid: 'v4-feedback-dislike-4',
+    ariaLabel: '踩',
+    rect: { top: 40, left: 8, width: 24, height: 24 },
+  });
+  const box = makeBackSandbox({ elements: [like, dislike] });
+  runBack(box);
+  assert(like.clicks === 0, `点赞键不得被点击（实际 ${like.clicks}）`);
+  assert(dislike.clicks === 0, `点踩键不得被点击（实际 ${dislike.clicks}）`);
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('禁用的返回键（desktop-top-nav-back disabled）不点，且不误报 not_found 之外的结果', () => {
+  const disabledNav = backEl({
+    testid: 'desktop-top-nav-back',
+    ariaLabel: '后退',
+    disabled: true,
+    rect: { top: 14, left: 0, width: 28, height: 28 },
+  });
+  const box = makeBackSandbox({ elements: [disabledNav] });
+  runBack(box);
+  assert(disabledNav.clicks === 0, '禁用控件不得被点击');
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('testid 精确规则仍能命中 settings-back-button 与 desktop-top-nav-back 形态', () => {
+  // settings-back-button → 显式选择器 + `[data-testid$="-back"]`
+  // desktop-top-nav-back → `[data-testid$="-back"]`
+  // 收紧子串通配后，这两种真实形态都必须仍进入候选并自证成功。
+  for (const id of ['settings-back-button', 'desktop-top-nav-back']) {
+    const store = { elements: [] };
+    const btn = backEl({
+      testid: id,
+      ariaLabel: id === 'settings-back-button' ? '返回工作区' : '后退',
+      rect: { top: 64, left: 12, width: 40, height: 40 },
+      onActivate: () => {
+        // 关闭当前层：testid 总数变化 → 签名变化 → 自证成功
+        store.elements.length = 0;
+      },
+    });
+    store.elements.push(btn);
+    const box = makeBackSandbox({ elements: store.elements });
+    runBack(box);
+    const { body } = backPayload(box.posted);
+    assert(btn.clicks === 1, `${id} 应被点击（实际 ${btn.clicks}）`);
+    assert(body.ok === true, `${id} 点击后应自证成功（实际 ${body.ok}/${body.reason}）`);
+  }
+});
+
+await check('web 设置页返回：官方返回键（testid 含 settings）必须被点掉并自证', () => {
+  // 真机命中测试实锤的两个坑，缺一不可：
+  //   1. 官方返回键 = button[aria-label="返回工作区"][data-testid="settings-back-button"]。
+  //      旧 labelOf 把 data-testid 也拼进"标签"，testid 里的 "settings"
+  //      命中 isNotBack → 唯一候选被滤掉 → not_found → Dart 兜底露出设备页
+  //      （用户看到的"设置返回闪回设备列表页"）。
+  //   2. 设置层是追加在文档末尾的覆盖层，真机 testid 总数 104；旧签名只取
+  //      前 40 个 testid，设置层整个在窗口外 → 点击后签名不变 → 误报
+  //      no_change。现在签名带计数 + 首尾，关闭设置层必然改变签名。
+  const store = { elements: [] };
+  for (let i = 0; i < 45; i++) {
+    store.elements.push(
+      backEl({ tag: 'div', testid: `task-item-sess_${i}`, text: `任务 ${i}`, icon: null }),
+    );
+  }
+  const settingsPage = backEl({
+    tag: 'div',
+    testid: 'settings-page',
+    text: '常规 界面语言 选择应用 UI 的显示语言。',
+    rect: { top: 0, left: 0, width: 800, height: 1256 },
+    icon: null,
+  });
+  const backBtn = backEl({
+    ariaLabel: '返回工作区',
+    testid: 'settings-back-button',
+    text: '返回工作区',
+    rect: { top: 64, left: 12, width: 40, height: 40 },
+    onActivate: () => {
+      const keep = store.elements.filter((el) => el !== settingsPage && el !== backBtn);
+      store.elements.length = 0;
+      store.elements.push(...keep);
+    },
+  });
+  store.elements.push(settingsPage, backBtn);
+  const box = makeBackSandbox({ elements: store.elements });
+  runBack(box);
+  flushTimers(box);
+  assert(backBtn.clicks === 1, `官方返回键应被点一次（实际 ${backBtn.clicks}）`);
+  assert(
+    store.elements.indexOf(settingsPage) < 0,
+    '设置层应已关闭（签名随之变化）',
+  );
+  const { body } = backPayload(box.posted);
+  assert(body.ok === true, `ok 应为 true（实际 ${body.ok}/${body.reason}）`);
+  assert(body.reason === 'clicked', `reason 应为 clicked（实际 ${body.reason}）`);
 });
 
 await check('点到控件但页面没变：报告 no_change（不谎报成功）', () => {

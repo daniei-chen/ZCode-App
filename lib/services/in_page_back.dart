@@ -111,6 +111,29 @@ abstract final class InPageBack {
     var t = lower(value);
     return t.indexOf('返回顶部') >= 0 || t.indexOf('back to top') >= 0;
   };
+  // 会**改变用户数据**的控件（赞/踩/反馈/收藏/复制/撤销）：返回脚本一律不碰。
+  // 真机复现（v1.0.0+22 验收）：平板上按返回键，脚本把 `v4-feedback-like-4`
+  // 当成返回控件——因为它命中了 `[data-testid*="back"]` 的子串（feed**back**）
+  // ——于是静默点赞了用户消息、还把对话滚到了那条消息上。
+  var isMutating = function (el) {
+    var id = lower(el.getAttribute('data-testid'));
+    var label = lower(
+      (el.getAttribute('aria-label') || '') + ' ' +
+      (el.getAttribute('title') || '') + ' ' +
+      (el.textContent || '')
+    );
+    var idWords = ['feedback', 'like', 'dislike', 'reaction', 'vote',
+      'favorite', 'star', 'undo', 'redo'];
+    for (var i = 0; i < idWords.length; i++) {
+      if (id.indexOf(idWords[i]) >= 0) return true;
+    }
+    var labelWords = ['已赞', '已踩', '点赞', '点踩', '喜欢', '不喜欢', '反馈',
+      '收藏', '复制', '撤销', '重做', '赞', '踩', 'like', 'dislike', 'favorite', 'undo', 'redo'];
+    for (var j = 0; j < labelWords.length; j++) {
+      if (label.indexOf(labelWords[j]) >= 0) return true;
+    }
+    return false;
+  };
   // 明确不是"返回"的控件（真机 no_change 实锤：平板上误点到折叠/菜单类图标
   // 导致页面无变化、返回键看起来闪一下又回设备页）。命中即跳过。
   var isNotBack = function (value) {
@@ -124,11 +147,16 @@ abstract final class InPageBack {
       t.indexOf('menu') >= 0 || t.indexOf('search') >= 0 ||
       t.indexOf('theme') >= 0 || t.indexOf('settings') >= 0;
   };
+  // 人类可见标签：aria-label / title / 文本。**不含 data-testid**——
+  // testid 是内部标识、不是文案，混进来会被负向词的子串匹配误杀
+  // （真机命中测试实锤：官方设置页左上角返回键是
+  // button[data-testid="settings-back-button"][aria-label="返回工作区"]，
+  // testid 里的 "settings" 命中 isNotBack，返回键被整个滤掉 →
+  // 设置页按返回闪回设备页）。
   var labelOf = function (el) {
     return [
       el.getAttribute('aria-label'),
       el.getAttribute('title'),
-      el.getAttribute('data-testid'),
       el.textContent
     ].filter(Boolean).join(' ').trim();
   };
@@ -160,6 +188,10 @@ abstract final class InPageBack {
       out.push(el);
     };
     var selectors = [
+      // 官方页面自己的稳定 testid（真机命中测试实锤：设置页左上角返回键
+      // = button[data-testid="settings-back-button"]，aria-label="返回工作区"）。
+      'button[data-testid="settings-back-button"]',
+      '[data-testid="settings-back-button"]',
       'button[aria-label="返回任务首页"]',
       'button[aria-label="Back to task home"]',
       'button[aria-label="返回会话列表"]',
@@ -167,23 +199,38 @@ abstract final class InPageBack {
       'button[aria-label^="Back to"]',
       '[aria-label*="返回"]',
       '[title*="返回"]',
-      '[data-testid*="back"]',
-      '[data-testid*="Back"]',
-      '[data-test*="back"]'
+      // testid 里带 back 的控件：只认**精确形态**，不做子串通配。
+      // `[data-testid*="back"]` 会把 `v4-feedback-like-4`（feed**back**）
+      // 一起选中——返回键静默点赞了用户消息（真机复现）。
+      '[data-testid="back"]',
+      '[data-testid\$="-back"]',
+      '[data-testid^="back-"]',
+      '[data-testid*="-back-"]',
+      '[data-testid*="back-button"]',
+      '[data-testid*="backButton"]',
+      '[data-testid*="back_button"]',
+      '[data-testid*="goback"]',
+      '[data-testid*="go-back"]'
     ];
     for (var s = 0; s < selectors.length; s++) {
       var hits = document.querySelectorAll(selectors[s]);
       for (var i = 0; i < hits.length; i++) {
+        // 策展选择器是白名单：只排"返回顶部"这类同名歧义与"改数据"的控件，
+        // 不再过负向词（负向词是为几何/通用路径防误点设计的，用在这里会
+        // 杀掉真返回键——testid 含 "settings" 的官方返回键被滤掉的实锤）。
         if (isBackToTop(labelOf(hits[i]))) continue;
-        if (isNotBack(labelOf(hits[i]))) continue;
+        if (isMutating(hits[i])) continue;
         push(hits[i]);
       }
     }
     var generic = document.querySelectorAll('button,[role="button"],a');
     for (var g = 0; g < generic.length; g++) {
       var el = generic[g];
+      var label = el.getAttribute('aria-label');
       if (isBackToTop(labelOf(el))) continue;
-      if (!isBackLabel(el.getAttribute('aria-label'))) continue;
+      if (isNotBack(label)) continue;
+      if (isMutating(el)) continue;
+      if (!isBackLabel(label)) continue;
       if (!visible(el)) continue;
       push(el);
     }
@@ -205,6 +252,7 @@ abstract final class InPageBack {
       var node = nodes[n];
       if (isBackToTop(labelOf(node))) continue;
       if (isNotBack(labelOf(node))) continue;
+      if (isMutating(node)) continue;
       // 折叠/开关类控件带 aria-expanded/aria-pressed：绝不当作返回键。
       if (node.getAttribute('aria-expanded') !== null) continue;
       if (node.getAttribute('aria-pressed') !== null) continue;
@@ -223,14 +271,22 @@ abstract final class InPageBack {
     for (var k = 0; k < scored.length; k++) push(scored[k].el);
     return out;
   };
-  // 内容签名：URL + 可见的 data-testid 序列 + 主容器首个子元素。
-  // 只要能区分"页面真的换了"就够，不做任何内容留存。
+  // 内容签名：URL + 标题 + testid 总数 + 前 20 / 后 20 个 testid + 主容器首子元素。
+  // 尾部参与是关键（真机 no_change 实锤）：官方页面的设置层是**追加在文档末尾**
+  // 的覆盖层，只取前 40 个 testid 时它整个在窗口之外——点「返回工作区」后签名
+  // 不变，被判成"点到了不该点的东西"，返回键于是闪回设备页。总数 + 首尾一起
+  // 参与，设置层开合必然改变签名，且不做任何内容留存。
   var signature = function () {
     var parts = [String(location.href), String(document.title || '')];
     var nodes = document.querySelectorAll('[data-testid]');
-    var n = Math.min(nodes.length, 40);
-    for (var i = 0; i < n; i++) {
+    parts.push('n=' + nodes.length);
+    var head = Math.min(nodes.length, 20);
+    for (var i = 0; i < head; i++) {
       parts.push(String(nodes[i].getAttribute('data-testid')));
+    }
+    var tailStart = Math.max(head, nodes.length - 20);
+    for (var j = tailStart; j < nodes.length; j++) {
+      parts.push(String(nodes[j].getAttribute('data-testid')));
     }
     var main = document.querySelector('main') || document.body;
     if (main && main.firstElementChild) {

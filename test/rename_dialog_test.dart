@@ -38,6 +38,9 @@ Future<void> _pumpManage(WidgetTester tester, List<RemoteDevice> devices) {
         deviceListProvider.overrideWith(() => _FakeDeviceListNotifier(devices)),
       ],
       child: MaterialApp(
+        // 点击类用例不依赖水波纹：本机测试环境缺 shaders/ink_sparkle.frag，
+        // 用默认 theme 会抛 "Asset not found"（环境限制，与本用例无关）。
+        theme: ThemeData(splashFactory: NoSplash.splashFactory),
         locale: const Locale('zh'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
