@@ -156,12 +156,25 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     return roots.length > 0;
   }
 
-  // 握手卡片的观察是**有界**的（F17）：命中即断开；最多观察 30 秒
-  // （慢设备/慢配对下卡片可能在 5 秒后才出现——真机 v1.1.4 反馈）；
-  // 去抖 150ms。页面进入流式输出后这里已经不再有任何 DOM 扫描。
-  var deadline = Date.now() + 30000;
+  // 握手卡片的观察是**有界**的（F17）：最多观察 60 秒，但**命中不断开**——
+  // 配对流程会多次重建这张卡（"等待桌面端配对"→"已配对，正在加载工作区"），
+  // 旧实现命中一次就停止观察，重建后的卡没人再隐藏（真机 v1.1.5 截图实锤；
+  // 另有一个漏改的 5s 硬停定时器，让 30s/60s 的 deadline 从未生效）。
+  // 真正的停止条件是**工作区就绪**（任务行/输入区出现）或 60s 上限。
+  // 去抖 150ms。工作区就绪后这里不再有任何 DOM 扫描。
+  var deadline = Date.now() + 60000;
   var observer = null;
   var debounce = null;
+  function workspaceReady() {
+    try {
+      if (document.querySelectorAll('[data-testid^="task-item-"]').length > 0) {
+        return true;
+      }
+      return !!document.querySelector('textarea, [contenteditable="true"]');
+    } catch (e) {
+      return false;
+    }
+  }
   function stopWatching() {
     if (observer) {
       try { observer.disconnect(); } catch (e) {}
@@ -174,8 +187,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
   function runHide() {
     if (observer === null) return;
+    if (workspaceReady()) { stopWatching(); return; }
     if (Date.now() > deadline) { stopWatching(); return; }
-    if (hide()) stopWatching();
+    hide();
   }
   function schedule() {
     if (observer === null || debounce) return;
@@ -194,7 +208,18 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   window.setTimeout(schedule, 0);
   window.setTimeout(schedule, 250);
   window.setTimeout(schedule, 1000);
-  window.setTimeout(stopWatching, 5000);
+  window.setTimeout(schedule, 3000);
+  window.setTimeout(schedule, 8000);
+  var tidy = window.setInterval(function () {
+    if (observer === null) {
+      window.clearInterval(tidy);
+      return;
+    }
+    if (workspaceReady() || Date.now() > deadline) {
+      stopWatching();
+      window.clearInterval(tidy);
+    }
+  }, 1000);
 })();
 ''';
 
@@ -1482,32 +1507,19 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                     ),
                     if (_bootCover && !_failed)
                       Positioned.fill(
-                        // 品牌启动盖板（用户口径）：盖住官方页的
-                        // "正在配对工作区 / 加载工作区中"启动过程，探针确认
-                        // 真实内容（任务列表/输入区）或 12s 超时后揭开。
+                        // 品牌启动盖板（用户口径）：**纯图标**，不带转圈——
+                        // 盖住官方页的"正在配对工作区 / 加载工作区中"启动
+                        // 过程，探针确认真实内容或 12s 超时后揭开。
                         child: ColoredBox(
                           color: Theme.of(context).scaffoldBackgroundColor,
                           child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Image.asset(
-                                    'assets/brand/mark.png',
-                                    width: 72,
-                                    height: 72,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.4,
-                                  ),
-                                ),
-                              ],
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.asset(
+                                'assets/brand/mark.png',
+                                width: 72,
+                                height: 72,
+                              ),
                             ),
                           ),
                         ),

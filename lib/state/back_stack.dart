@@ -35,9 +35,14 @@ BackDecision decideSystemBack({
   return pageHandled ? BackDecision.handledByPage : BackDecision.revealLauncher;
 }
 
-/// 平板形态判定（Android 惯例：最短边 ≥600dp 为平板）。
+/// 平板形态判定。
 ///
 /// 用户规则：平板上官方页面是"对话 + 列表同屏"，页内没有返回可控件，
 /// 系统返回应当**一次到位**直接露出设备页——页内返回脚本在平板上不跑
 /// （真机实测它会误触对话区控件，表现为"点赞动了一下但没返回"）。
-bool isTabletLayout(Size size) => size.shortestSide >= 600;
+///
+/// 阈值取 **700dp**（真机反馈修正）：Android 传统分界是 600dp，但用户
+/// 的折叠屏手机最短边约 606dp，被 600 误判成平板（设置返回/页内返回
+/// 全部走错路径）。700 恰好把 606dp 的大屏手机分回手机、800dp 的
+/// Pixel Tablet 分回平板。
+bool isTabletLayout(Size size) => size.shortestSide >= 700;

@@ -42,6 +42,13 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// instead of starting a fresh navigation.
   bool _launcherVisible = false;
 
+  /// 设置返回揭示远控页的时刻（平板路径）。同一次返回键在部分机型上会被
+  /// 再派发一次（真机 v1.1.5 反馈：设置返回后"自动又返回了一级"），揭示后
+  /// 短窗口内的返回键按同一次操作的多余派发吞掉。
+  DateTime? _settingsRevealedAt;
+
+  static const _settingsRevealBackSwallow = Duration(milliseconds: 900);
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +116,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     OfficialRemotePageController controller,
   ) async {
     if (_backHandling || !mounted || _launcherVisible) return;
+    // 设置返回刚揭示远控页：极短窗口内的再一次返回键视为同一次操作的
+    // 多余派发（真机反馈"我只返回了一次，它返回了两次"），吞掉。
+    final revealedAt = _settingsRevealedAt;
+    if (revealedAt != null &&
+        DateTime.now().difference(revealedAt) < _settingsRevealBackSwallow) {
+      return;
+    }
     _backHandling = true;
     try {
       // 页面先处理"对话页 → 对话列表"这类页内路由（手机与平板同一条路径）；
@@ -322,6 +336,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 // （手机不触发此回调，设置返回停在设备列表页）。
                 onSettingsReturned: () {
                   if (!mounted || !_launcherVisible) return;
+                  _settingsRevealedAt = DateTime.now();
                   setState(() => _launcherVisible = false);
                 },
               ),

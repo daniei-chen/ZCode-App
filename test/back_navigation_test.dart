@@ -119,13 +119,19 @@ void main() {
   });
 
   group('平板同屏布局判定（isTabletLayout）', () {
-    test('最短边 ≥600dp 为平板：返回一次直接露出设备页，页内脚本不跑', () {
+    test('最短边 ≥700dp 为平板：返回一次直接露出设备页，页内脚本不跑', () {
       expect(isTabletLayout(const Size(800, 1280)), isTrue, reason: '平板竖屏');
       expect(isTabletLayout(const Size(1280, 800)), isTrue, reason: '平板横屏');
       expect(isTabletLayout(const Size(1600, 2560)), isTrue, reason: '大平板');
     });
 
-    test('手机正常走页内返回：对话页 → 对话列表', () {
+    test('大屏手机（约 606dp 折叠屏）按手机处理：保留页内返回', () {
+      // 真机反馈：600 阈值把 606dp 折叠屏误判成平板，设置返回/页内返回
+      // 全部走错路径。阈值提到 700 后必须回到手机路径。
+      expect(isTabletLayout(const Size(606, 1912)), isFalse);
+    });
+
+    test('普通手机正常走页内返回：对话页 → 对话列表', () {
       expect(isTabletLayout(const Size(320, 640)), isFalse);
       expect(isTabletLayout(const Size(411, 900)), isFalse);
       expect(isTabletLayout(const Size(411, 900).flipped), isFalse);
