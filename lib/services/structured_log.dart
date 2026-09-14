@@ -63,6 +63,9 @@ enum LogEvent {
   biometricAuthFailed('LC800'),
   biometricUnlockFailed('LC801'),
   protectedDataWipeFailed('LC802'),
+  /// 锁屏恢复（R-03）：验证身份后关闭故障安全偏好的结果，两条路径分别留痕。
+  securityRecoveryVerified('LC803'),
+  securityRecoveryDenied('LC804'),
 
   // 安全门禁开关（PR21/F24）：开关本身是敏感操作，两种结果都要留痕。
   securityLockEnabled('SL900'),

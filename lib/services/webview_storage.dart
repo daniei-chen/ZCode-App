@@ -7,6 +7,10 @@ import 'structured_log.dart';
 ///
 /// 审计指出：Cookie / DOM storage / cache 从未进入数据流清单，也没有清理触发点。
 /// 这里把清单和清理动作放在同一处，避免文档与实现各说各话。
+///
+/// R-17 修正：清单里声明的 IndexedDB 以前没有任何清理动作（只写在文档里）；
+/// 现在 [clearForCredentialChange] 在页面上下文里请求删除全部数据库，
+/// [clearAllSiteData] 另走插件的 `WebStorageManager.deleteAllData()`。
 abstract final class WebViewStorage {
   /// 数据流清单：类型 → 存什么、何时清。
   static const Map<String, String> inventory = {
@@ -14,12 +18,29 @@ abstract final class WebViewStorage {
     'domStorage': 'localStorage 保存 zcode-theme 等偏好；换凭证/移除设备/擦除时清空',
     'sessionStorage': '页面会话级状态；随 WebView generation 重建消失',
     'httpCache': '静态资源缓存，不含业务凭证；换凭证/移除设备/擦除时清空',
-    'indexedDb': '官方页面自行使用；随站点数据清理（换凭证/擦除）',
+    'indexedDb': '官方页面自行使用；换凭证/擦除时逐库清理（deleteDatabase / deleteAllData）',
   };
 
   /// 诊断包里的单行摘要（不展开细节，避免诊断文本膨胀）。
   static String get policySummary =>
-      'cookies+domStorage+httpCache；触发：换凭证/移除设备/锁定擦除';
+      'cookies+domStorage+indexedDb+httpCache；触发：换凭证/移除设备/锁定擦除';
+
+  /// JS 片段：清 localStorage/sessionStorage 并请求删除全部 IndexedDB。
+  /// IndexedDB 删除是异步回调式，evaluate 不等回调——发出请求即尽力而为，
+  /// 不阻塞页面（删除在后台完成）。
+  static const String _clearDomScript =
+      "(function(){try{window.localStorage.clear();"
+      "window.sessionStorage.clear();}catch(e){}"
+      "try{"
+      "if(window.indexedDB&&indexedDB.databases){"
+      "indexedDB.databases().then(function(list){"
+      "(list||[]).forEach(function(db){try{indexedDB.deleteDatabase(db.name)}catch(e){}});"
+      "});"
+      "}else if(window.indexedDB&&indexedDB.webkitGetDatabaseNames){"
+      "var req=indexedDB.webkitGetDatabaseNames();"
+      "req.onsuccess=function(){var names=req.result;"
+      "for(var i=0;i<names.length;i++){try{indexedDB.deleteDatabase(names[i])}catch(e){}}}}"
+      "}catch(e){}})();";
 
   /// 清理所有本地存储。`controller` 为空时仍会清 Cookie（用于设备已被移除、
   /// 页面已销毁的场景）。
@@ -33,11 +54,7 @@ abstract final class WebViewStorage {
     var domCleared = false;
     if (controller != null) {
       try {
-        await controller.evaluateJavascript(
-          source:
-              "(function(){try{window.localStorage.clear();"
-              "window.sessionStorage.clear();}catch(e){}})();",
-        );
+        await controller.evaluateJavascript(source: _clearDomScript);
         domCleared = true;
       } catch (_) {
         domCleared = false;
@@ -58,6 +75,45 @@ abstract final class WebViewStorage {
         LogField.device: deviceId,
         LogField.reason: domCleared ? 'dom_cookie_cache' : 'cookie_cache',
         LogField.ok: cookiesCleared,
+      },
+    );
+  }
+
+  /// 站点数据全量清理（擦除事务 / R-04、R-17）。
+  ///
+  /// 与 [clearForCredentialChange] 的差别：不需要页面 controller，面向
+  /// "设备都删了、页面已销毁"的最终清理；额外走插件的
+  /// `WebStorageManager.deleteAllData()`（按域清 localStorage/IndexedDB 等）
+  /// 与全局 HTTP 缓存。
+  ///
+  /// 每个域独立尝试并如实记录（失败不谎报成功）。凭证本体已由
+  /// `DeviceStore.clearAll` 在同一事务里删除；站点数据清理失败不阻断
+  /// 擦除，但日志会留下可核对的 partial 标记。
+  static Future<void> clearAllSiteData({String? reason}) async {
+    var siteDataOk = false;
+    try {
+      await WebStorageManager.instance().deleteAllData();
+      siteDataOk = true;
+    } catch (_) {
+      siteDataOk = false;
+    }
+    var cacheOk = false;
+    try {
+      await InAppWebViewController.clearAllCache();
+      cacheOk = true;
+    } catch (_) {}
+    var cookiesOk = false;
+    try {
+      await CookieManager.instance().deleteAllCookies();
+      cookiesOk = true;
+    } catch (_) {}
+    final allOk = siteDataOk && cacheOk && cookiesOk;
+    AppLog.event(
+      LogEvent.webviewStorageCleared,
+      fields: {
+        LogField.reason:
+            reason ?? (allOk ? 'all_site_data' : 'site_data_partial'),
+        LogField.ok: allOk,
       },
     );
   }

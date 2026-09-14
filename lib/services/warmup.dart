@@ -151,6 +151,20 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
     }
   }
 
+  /// 擦除事务（R-04）：取消**全部**待写定时器并清空内存态。
+  ///
+  /// 必须同步执行：任何在途的 3 秒延时写入都要作废，否则擦除后计时器到期
+  /// 会把已删除设备的 warmup 脚本（含请求签名）重新写回安全存储。
+  /// 磁盘侧 warmup 键由 `DeviceStore.clearAll` 在同一事务里删除。
+  void clearAll() {
+    for (final timer in _persistTimers.values) {
+      timer.cancel();
+    }
+    _persistTimers.clear();
+    if (state.isEmpty) return;
+    state = const {};
+  }
+
   static bool _shouldRecord(WarmupRequest req) {
     if (req.url.length > 2048) return false;
     if (req.body != null && req.body!.length > _maxBodyBytes) return false;

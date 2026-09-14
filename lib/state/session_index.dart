@@ -110,6 +110,14 @@ class SessionIndexNotifier
     state = Map.of(state)..remove(deviceId);
   }
 
+  /// 擦除事务（R-04）：会话索引含标题/预览路径等远控内容，全量清除。
+  void clearAll() {
+    _tasks.clear();
+    _sessions.clear();
+    if (state.isEmpty) return;
+    state = const {};
+  }
+
   void _rebuild(String deviceId) {
     final tasks = _tasks[deviceId];
     final sessions = _sessions[deviceId];

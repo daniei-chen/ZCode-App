@@ -48,6 +48,7 @@ jobs:
           "${SBOM_PYTHON}" scripts/verify-release-artifacts.py --self-test
           "${SBOM_PYTHON}" scripts/generate-sbom.py --self-test
           "${SBOM_PYTHON}" scripts/check-dependency-advisories.py --self-test
+          "${SBOM_PYTHON}" scripts/check-plugin-survival.py --self-test
       # 依赖漏洞门禁（PR 侧）：报告 high/critical，但只在 critical 上阻断，且
       # OSV 不可达时只告警——避免上游网络抖动卡住日常 PR。发布侧是 fail-closed。
       # --allow-partial 只允许这里用：CI 没有 APK，只扫 Dart 层；发布校验器仍要求

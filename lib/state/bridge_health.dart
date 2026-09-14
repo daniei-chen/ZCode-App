@@ -52,6 +52,9 @@ class BridgeHealthNotifier extends Notifier<Map<String, BridgeHealth>> {
   }
 
   void clear() => state = const {};
+
+  /// 擦除事务（R-04）：与 `clear` 同义，保留别名便于与其他 state 统一命名。
+  void clearAll() => clear();
 }
 
 final bridgeHealthProvider =

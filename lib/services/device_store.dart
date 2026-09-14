@@ -124,11 +124,35 @@ class DeviceStore {
     if (ordered.length != indexIds.length) repaired = true;
 
     Map<String, String>? snapshot;
+    Object? enumerationError;
     try {
       snapshot = await _secure.readAll();
-    } catch (_) {
+    } catch (e) {
       snapshot = null;
+      enumerationError = e;
     }
+
+    // R-05：枚举失败 + 逐键读取后仍无任何记录 = 无法证明"快照完整且为空"。
+    //
+    // 索引缺失/损坏时，孤儿发现是唯一能把记录找回来的路径（indexRaw == null
+    // 或解析失败 → _readIndex 走不到；这里靠 readAll）；枚举再失败，"空列表"
+    // 只说明这次读不到，不说明没有凭证。此时必须：
+    //   * 报告 unavailable（UI 显示可重试故障，而不是"没有设备"）；
+    //   * **不写回索引**——写空索引会把尚未发现的记录从索引里抹掉，
+    //     把一次暂时故障变成永久数据丢失（审计复现 R-05）。
+    if (enumerationError != null && ordered.isEmpty) {
+      AppLog.failure(
+        LogEvent.deviceStoreUnavailable,
+        enumerationError,
+        fields: {LogField.reason: 'enumerate_incomplete'},
+      );
+      return DeviceLoadResult(
+        devices: const [],
+        unavailable: true,
+        cause: enumerationError,
+      );
+    }
+
     if (snapshot != null) {
       final orphans = <RemoteDevice>[];
       for (final entry in snapshot.entries) {

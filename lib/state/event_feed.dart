@@ -121,6 +121,12 @@ class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
     if (!state.containsKey(deviceId)) return;
     state = Map.of(state)..remove(deviceId);
   }
+
+  /// 擦除事务（R-04）：事件摘要含会话标题与审批内容，全量清除。
+  void clearAll() {
+    if (state.isEmpty) return;
+    state = const {};
+  }
 }
 
 final eventFeedProvider =

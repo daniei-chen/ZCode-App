@@ -115,6 +115,31 @@ void main() {
       expect(src.contains("scheme.toLowerCase() != 'https'"), isTrue);
       expect(src.contains("{'zcode.z.ai'}"), isTrue);
     });
+
+    test('R-15：换链接必须重建 sync 控制器（不得留 null）', () {
+      final page = read('lib/ui/official_remote_page.dart');
+      // 旧实现 `_sync = null;` 后不会再有 didChangeDependencies，
+      // 新凭证下的事件会静默丢弃。替换必须是"新 device 的控制器原子换新"。
+      expect(
+        page.contains('_sync = null;'),
+        isFalse,
+        reason: 'R-15：置 null 而不重建会让新链接的事件无处理者',
+      );
+      expect(
+        page.contains(
+          '_sync = WebViewSyncController(device: widget.device, ref: ref);',
+        ),
+        isTrue,
+      );
+    });
+
+    test('R-16：盖板 deadline 是独立 wall-clock 计时器（不依赖探针成功）', () {
+      final page = read('lib/ui/official_remote_page.dart');
+      expect(page.contains('_coverDeadlineTimer'), isTrue);
+      expect(page.contains('_coverProbeInFlight'), isTrue);
+      // 探针失败分支不得再跳过 deadline：catch 里只 return，由计时器兜底。
+      expect(page.contains('_coverTimeoutLogged'), isTrue);
+    });
   });
 
   group('security invariants：更新链', () {

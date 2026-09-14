@@ -284,6 +284,19 @@ jobs:
             --version "${VERSION}" \
             --sbom "build/app/outputs/flutter-apk/ZCode-v${VERSION}.sbom.cyclonedx.json"
 
+      # R-18：插件存活门——绑定**本次**构建的 APK 与 mapping，防止"插件被 R8
+      # 剥掉"（历史事故：shared_preferences 缺失 → 锁屏死锁）与"另一个构建的
+      # mapping 冒充本次产物"。空 APK / 空 mapping / 摘要不一致都会 fail。
+      - name: Plugin survival gate (APK ↔ mapping ↔ manifest bound)
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd build/app/outputs/flutter-apk
+          python3 "${GITHUB_WORKSPACE}/scripts/check-plugin-survival.py" \
+            --apk "ZCode-v${VERSION}.apk" \
+            --mapping "${GITHUB_WORKSPACE}/build/app/outputs/mapping/release/mapping.txt" \
+            --manifest release-manifest.json
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zcode-app-release

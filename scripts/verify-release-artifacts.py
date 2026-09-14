@@ -103,15 +103,31 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def sidecar_digest(path: Path) -> str | None:
+def sidecar_digest(path: Path, expected_apk_name: str | None = None) -> str | None:
+    """解析 sha256 sidecar。
+
+    R-12：sidecar 必须与**应用内更新器的解析契约**完全一致——
+    `<64 位十六进制><空白><APK 文件名>` 单行（`sha256sum` 默认输出形态）。
+    旧实现只取第一个 token，接受"裸摘要"，于是本地/手工出包写出 65 字节的
+    裸文件也能通过产物校验，但应用回退校验（要求摘要 + 精确文件名）会拒绝
+    它，命令行的 `sha256sum -c` 也无法使用。这里要求完整格式；给了
+    expected_apk_name 时文件名必须精确匹配。
+    """
     try:
         text = path.read_text(encoding="utf-8").strip()
     except OSError:
         return None
     if not text:
         return None
-    token = text.split()[0]
-    return token if re.fullmatch(r"[0-9A-Fa-f]{64}", token) else None
+    # 契约就是单行；多行说明生成方写入了非预期内容。
+    if "\n" in text:
+        return None
+    match = re.fullmatch(r"([0-9A-Fa-f]{64})\s+\*?(\S+)", text)
+    if match is None:
+        return None
+    if expected_apk_name is not None and match.group(2) != expected_apk_name:
+        return None
+    return match.group(1)
 
 
 def attestation_subjects(data: object) -> list[dict]:
@@ -272,9 +288,12 @@ def check_dir(
     if actual != declared:
         errors.append(f"apk sha256 mismatch: computed {actual} != manifest {declared}")
 
-    sidecar = sidecar_digest(sidecar_path)
+    sidecar = sidecar_digest(sidecar_path, expected_apk_name=apk_name)
     if sidecar is None:
-        errors.append(f"missing or malformed sidecar: {sidecar_path}")
+        errors.append(
+            f"missing or malformed sidecar: {sidecar_path} "
+            "（必须为 '<64hex>  <APK 文件名>' 单行，与应用更新器契约一致）"
+        )
     elif sidecar.lower() != actual:
         errors.append(f"sidecar sha256 mismatch: {sidecar.lower()} != computed {actual}")
 
@@ -456,6 +475,33 @@ def run_self_test() -> int:
             f"{'b' * 64}  ZCode-v{version}.apk\n", encoding="utf-8"
         )
         expect("tampered sidecar fails", check_dir(tampered, version), should_fail=True)
+
+        # R-12：裸摘要（无文件名）必须失败——应用更新器要求"摘要 + 精确文件名"，
+        # 命令行 sha256sum -c 也要求文件名。本包 b3 的 sidecar 就是 65 字节裸摘要。
+        bare = root / "bare-digest-sidecar"
+        shutil.copytree(root, bare)
+        digest_now = sha256_file(bare / f"ZCode-v{version}.apk")
+        (bare / f"ZCode-v{version}.apk.sha256").write_text(
+            f"{digest_now}\n", encoding="utf-8"
+        )
+        expect(
+            "bare-digest sidecar fails（R-12 契约：必须是 sha256sum 行格式）",
+            check_dir(bare, version),
+            should_fail=True,
+        )
+
+        # R-12：文件名不匹配（摘要正确但指向别的文件）也必须失败。
+        wrong_name = root / "wrong-name-sidecar"
+        shutil.copytree(root, wrong_name)
+        digest_now = sha256_file(wrong_name / f"ZCode-v{version}.apk")
+        (wrong_name / f"ZCode-v{version}.apk.sha256").write_text(
+            f"{digest_now}  ZCode-v9.9.8.apk\n", encoding="utf-8"
+        )
+        expect(
+            "sidecar 文件名不匹配 fails（R-12）",
+            check_dir(wrong_name, version),
+            should_fail=True,
+        )
 
         # manifest digest 被篡改
         tampered = root / "tampered-manifest"

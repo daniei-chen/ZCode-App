@@ -355,4 +355,13 @@ class NotifierService {
       } catch (_) {}
     }
   }
+
+  /// 擦除事务（R-04）：撤销所有已展示/待展示的通知。
+  ///
+  /// 通知 payload 里带着设备与会话 id，凭证都被清掉后它们不能继续留在
+  /// 系统通知栏，否则点开还会带着已删除设备的跳转目标。失败只影响撤销，
+  /// 由调用方决定是否视为擦除失败。
+  Future<void> cancelAll() async {
+    await _plugin.cancelAll();
+  }
 }

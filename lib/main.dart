@@ -11,9 +11,8 @@ import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/notifier.dart';
 import 'services/structured_log.dart';
-import 'services/webview_storage.dart';
 import 'state/app_lifecycle.dart';
-import 'state/observer_stats.dart';
+import 'state/protected_wipe.dart';
 import 'state/session_pool.dart';
 import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
@@ -190,7 +189,7 @@ class BiometricGate extends ConsumerStatefulWidget {
     this.authenticate = _defaultAuthenticate,
     this.authenticateWithDeviceCredential =
         _defaultDeviceCredentialAuthenticate,
-    this.wipeProtectedData = _defaultWipeProtectedData,
+    this.wipeProtectedData,
   });
 
   final Widget child;
@@ -202,8 +201,12 @@ class BiometricGate extends ConsumerStatefulWidget {
   /// 恢复路径：生物识别不可用时，必须用系统锁屏凭据验证身份才解锁。
   final Future<bool> Function(String reason) authenticateWithDeviceCredential;
 
-  /// 破坏性恢复路径：清除本机受保护数据；数据既已删除，此后免验证放行才成立。
-  final Future<void> Function() wipeProtectedData;
+  /// 破坏性恢复路径的替身（仅测试注入）。
+  ///
+  /// 生产为 null：实际执行 [ProtectedStateWipe.run]（磁盘 + 内存 Provider +
+  /// WebView 站点数据 + 通知的完整擦除事务，R-04）。测试传计数器替身时，
+  /// "内存态已清"由替身负责，锁屏不额外执行真实事务。
+  final Future<void> Function()? wipeProtectedData;
 
   static Future<bool> _defaultAuthenticate(String reason) =>
       BiometricService.instance.authenticate(reason);
@@ -211,13 +214,11 @@ class BiometricGate extends ConsumerStatefulWidget {
   static Future<bool> _defaultDeviceCredentialAuthenticate(String reason) =>
       BiometricService.instance.authenticateWithDeviceCredential(reason);
 
-  static Future<void> _defaultWipeProtectedData() async {
-    await DeviceStore.instance.clearAll();
-  }
-
   @override
   ConsumerState<BiometricGate> createState() => _BiometricGateState();
 }
+
+enum _LockPanel { main, recoveryConfirm, wipeConfirm }
 
 class _BiometricGateState extends ConsumerState<BiometricGate>
     with WidgetsBindingObserver {
@@ -229,6 +230,17 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   bool _unavailable = false;
   bool _noDeviceCredential = false;
   bool _wipeBusy = false;
+  bool _wipeFailed = false;
+  bool _recoveryDenied = false;
+  bool _writeFailed = false;
+
+  /// 锁屏内的确认面板（R-02）。
+  ///
+  /// 锁屏在 `MaterialApp.builder` 之上、Navigator 之外：这里**不能**用
+  /// `showDialog`（审计复现：Gate 的 context 上 `Navigator.maybeOf` 为 null，
+  /// 恢复对话框在真实拓扑下抛 FlutterError）。确认改用锁屏内的内联面板，
+  /// 不依赖任何 Navigator，也不会把受保护内容留在"锁屏之上的 route"里。
+  _LockPanel _panel = _LockPanel.main;
 
   @override
   void initState() {
@@ -368,37 +380,42 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   }
 
   /// 恢复路径二（破坏性）：清除本机受保护数据后关闭门禁。
-  /// 这是唯一免验证放行的路径——前提是凭证与设备记录已经删除（无可暴露的数据）。
-  Future<void> _wipeAndDisable() async {
-    final l10n = AppLocalizations.of(context) ?? l10nZh;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        // 200% 字体/横屏下内容会超出可视区：允许滚动，按钮始终可达（PR22/F25）。
-        scrollable: true,
-        title: Text(l10n.biometricWipeDataConfirmTitle),
-        content: Text(l10n.biometricWipeDataConfirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.biometricWipeCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.biometricWipeDataConfirmAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _wipeBusy = true);
+  /// 这是唯一免验证放行的路径——前提是受保护状态**全部**已删除
+  /// （磁盘 + 内存 Provider + WebView 站点数据 + 通知），任一环节失败
+  /// 都保持锁定（R-03/R-04：不允许"部分清除"放行）。
+  ///
+  /// 只负责展示内联确认面板（R-02，不用 showDialog）；真正的擦除在用户
+  /// 点"清除并关闭"后由 [_confirmWipe] 执行。
+  void _wipeAndDisable() {
+    setState(() {
+      _panel = _LockPanel.wipeConfirm;
+      _wipeFailed = false;
+    });
+  }
+
+  /// 内联面板"清除并关闭"的确认动作（R-02/R-03/R-04）。
+  Future<void> _confirmWipe() async {
+    if (_wipeBusy) return;
+    setState(() {
+      _panel = _LockPanel.main;
+      _wipeBusy = true;
+      _wipeFailed = false;
+    });
     try {
-      await widget.wipeProtectedData();
-      // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
-      // 旧凭证留下的 Cookie/DOM storage/缓存不能继续留在磁盘上。
-      await WebViewStorage.clearForCredentialChange();
-      ref.read(observerStatsProvider.notifier).clear();
-      await ref.read(biometricProvider.notifier).set(false);
+      final injected = widget.wipeProtectedData;
+      if (injected != null) {
+        // 测试替身：只累计调用次数，不碰真实存储。
+        await injected();
+      } else {
+        // 生产：完整擦除事务（内存 Provider + 磁盘 + 站点数据 + 通知）。
+        final container = ProviderScope.containerOf(context, listen: false);
+        await ProtectedStateWipe.run(container);
+      }
+      // 安全偏好写不动也不影响"就此放行"：受保护状态已经全部清除，
+      // 没有数据可暴露。写失败只意味着下次启动仍走恢复流程。
+      try {
+        await ref.read(biometricProvider.notifier).set(false);
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _authed = true;
@@ -407,11 +424,9 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
         });
       }
     } catch (e) {
-      AppLog.failure(
-        LogEvent.protectedDataWipeFailed,
-        e,
-        fields: {LogField.reason: 'wipe'},
-      );
+      // 擦除未完成 = 可能仍有残留：保持锁定并给出重试（R-03/R-04）。
+      logWipeFailure(e, 'wipe_transaction');
+      if (mounted) setState(() => _wipeFailed = true);
     } finally {
       if (mounted) setState(() => _wipeBusy = false);
     }
@@ -426,58 +441,92 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     if (ref.read(biometricProvider)) _unlock();
   }
 
-  /// 锁屏恢复出口（v1.1.8）：用户明确确认后清除安全设置并进入应用。
+  /// 锁屏恢复出口（R-03 重定）：偏好损坏时不再允许免验证关闭门禁。
   ///
-  /// SharedPreferences 损坏时读取永远失败，fail-closed 会把用户永久挡在
-  /// 门外。此操作不是静默绕过：需要二次确认、记结构化日志（SL904）、并且
-  /// 结果如实反映为"指纹锁关闭"——用户在设置里重新打开时会清掉确认标记，
-  /// 恢复正常的 fail-closed 语义。
-  Future<void> _resetSecurityPref() async {
-    final l10n = AppLocalizations.of(context) ?? l10nZh;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        scrollable: true,
-        title: Text(l10n.securityResetConfirmTitle),
-        content: Text(l10n.securityResetConfirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.securityResetConfirmAction),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+  /// 只提供两条路径，且都必须先证明"这次是本人"或"数据已不存在"：
+  ///
+  ///   A. 用系统锁屏凭据（PIN/图案/密码）验证身份 → 关闭故障的安全偏好，
+  ///      设备与链接保持不变（用户还能继续用已保存的设备）；
+  ///   B. 清除全部受保护数据（[_confirmWipe]）→ 数据没了，免验证放行成立。
+  ///
+  /// 持久化失败时的语义：prefs 写不动就写独立的安全存储 marker；两条都写
+  /// 不进去时**不放行**——不能谎报"已关闭保护"然后重启又被锁死。
+  ///
+  /// 确认同样走内联面板（R-02），不依赖 Navigator。
+  Future<void> _recoverByVerifyingIdentity() async {
+    setState(() {
+      _panel = _LockPanel.recoveryConfirm;
+      _recoveryDenied = false;
+      _writeFailed = false;
+    });
+  }
 
-    // 尽量把"关闭"写回 prefs；写不进去（后端仍损坏）就把确认标记写进
-    // 独立的安全存储后端，保证重启后不再锁死。
-    var prefsWriteOk = true;
+  /// 内联面板"验证并关闭"的确认动作（R-03）。
+  Future<void> _confirmRecoveryVerify() async {
+    if (_wipeBusy) return;
+    final l10n = AppLocalizations.of(context) ?? l10nZh;
+    setState(() {
+      _panel = _LockPanel.main;
+      _wipeBusy = true;
+      _recoveryDenied = false;
+      _writeFailed = false;
+    });
     try {
-      await ref.read(biometricProvider.notifier).set(false);
-    } catch (_) {
-      prefsWriteOk = false;
-    }
-    if (!prefsWriteOk) {
+      // 第一步：系统凭据验证身份。取消/失败都保持锁定。
+      final verified =
+          await widget.authenticateWithDeviceCredential(l10n.unlockReason);
+      if (!mounted) return;
+      if (!verified) {
+        AppLog.event(LogEvent.securityRecoveryDenied, level: LogLevel.warn,
+            fields: {LogField.reason: 'not_verified'});
+        setState(() => _recoveryDenied = true);
+        return;
+      }
+
+      // 第二步：验证通过才允许写"关闭"。prefs → 独立 marker 双写，
+      // 两条都失败则保持锁定（fail-closed，不谎报成功）。
+      var prefsWriteOk = false;
+      try {
+        await ref.read(biometricProvider.notifier).set(false);
+        prefsWriteOk = true;
+      } catch (_) {}
+      var markerWriteOk = false;
       try {
         await DeviceStore.instance.setSecurityResetAcknowledged(true);
+        markerWriteOk = true;
       } catch (_) {}
+      AppLog.event(LogEvent.securityRecoveryVerified, fields: {
+        LogField.ok: prefsWriteOk,
+        LogField.reason: prefsWriteOk
+            ? 'verified_prefs_written'
+            : (markerWriteOk ? 'verified_secure_ack' : 'verified_write_failed'),
+      });
+      if (!mounted) return;
+      if (!prefsWriteOk && !markerWriteOk) {
+        // 无法持久化"已关闭"：重启后仍会进入恢复流程。不放行。
+        setState(() => _writeFailed = true);
+        return;
+      }
+      ref.read(securityPrefUnreadableProvider.notifier).setUnreadable(false);
+      setState(() {
+        _authed = true;
+        _unavailable = false;
+        _noDeviceCredential = false;
+        _recoveryDenied = false;
+      });
+    } on BiometricUnavailableException {
+      // 没有可用的系统凭据：只能走清除数据路径，如实告知。
+      if (mounted) setState(() => _noDeviceCredential = true);
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.securityRecoveryDenied,
+        e,
+        fields: {LogField.reason: 'verify_error'},
+      );
+      if (mounted) setState(() => _recoveryDenied = true);
+    } finally {
+      if (mounted) setState(() => _wipeBusy = false);
     }
-    AppLog.event(LogEvent.securityPrefReset, level: LogLevel.warn, fields: {
-      LogField.ok: prefsWriteOk,
-      LogField.reason: prefsWriteOk ? 'prefs_written' : 'secure_ack',
-    });
-    if (!mounted) return;
-    ref.read(securityPrefUnreadableProvider.notifier).setUnreadable(false);
-    setState(() {
-      _authed = true;
-      _unavailable = false;
-      _noDeviceCredential = false;
-    });
   }
 
   @override
@@ -542,6 +591,34 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                             ),
                           ),
                           const SizedBox(height: 28),
+                          // 确认面板（R-02）：锁屏在 Navigator 之外，确认必须
+                          // 内联渲染，不能走 showDialog/AlertDialog route。
+                          if (_panel == _LockPanel.recoveryConfirm)
+                            _inlineConfirmPanel(
+                              title: l10n.securityRecoveryVerifyTitle,
+                              body: l10n.securityRecoveryVerifyBody,
+                              cancelLabel: l10n.commonCancel,
+                              confirmLabel:
+                                  l10n.securityRecoveryVerifyConfirmAction,
+                              onCancel: () =>
+                                  setState(() => _panel = _LockPanel.main),
+                              onConfirm: _confirmRecoveryVerify,
+                              busy: _wipeBusy,
+                            )
+                          else if (_panel == _LockPanel.wipeConfirm)
+                            _inlineConfirmPanel(
+                              title: l10n.biometricWipeDataConfirmTitle,
+                              body: l10n.biometricWipeDataConfirmBody,
+                              cancelLabel: l10n.biometricWipeCancel,
+                              confirmLabel:
+                                  l10n.biometricWipeDataConfirmAction,
+                              onCancel: () =>
+                                  setState(() => _panel = _LockPanel.main),
+                              onConfirm: _confirmWipe,
+                              busy: _wipeBusy,
+                              destructive: true,
+                            )
+                          else ...[
                           if (prefUnreadable) ...[
                             Text(
                               l10n.securityPrefUnreadable,
@@ -557,16 +634,67 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                               child: Text(l10n.retry),
                             ),
                             const SizedBox(height: 8),
-                            // 恢复出口（v1.1.8）：SharedPreferences 损坏时重试
-                            // 永远不会成功，必须给用户一条明确的、带二次确认的
-                            // 出路——而不是 fail-closed 永久锁死（真机反馈）。
+                            // 恢复出口（R-03）：先验证身份 → 关闭故障的安全
+                            // 偏好，设备与链接都保留。不再提供免验证关闭。
                             OutlinedButton(
-                              onPressed: _resetSecurityPref,
+                              onPressed: _wipeBusy
+                                  ? null
+                                  : _recoverByVerifyingIdentity,
+                              child: Text(l10n.securityRecoveryVerifyAction),
+                            ),
+                            const SizedBox(height: 8),
+                            // 第二条路径：清除全部受保护数据后免验证放行。
+                            OutlinedButton(
+                              onPressed: _wipeBusy ? null : _wipeAndDisable,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: context.zt.danger,
                               ),
-                              child: Text(l10n.securityResetAction),
+                              child: Text(l10n.biometricWipeDataButton),
                             ),
+                            if (_recoveryDenied) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.securityRecoveryDenied,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
+                            if (_noDeviceCredential) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.biometricNoDeviceCredential,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
+                            if (_writeFailed) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.securityRecoveryWriteFailed,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
+                            if (_wipeFailed) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.securityRecoveryWipeFailed,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 12),
                           ] else if (_unavailable) ...[
                             Text(
@@ -600,6 +728,17 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                               onPressed: _wipeBusy ? null : _wipeAndDisable,
                               child: Text(l10n.biometricWipeDataButton),
                             ),
+                            if (_wipeFailed) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                l10n.securityRecoveryWipeFailed,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.danger,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 12),
                           ],
                           if (!prefUnreadable)
@@ -608,6 +747,7 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                               icon: const Icon(Icons.lock_open, size: 18),
                               label: Text(l10n.unlockButton),
                             ),
+                          ],
                         ],
                       ),
                     ),
@@ -617,6 +757,69 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// 锁屏内联确认面板（R-02）：与 AlertDialog 同构的视觉块，但不依赖
+  /// Navigator——锁屏位于 `MaterialApp.builder` 时 `Navigator.maybeOf` 为
+  /// null，任何 `showDialog` 都会抛 FlutterError（审计复现）。
+  Widget _inlineConfirmPanel({
+    required String title,
+    required String body,
+    required String cancelLabel,
+    required String confirmLabel,
+    required VoidCallback onCancel,
+    required VoidCallback onConfirm,
+    required bool busy,
+    bool destructive = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.zt.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.zt.hairline),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: context.zt.textHi,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            body,
+            style: TextStyle(fontSize: 13, color: context.zt.textLo),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: busy ? null : onCancel,
+                child: Text(cancelLabel),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: busy ? null : onConfirm,
+                style: destructive
+                    ? TextButton.styleFrom(
+                        foregroundColor: context.zt.danger,
+                      )
+                    : null,
+                child: Text(confirmLabel),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -643,9 +643,11 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   // （任务列表/输入区出现）才揭盖；超时兜底防止离线时永久遮盖。
   bool _bootCover = true;
   Timer? _pageStateTimer;
-  // 盖板挂上的时刻（超时兜底用）：页面长期停在过渡态（桌面端离线等）时，
-  // 不能让用户被品牌页无限挡住。
-  DateTime? _coverShownSince;
+  // R-16：盖板 deadline 使用独立 wall-clock 计时器（不依赖 DOM 探针成功），
+  // 到点必揭盖并只记一次事件；探针在途锁防止 800ms 节拍叠加调用。
+  Timer? _coverDeadlineTimer;
+  bool _coverProbeInFlight = false;
+  bool _coverTimeoutLogged = false;
   // 被顶号日志只报一次（800ms 节拍会反复命中同一状态）。
   bool _takeoverLogged = false;
   // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
@@ -822,6 +824,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 持续跟随页面状态：官方页只要处于"配对/加载工作区"状态或空白，盖板就在。
   void _armBootCover() {
     if (!mounted) return;
+    // 新一轮加载：重置 deadline 与日志节流（R-16），旧计时器作废。
+    _coverDeadlineTimer?.cancel();
+    _coverDeadlineTimer = null;
+    _coverTimeoutLogged = false;
     // initState 路径下字段初始就是 true，避免"构造期 setState"；只有
     // reload/重建路径（盖板已被揭开过）才需要重新挂上。
     if (!_bootCover) setState(() => _bootCover = true);
@@ -833,9 +839,33 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 任一过渡态就继续盖；只有页面真正可用（有任务行或输入区，且无过渡信号）
   /// 才揭盖。切换会话/重连时的过渡态同样被覆盖，不依赖对页面 DOM 结构的
   /// 完美识别。
+  ///
+  /// R-16：deadline 由独立 wall-clock 计时器兜底（不依赖探针成功）——旧实现
+  /// 把 20 秒超时判在"探针返回成功"分支里，探针长期报错（JSON 解析失败、
+  /// payload 非 Map、controller 断开）时 return 直接跳过 deadline，品牌盖板
+  /// 可以永久盖住页面。另：同一时刻只允许一个在途探针（in-flight 锁）。
   void _startPageStateWatch() {
     _pageStateTimer ??= Timer.periodic(const Duration(milliseconds: 800), (_) {
       unawaited(_syncCoverWithPage());
+    });
+    _coverDeadlineTimer ??= Timer(const Duration(seconds: 20), () {
+      if (!mounted) return;
+      if (!_bootCover) return;
+      // 到点仍在盖：记录一次（只一次）并揭盖，让用户看到页面真实状态
+      // 或明确失败，而不是永远的品牌图标。
+      if (!_coverTimeoutLogged) {
+        _coverTimeoutLogged = true;
+        AppLog.event(
+          LogEvent.webviewBootCoverTimeout,
+          level: LogLevel.warn,
+          fields: {
+            LogField.device: widget.device.id,
+            LogField.generation: _webviewGeneration,
+            LogField.reason: 'deadline_watchdog',
+          },
+        );
+      }
+      setState(() => _bootCover = false);
     });
     unawaited(_syncCoverWithPage());
   }
@@ -847,7 +877,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       if (_bootCover && _failed) setState(() => _bootCover = false);
       return;
     }
-    bool showCover;
+    if (!_bootCover) return;
+    // R-16：单次 in-flight 锁——上一轮探针还悬着时不叠加新调用。
+    if (_coverProbeInFlight) return;
+    _coverProbeInFlight = true;
+    final generationAtProbe = _webviewGeneration;
+    late bool showCover;
     try {
       final result = await controller.evaluateJavascript(
         source: _workspaceReadyProbeScript,
@@ -884,26 +919,16 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         );
       }
     } catch (_) {
-      return; // 探针失败：保持现状，下一轮再试
+      // 探针失败（页面上没有脚本执行环境 / 返回非法 JSON / 上下文正在替换）：
+      // 不改变盖板状态——揭盖与否由 wall-clock deadline 兜底（R-16），
+      // 不再出现"探针一直失败 → 永远盖着"的路径。
+      return;
+    } finally {
+      _coverProbeInFlight = false;
     }
     if (!mounted) return;
-    if (showCover) {
-      _coverShownSince ??= DateTime.now();
-      // 超时兜底：过渡态持续 20s 仍未就绪（桌面端离线/中转不可达）→ 揭盖，
-      // 让用户看到页面的真实状态而不是永远的品牌图标。
-      final since = _coverShownSince;
-      if (since != null &&
-          DateTime.now().difference(since) > const Duration(seconds: 20)) {
-        AppLog.event(LogEvent.webviewBootCoverTimeout, level: LogLevel.warn,
-            fields: {
-              LogField.device: widget.device.id,
-              LogField.generation: _webviewGeneration,
-            });
-        showCover = false;
-      }
-    } else {
-      _coverShownSince = null;
-    }
+    // R-16：探针期间页面已换代 → 丢弃这次陈旧结果。
+    if (generationAtProbe != _webviewGeneration) return;
     if (showCover != _bootCover) {
       setState(() => _bootCover = showCover);
     }
@@ -1025,7 +1050,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       // the new credential.
       _warmup?.forget(widget.device.id);
       _sync?.forget();
-      _sync = null;
+      // R-15：用**新** device 原子重建同步控制器。旧实现只置 null，
+      // `didUpdateWidget` 不会再次触发 `didChangeDependencies`，后续桥消息
+      // （`_sync?.ingestMessage(...)`）会静默丢弃新凭证下的事件与状态。
+      _sync = WebViewSyncController(device: widget.device, ref: ref);
       _invalidateInFlightJump();
       // 换凭证同时是本地存储的清理触发点（PR20/F19）：旧凭证下的 Cookie、
       // DOM storage 与缓存不能留给新凭证继续使用。
@@ -1380,6 +1408,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _warmupTimer?.cancel();
     _firstLoadWatchdog?.cancel();
     _pageStateTimer?.cancel();
+    _coverDeadlineTimer?.cancel();
     _jumpWatchdog?.cancel();
     _sync?.forget();
     super.dispose();

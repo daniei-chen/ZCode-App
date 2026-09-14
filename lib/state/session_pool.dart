@@ -15,6 +15,22 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
 
   final List<RemoteDevice>? _seed;
 
+  /// 命令串行队列（R-06）。
+  ///
+  /// 审计复现：磁盘写入已串行化，但各变更方法在 await 之前从**旧 state**
+  /// 计算新列表、await 之后再各自发布——并发时后发布者用旧快照覆盖前者的
+  /// 结果（rename×replace 丢标签、add×reorder 丢设备、remove×rename 把
+  /// 已删记录写回）。这里把"读 state → 计算 → 持久化 → 发布"整段入队，
+  /// 同一条命令只能看到前一条命令提交后的状态。
+  Future<void> _commands = Future<void>.value();
+
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final result = _commands.then((_) => action());
+    // 队列自身吞异常：一次失败不得阻断后续命令；调用方仍拿到原始错误。
+    _commands = result.then<void>((_) {}, onError: (_) {});
+    return result;
+  }
+
   @override
   List<RemoteDevice> build() {
     final seed = _seed;
@@ -24,23 +40,25 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   }
 
   Future<void> _load() async {
-    final result = await DeviceStore.instance.loadAllWithStatus();
-    // provider 已被销毁时不得写 state（Riverpod 会抛 UnmountedRefException）。
-    if (!ref.mounted) return;
-    state = result.devices;
-    ref.read(deviceStoreUnavailableProvider.notifier).set(result.unavailable);
+    await _enqueue(() async {
+      final result = await DeviceStore.instance.loadAllWithStatus();
+      // provider 已被销毁时不得写 state（Riverpod 会抛 UnmountedRefException）。
+      if (!ref.mounted) return;
+      state = result.devices;
+      ref.read(deviceStoreUnavailableProvider.notifier).set(result.unavailable);
+    });
   }
 
   /// 供 UI 重试（存储恢复后无需重启应用）。
   Future<void> reload() => _load();
 
-  Future<void> add(RemoteDevice device) async {
+  Future<void> add(RemoteDevice device) => _enqueue(() async {
     await DeviceStore.instance.add(device);
     if (!ref.mounted) return;
     state = [...state, device];
-  }
+  });
 
-  Future<void> rename(String id, String label) async {
+  Future<void> rename(String id, String label) => _enqueue(() async {
     RemoteDevice? target;
     for (final d in state) {
       if (d.id == id) {
@@ -48,6 +66,7 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
         break;
       }
     }
+    // 串行后这里看到的是最新 state：设备已被删除时不会"复活"记录（R-06）。
     if (target == null || label.trim().isEmpty) return;
     final updated = target.copyWith(label: label.trim());
     await DeviceStore.instance.update(updated);
@@ -56,9 +75,9 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
       for (final d in state)
         if (d.id == id) updated else d,
     ];
-  }
+  });
 
-  Future<void> remove(String id) async {
+  Future<void> remove(String id) => _enqueue(() async {
     await DeviceStore.instance.remove(id);
     // 取消待写定时器并清掉内存预热记录：否则延时写入会把已删设备的
     // warmup 又写回存储（F10）。
@@ -80,9 +99,9 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
           : activeIndex;
       ref.read(activeTabProvider.notifier).set(fallback < 0 ? 0 : fallback);
     }
-  }
+  });
 
-  Future<void> reorder(int oldIndex, int newIndex) async {
+  Future<void> reorder(int oldIndex, int newIndex) => _enqueue(() async {
     if (oldIndex < 0 || oldIndex >= state.length) return;
     // onReorderItem 的 newIndex 已对移除项做过修正，这里不再减一。
     if (newIndex < 0 || newIndex >= state.length) return;
@@ -105,9 +124,9 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
         ref.read(activeTabProvider.notifier).set(i);
       }
     }
-  }
+  });
 
-  Future<void> replaceLink(String id, RemoteDevice parsed) async {
+  Future<void> replaceLink(String id, RemoteDevice parsed) => _enqueue(() async {
     RemoteDevice? target;
     for (final d in state) {
       if (d.id == id) {
@@ -131,6 +150,14 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
       for (final d in state)
         if (d.id == id) updated else d,
     ];
+  });
+
+  /// 擦除事务（R-04）：磁盘已清空后，内存里的设备对象（持有控制链接
+  /// 凭证）必须同步清掉——否则门禁"关了"，Provider 里还留着可用的凭证。
+  /// 只清内存态；磁盘由 `DeviceStore.clearAll` 负责，由擦除事务统一编排。
+  void clearAll() {
+    if (state.isEmpty) return;
+    state = const [];
   }
 }
 
@@ -186,6 +213,13 @@ class ActiveTabNotifier extends Notifier<int> {
   void clampTo(int childCount) {
     if (state >= childCount) state = childCount - 1;
     if (state < 0) state = 0;
+  }
+
+  /// 擦除事务（R-04）：设备清空后回到索引 0，避免选择状态指向已不存在的设备。
+  void reset() {
+    _restoreDone = false;
+    _jumpedBeforeRestore = false;
+    if (state != 0) state = 0;
   }
 }
 

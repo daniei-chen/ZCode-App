@@ -202,15 +202,17 @@ class UpdateService {
         timeout: timeout,
       );
     } on TimeoutException {
-      // F13：API 的 DNS/连接超时/断流不代表"检查更新失败"——网页回退是另一条
+      // F13/R-10：API 的 DNS/连接超时/断流不代表"检查更新失败"——网页回退是另一条
       // 独立通道，异常路径同样要有界地试一次（总预算 ≤ 2×timeout）。
-      return _checkReleasePageOrFailed(
+      // **必须 await**：不 await 时 finally 会在回退 Future 完成前关闭 owned
+      // client（审计复现：fallback ObservedClosed，下载无法完成）。
+      return await _checkReleasePageOrFailed(
         httpClient,
         current: current,
         timeout: timeout,
       );
     } catch (_) {
-      return _checkReleasePageOrFailed(
+      return await _checkReleasePageOrFailed(
         httpClient,
         current: current,
         timeout: timeout,
@@ -335,6 +337,7 @@ class UpdateService {
       assetDigest = await _fetchSidecarDigest(
         sidecarUri,
         client,
+        current: current,
         expectedFileName: assetName,
         timeout: timeout,
       );
@@ -354,14 +357,25 @@ class UpdateService {
   /// 下载 .sha256 伴随资产并解析摘要。内容为 sha256sum 输出格式：
   /// `<64 位十六进制>  <文件名>`。文件名必须与契约资产完全一致，
   /// 防止把别的文件的摘要当成安装包的。
+  ///
+  /// R-11：必须复用 [_get] 的逐跳校验——旧实现用 `client.get(uri)` 默认
+  /// `followRedirects=true`，重定向自动跟随会绕过 scheme/host/port/私网
+  /// 白名单（审计受控测试确认 `sidecarFollowsRedirects == true`）。
   Future<String?> _fetchSidecarDigest(
     Uri uri,
     http.Client client, {
+    required String current,
     required String expectedFileName,
     required Duration timeout,
   }) async {
     try {
-      final response = await client.get(uri).timeout(timeout);
+      final response = await _get(
+        client,
+        uri,
+        current,
+        timeout,
+        followRedirects: false,
+      );
       if (response.statusCode != 200) return null;
       final match = RegExp(
         r'^([0-9a-fA-F]{64})\s+\*?(.+)$',

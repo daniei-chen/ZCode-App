@@ -97,6 +97,12 @@ class SessionStatusNotifier extends Notifier<Map<String, SessionStatus>> {
     if (!state.containsKey(deviceId)) return;
     state = Map.of(state)..remove(deviceId);
   }
+
+  /// 擦除事务（R-04）：连接状态与设备同生命周期，全量清除。
+  void clearAll() {
+    if (state.isEmpty) return;
+    state = const {};
+  }
 }
 
 final sessionStatusProvider =
