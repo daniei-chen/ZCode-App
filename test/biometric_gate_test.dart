@@ -23,6 +23,8 @@ class _MutableBiometricNotifier extends BiometricNotifier {
   bool _value;
   final bool reloadSucceeds;
 
+  bool get value => _value;
+
   @override
   bool build() => _value;
 
@@ -87,6 +89,9 @@ Future<void> pumpGate(
         ),
       ],
       child: MaterialApp(
+        // Windows 本地测试引擎缺 ink_sparkle.frag 着色器：点按钮的水波纹
+        // 会抛环境异常（与代码无关，CI 不受影响）。关掉墨水扩散动画。
+        theme: ThemeData(splashFactory: NoSplash.splashFactory),
         home: BiometricGate(
           relockAfter: relockAfter,
           authenticate: authenticate,
@@ -393,6 +398,63 @@ void main() {
       find.text('安全设置读取失败，已保持锁定以避免暴露数据。恢复系统存储后点击重试。'),
       findsNothing,
     );
+  });
+
+  testWidgets('读取失败时锁屏必须有恢复出口；确认后关闭门禁并进入（v1.1.8 死锁修复）',
+      (tester) async {
+    final mutable = _MutableBiometricNotifier(true);
+    final securityPref = _MutableSecurityPrefNotifier(true);
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) async => true,
+      securityPrefNotifier: () => securityPref,
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    // 死锁场景：重试永远失败 → 必须有第二条出路，而不是永久锁死。
+    expect(visibleSecret, findsNothing);
+    expect(find.text('清除安全设置并继续'), findsOneWidget);
+
+    await tester.tap(find.text('清除安全设置并继续'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('清除安全设置并继续？'), findsOneWidget, reason: '破坏性操作需二次确认');
+
+    await tester.tap(find.text('清除并继续'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+
+    expect(securityPref.value, isFalse, reason: '确认后解除"读取失败"状态');
+    expect(mutable.value, isFalse, reason: '指纹锁被明确关闭（写回 prefs）');
+    expect(visibleSecret, findsOneWidget, reason: '用户得以进入应用');
+  });
+
+  testWidgets('恢复出口可取消：取消后保持锁定', (tester) async {
+    final securityPref = _MutableSecurityPrefNotifier(true);
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) async => true,
+      securityPrefNotifier: () => securityPref,
+      notifier: () => _MutableBiometricNotifier(true),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    await tester.tap(find.text('清除安全设置并继续'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('取消'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(visibleSecret, findsNothing, reason: '取消 = 什么都不做，保持 fail-closed');
+    expect(securityPref.value, isTrue);
   });
 
   testWidgets('重锁遮断已 push 的路由与对话框（F02）', (tester) async {

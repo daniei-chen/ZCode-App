@@ -117,6 +117,12 @@ Future<_SecurityPref> _readSecurityPref(Future<bool> future) async {
   try {
     return _SecurityPref(await future);
   } catch (_) {
+    // fail-closed：读不到就锁定。但如果用户此前在锁屏明确确认过
+    // "清除安全设置并继续"（标记存在独立的安全存储后端），凭它放行——
+    // 否则 SharedPreferences 一旦损坏，重试永远失败，用户被永久锁在门外
+    // （v1.1.7 真机反馈的死锁）。异常本身已由 DeviceStore 记入结构化日志。
+    final acked = await DeviceStore.instance.securityResetAcknowledged();
+    if (acked) return const _SecurityPref(false);
     return const _SecurityPref(true, unreadable: true);
   }
 }
@@ -420,6 +426,60 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     if (ref.read(biometricProvider)) _unlock();
   }
 
+  /// 锁屏恢复出口（v1.1.8）：用户明确确认后清除安全设置并进入应用。
+  ///
+  /// SharedPreferences 损坏时读取永远失败，fail-closed 会把用户永久挡在
+  /// 门外。此操作不是静默绕过：需要二次确认、记结构化日志（SL904）、并且
+  /// 结果如实反映为"指纹锁关闭"——用户在设置里重新打开时会清掉确认标记，
+  /// 恢复正常的 fail-closed 语义。
+  Future<void> _resetSecurityPref() async {
+    final l10n = AppLocalizations.of(context) ?? l10nZh;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        title: Text(l10n.securityResetConfirmTitle),
+        content: Text(l10n.securityResetConfirmBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.securityResetConfirmAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // 尽量把"关闭"写回 prefs；写不进去（后端仍损坏）就把确认标记写进
+    // 独立的安全存储后端，保证重启后不再锁死。
+    var prefsWriteOk = true;
+    try {
+      await ref.read(biometricProvider.notifier).set(false);
+    } catch (_) {
+      prefsWriteOk = false;
+    }
+    if (!prefsWriteOk) {
+      try {
+        await DeviceStore.instance.setSecurityResetAcknowledged(true);
+      } catch (_) {}
+    }
+    AppLog.event(LogEvent.securityPrefReset, level: LogLevel.warn, fields: {
+      LogField.ok: prefsWriteOk,
+      LogField.reason: prefsWriteOk ? 'prefs_written' : 'secure_ack',
+    });
+    if (!mounted) return;
+    ref.read(securityPrefUnreadableProvider.notifier).setUnreadable(false);
+    setState(() {
+      _authed = true;
+      _unavailable = false;
+      _noDeviceCredential = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(biometricProvider);
@@ -495,6 +555,17 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
                             OutlinedButton(
                               onPressed: _retrySecurityPref,
                               child: Text(l10n.retry),
+                            ),
+                            const SizedBox(height: 8),
+                            // 恢复出口（v1.1.8）：SharedPreferences 损坏时重试
+                            // 永远不会成功，必须给用户一条明确的、带二次确认的
+                            // 出路——而不是 fail-closed 永久锁死（真机反馈）。
+                            OutlinedButton(
+                              onPressed: _resetSecurityPref,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: context.zt.danger,
+                              ),
+                              child: Text(l10n.securityResetAction),
                             ),
                             const SizedBox(height: 12),
                           ] else if (_unavailable) ...[

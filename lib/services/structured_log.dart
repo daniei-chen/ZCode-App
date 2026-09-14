@@ -66,6 +66,9 @@ enum LogEvent {
   securityLockEnabled('SL900'),
   securityLockDisabled('SL901'),
   securityLockRejected('SL902'),
+  // 安全偏好读取失败 / 用户确认清除安全设置（v1.1.8：fail-closed 死锁的出口）
+  securityPrefReadFailed('SL903'),
+  securityPrefReset('SL904'),
 
   // 扫码（PR21/F24）：相机故障要能说明原因，不再只有黑屏。
   cameraFailed('CM910');

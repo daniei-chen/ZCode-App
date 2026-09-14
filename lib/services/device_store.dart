@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/device.dart';
 import '../models/notification_prefs.dart';
+import 'app_log.dart';
+import 'structured_log.dart';
 
 /// 设备存储的加载结果。
 ///
@@ -238,14 +240,53 @@ class DeviceStore {
 
   String _deviceKey(String id) => '$_deviceKeyPrefix$id';
 
+  /// 安全设置读取失败时的用户确认标记（v1.1.8）。
+  ///
+  /// 存在**独立后端**（安全存储，与 SharedPreferences 不同的文件与密钥）：
+  /// 当 SharedPreferences 损坏导致读不到门禁偏好时，用户在锁屏明确确认
+  /// "清除安全设置并继续"后写入此标记；启动读取失败时凭它放行，避免
+  /// fail-closed 把用户永久锁在门外。用户在设置里重新写入门禁开关时清除。
+  static const _securityResetKey = 'zremote.securityResetAck';
+
+  Future<bool> securityResetAcknowledged() async {
+    try {
+      final raw = await _secure.read(key: _securityResetKey);
+      return raw == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setSecurityResetAcknowledged(bool value) async {
+    if (value) {
+      await _secure.write(key: _securityResetKey, value: 'true');
+    } else {
+      await _secure.delete(key: _securityResetKey);
+    }
+  }
+
   Future<bool> biometricEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_biometricKey) ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_biometricKey) ?? false;
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.securityPrefReadFailed,
+        e,
+        fields: {LogField.reason: 'shared_preferences'},
+      );
+      rethrow;
+    }
   }
 
   Future<void> setBiometricEnabled(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_biometricKey, value);
+    // 写入成功 = prefs 后端可用：清掉重置标记，避免以后一次读取失败
+    // 被旧标记静默放行（标记只在用户确认过且后端不可用时才有意义）。
+    try {
+      await setSecurityResetAcknowledged(false);
+    } catch (_) {}
   }
 
   static const _themeModeKey = 'zremote.themeMode';
