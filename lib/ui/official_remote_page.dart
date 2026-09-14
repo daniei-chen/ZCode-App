@@ -18,7 +18,6 @@ import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
 import '../state/bridge_health.dart';
-import '../state/back_stack.dart';
 import '../state/observer_stats.dart';
 import '../state/root_tabs.dart';
 import '../state/session_index.dart';
@@ -151,16 +150,15 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     return n;
   }
 
-  function hideCardFrom(node) {
-    var el = node.parentElement;
+  function hideFromElement(startEl) {
+    var el = startEl;
     var vw = window.innerWidth || document.documentElement.clientWidth;
-    for (var i = 0; i < 8 && el && el !== document.body &&
-        el !== document.documentElement; i++) {
+    for (var i = 0; i < 8 && el && el !== document.documentElement; i++) {
       if (!(el instanceof HTMLElement)) break;
       try {
         var style = window.getComputedStyle(el);
         if (style.display === 'none') return false;
-        if (markerCount(String(el.textContent || '').slice(0, 2000)) >= 2) {
+        if (markerCount(String(el.textContent || '').slice(0, 800)) >= 2) {
           var rect = el.getBoundingClientRect();
           if (rect.height >= 60 && rect.width >= Math.min(200, vw * 0.25) &&
               rect.width <= vw * 0.995) {
@@ -174,22 +172,63 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     return false;
   }
 
+  function hideCardFrom(node) {
+    return hideFromElement(node.parentElement);
+  }
+
+  // 第二层探测（不依赖文本节点结构）：在屏幕九宫格采样点做命中测试，
+  // 卡片/覆盖层必然覆盖其中若干点；对其元素链做同样的标记+尺寸判定。
+  // 解决"正文是单个超长文本节点 / 文本被包裹在闭包容器里"等结构差异。
+  function sweepPoints() {
+    var hits = 0;
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var xs = [vw * 0.5, vw * 0.25, vw * 0.75];
+    var ys = [vh * 0.32, vh * 0.5, vh * 0.64];
+    var seen = [];
+    for (var xi = 0; xi < xs.length; xi++) {
+      for (var yi = 0; yi < ys.length; yi++) {
+        var stack;
+        try {
+          stack = document.elementsFromPoint(xs[xi], ys[yi]) || [];
+        } catch (e) {
+          continue;
+        }
+        for (var s = 0; s < stack.length; s++) {
+          var el = stack[s];
+          if (seen.indexOf(el) >= 0) continue;
+          seen.push(el);
+          try {
+            if (markerCount(String(el.textContent || '').slice(0, 800)) < 2) continue;
+          } catch (e) {
+            continue;
+          }
+          if (hideFromElement(el)) hits++;
+        }
+      }
+    }
+    return hits;
+  }
+
   function sweep() {
     if (!document.body) return 0;
-    var hits = 0;
+    var hits = sweepPoints();
     var scanned = 0;
     var walker;
     try {
       walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
     } catch (e) {
-      return 0;
+      return hits;
     }
     var node;
     while ((node = walker.nextNode())) {
       scanned++;
       if (scanned > 4000) break;
       var value = node.nodeValue;
-      if (!value || value.length > 120) continue;
+      // 上限 600：卡片正文（标题+说明+4 个步骤）常被渲染成**单个文本节点**
+      // （约 130–180 字符）——120 的旧上限会把它整段跳过，导致真机永不隐藏
+      // （本地仿制卡片恰为约 75 字符，测试因此漏过；真机双端都弹卡的实锤）。
+      if (!value || value.length > 600) continue;
       if (markerCount(value) === 0) continue;
       if (hideCardFrom(node)) hits++;
     }
@@ -939,24 +978,23 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         .report(widget.device.id, SessionStatus.error);
   }
 
-  /// 系统返回键：先让官方页面自己处理"对话页 → 对话列表"这类页内路由，
-  /// 页面确实没动（或没有返回控件）才交回 Dart 决定是否露出设备页。
+  /// 系统返回键：先让官方页面自己处理页内路由——手机上是"对话页 → 对话列表"，
+  /// 平板/大屏上是设置面板的「返回工作区」等页面自带返回控件；页面确实没动
+  /// （或没有返回控件）才交回 Dart 决定是否露出设备页。
   ///
-  /// 平板例外（用户规则）：官方页面在平板上是"对话 + 列表同屏"，没有页内
-  /// 返回可控件——按返回应**一次到位**直接露出设备页。在平板上跑页内脚本
-  /// 只会误触对话区控件（真机诊断包 reason=no_change 实锤），直接跳过。
+  /// 手机与平板走同一条路径（2026-09-14 口径修订：平板上跳过页内脚本会让
+  /// web 设置页的返回直接退出到设备页，与用户预期相反；同屏页没有返回控件
+  /// 时脚本如实报 not_found，仍是一次返回露出设备页）。
   Future<bool> _handleBack() async {
     if (!mounted) return false;
     final controller = _controller;
     if (controller == null) return false;
-    if (isTabletLayout(MediaQuery.of(context).size)) {
-      AppLog.event(LogEvent.webviewBackFailed, level: LogLevel.debug, fields: {
-        LogField.device: widget.device.id,
-        LogField.generation: _webviewGeneration,
-        LogField.reason: 'tablet_single_back',
-      });
-      return false;
-    }
+    // 平板与手机同一条路径（2026-09-14 用户口径修订）：系统返回先让官方页面
+    // 自己处理——有返回控件就点它（如设置面板的「返回工作区」），
+    // 没有控件（对话+列表同屏页）则脚本立刻报 not_found，由外壳露出设备页。
+    // 早前"平板上跳过页内脚本"的规则已撤销：它会让 web 设置页的返回直接
+    // 退出到设备页，与用户预期相反。误点风险由脚本自身的守卫兜底
+    // （只认标签/图标键 + 点击后内容签名自证，点不动即 no_change → 露设备页）。
 
     // 令牌没到位时脚本会按 fail-closed 拒绝回执，返回键看起来"没反应"：
     // 先给它一个短预算把令牌确认下来（真机诊断包里的 WV109/unavailable 根因）。
