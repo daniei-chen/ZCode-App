@@ -487,21 +487,35 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   const composer = document.querySelector('textarea, [contenteditable="true"], [data-testid*="composer"], [data-testid*="input"]');
   const bodyText = (document.body && document.body.innerText ? document.body.innerText : '');
   const handshake = bodyText.indexOf('加载工作区') >= 0 || bodyText.indexOf('配对工作区') >= 0;
-  return JSON.stringify({ rows: rows, composer: !!composer, handshake: handshake });
+  const blank = !bodyText.trim() && rows === 0 && !composer;
+  return JSON.stringify({
+    rows: rows,
+    composer: !!composer,
+    handshake: handshake,
+    blank: blank
+  });
 })()
 ''';
 
-  /// 同屏布局探测：任务列表行存在且只占视口一部分宽度（侧栏形态）=
-  /// 对话与列表同屏（平板形态）。列表占满全宽（手机列表页）或列表不存在
-  /// （手机对话页）都判 false。
+  /// 同屏布局探测（设置返回的落地决策依据）。
+  ///
+  /// 两条独立信号，任一成立即判同屏：
+  /// 1. `wide`：视口宽度 ≥768 CSS px——官方页自身的布局断点，最稳；
+  ///    任务列表打开子面板（如 web 设置）时列表行消失，宽度信号仍有效
+  ///    （真机反馈"有时闪回设备列表页"的场景）。
+  /// 2. `narrow`：任务列表行存在且呈侧栏窄条（<60% 视口）。
   static const String _combinedLayoutProbeScript = '''
 (() => {
-  const rows = document.querySelectorAll('[data-testid^="task-item-"]');
-  if (!rows.length) return JSON.stringify({ rows: 0, combined: false });
-  const rect = rows[0].getBoundingClientRect();
   const vw = window.innerWidth || document.documentElement.clientWidth;
-  const combined = rect.width > 0 && rect.width < vw * 0.6;
-  return JSON.stringify({ rows: rows.length, combined: combined });
+  const wide = vw >= 768;
+  const rows = document.querySelectorAll('[data-testid^="task-item-"]');
+  let narrow = false;
+  if (rows.length) {
+    const rect = rows[0].getBoundingClientRect();
+    narrow = rect.width > 0 && rect.width < vw * 0.6;
+  }
+  return JSON.stringify({ rows: rows.length, wide: wide, narrow: narrow,
+    combined: wide || narrow });
 })()
 ''';
 
@@ -513,7 +527,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   // onLoadStop 只代表文档就绪，工作区 UI 还在挂载——用探针确认真实内容
   // （任务列表/输入区出现）才揭盖；超时兜底防止离线时永久遮盖。
   bool _bootCover = true;
-  Timer? _bootCoverWatchdog;
+  Timer? _pageStateTimer;
   // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
   // 首次加载 20s 内没有 onLoadStop，或 stop 后页面持续空白，就静默 reload
   // 一次；只自动重试一次，之后交给错误卡与手动重试。
@@ -684,45 +698,60 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   /// 品牌盖板（重新）挂上：任何一次全新文档加载（首启/静默重载/渲染进程
-  /// 重建）都会经过这里。盖板在探针确认真实内容或超时后揭开。
+  /// 重建）都会经过这里。盖板不再"到点必揭"——由 [_startPageStateWatch]
+  /// 持续跟随页面状态：官方页只要处于"配对/加载工作区"状态或空白，盖板就在。
   void _armBootCover() {
-    _bootCoverWatchdog?.cancel();
     if (!mounted) return;
     // initState 路径下字段初始就是 true，避免"构造期 setState"；只有
     // reload/重建路径（盖板已被揭开过）才需要重新挂上。
     if (!_bootCover) setState(() => _bootCover = true);
-    _bootCoverWatchdog = Timer(const Duration(seconds: 12), () {
-      if (!mounted || !_bootCover) return;
-      // 探针一直没等到真实内容（离线/慢配对）：揭盖交给状态层表达，
-      // 不能把用户永久挡在盖板后面。
-      AppLog.event(LogEvent.webviewBootCoverTimeout, level: LogLevel.warn, fields: {
-        LogField.device: widget.device.id,
-        LogField.generation: _webviewGeneration,
-      });
-      setState(() => _bootCover = false);
-    });
+    _startPageStateWatch();
   }
 
-  /// onLoadStop 后轮询工作区就绪探针；出现真实内容（任务列表/输入区）即揭盖。
-  Future<void> _probeWorkspaceReadyUntilReveal() async {
-    for (var i = 0; i < 40; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (!mounted || !_bootCover || _failed) return;
-      try {
-        final result = await _controller?.evaluateJavascript(
-          source: _workspaceReadyProbeScript,
-        );
-        final payload = jsonDecode(result?.toString() ?? '{}');
-        final ready = payload is Map &&
-            ((payload['rows'] as int? ?? 0) > 0 ||
-                payload['composer'] == true);
-        if (ready) break;
-      } catch (_) {
-        // 探针失败不算失败：下一轮再试，超时兜底会揭盖。
-      }
+  /// 页面状态跟随（用户口径：卡片"要么冷处理、要么盖住"——这里用纯图标
+  /// 盖板覆盖官方页的"配对/加载工作区"过渡态，只要它还处于该状态，盖板
+  /// 就不揭；工作区出现（任务行/输入区）即揭盖。切换会话/重连时的卡片
+  /// 同样被覆盖，不再依赖对页面 DOM 结构的完美识别。
+  void _startPageStateWatch() {
+    _pageStateTimer ??= Timer.periodic(const Duration(milliseconds: 800), (_) {
+      unawaited(_syncCoverWithPage());
+    });
+    unawaited(_syncCoverWithPage());
+  }
+
+  Future<void> _syncCoverWithPage() async {
+    if (!mounted) return;
+    final controller = _controller;
+    if (controller == null || _failed) {
+      if (_bootCover && _failed) setState(() => _bootCover = false);
+      return;
     }
-    if (!mounted || !_bootCover || _failed) return;
-    setState(() => _bootCover = false);
+    bool showCover;
+    try {
+      final result = await controller.evaluateJavascript(
+        source: _workspaceReadyProbeScript,
+      );
+      final payload = jsonDecode(result?.toString() ?? '{}');
+      if (payload is! Map) return;
+      final rows = payload['rows'] as int? ?? 0;
+      final composer = payload['composer'] == true;
+      final handshake = payload['handshake'] == true;
+      final blank = payload['blank'] == true;
+      final hasContent = rows > 0 || composer;
+      // 规则（收敛为一条）：
+      //   过渡卡出现且没有真实内容（配对/加载页）→ 盖；
+      //   页面空白 → 盖；
+      //   其余（有真实内容且不在过渡态）→ 揭。
+      // "过渡卡"判定要求同时无任务行/无输入区：聊天正文里提到"加载工作区"
+      // 字样不会被误判（真机上用户正在讨论这个问题，误判会盖住正常对话）。
+      showCover = (handshake && !hasContent) || blank;
+    } catch (_) {
+      return; // 探针失败：保持现状，下一轮再试
+    }
+    if (!mounted) return;
+    if (showCover != _bootCover) {
+      setState(() => _bootCover = showCover);
+    }
   }
 
   /// 首载失败出口：进入错误卡（可重试 / 可回设备中心），并同步设备状态。
@@ -1195,7 +1224,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     WidgetsBinding.instance.removeObserver(this);
     _warmupTimer?.cancel();
     _firstLoadWatchdog?.cancel();
-    _bootCoverWatchdog?.cancel();
+    _pageStateTimer?.cancel();
     _jumpWatchdog?.cancel();
     _sync?.forget();
     super.dispose();
@@ -1505,7 +1534,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _firstLoadSettled = true;
                         _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
-                        unawaited(_probeWorkspaceReadyUntilReveal());
+                        unawaited(_syncCoverWithPage());
                         unawaited(_injectBridgeToken());
                         unawaited(_applyWebTheme(_currentDark(context)));
                         if (!_failed) {

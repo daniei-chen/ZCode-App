@@ -282,14 +282,15 @@ function backEl({
   icon = null,
   computedStyle = null,
   onActivate = null,
+  attrs = null,
 } = {}) {
   const element = {
     tagName: tag.toUpperCase(),
+    attrs: attrs ? { ...attrs } : {},
     textContent: text,
     className: '',
     disabled,
     clicks: 0,
-    attrs: {},
     icon: icon === null ? { tagName: 'SVG' } : icon,
     computedStyle,
     getAttribute: (name) => (name in element.attrs ? element.attrs[name] : null),
@@ -307,6 +308,7 @@ function backEl({
     },
   };
   if (ariaLabel) element.attrs['aria-label'] = ariaLabel;
+  element.attrs = { ...element.attrs };
   if (title) element.attrs['title'] = title;
   if (testid) element.attrs['data-testid'] = testid;
   if (role) element.attrs['role'] = role;
@@ -724,6 +726,51 @@ await check('「返回顶部」绝不被当成返回：不点击并报告 not_fo
   const { body } = backPayload(box.posted);
   assert(body.ok === false, 'ok 应为 false');
   assert(body.reason === 'not_found', `reason 应为 not_found（实际 ${body.reason}）`);
+});
+
+await check('折叠/菜单/侧边类控件绝不当返回键：不点击并报告 not_found', () => {
+  // 真机 no_change 实锤：平板上误点到侧栏折叠/菜单图标，页面没变化，
+  // 返回键看起来"闪一下又回设备页"。负向过滤后这些控件必须被跳过。
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        ariaLabel: '收起侧边面板',
+        rect: { top: 10, left: 8, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'sidebar-collapsed';
+        },
+      }),
+      backEl({
+        ariaLabel: '打开菜单',
+        rect: { top: 12, left: 40, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'menu-opened';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 0, '收起侧边面板不得被点击');
+  assert(box.elements[1].clicks === 0, '打开菜单不得被点击');
+  assert(backPayload(box.posted).body.reason === 'not_found');
+});
+
+await check('带 aria-expanded/aria-pressed 的开关类图标不算返回键', () => {
+  const box = makeBackSandbox({
+    elements: [
+      backEl({
+        ariaLabel: null,
+        attrs: { 'aria-expanded': 'false' },
+        rect: { top: 10, left: 8, width: 24, height: 24 },
+        onActivate: () => {
+          box.document.title = 'toggled';
+        },
+      }),
+    ],
+  });
+  runBack(box);
+  assert(box.elements[0].clicks === 0, 'aria-expanded 开关不得被点击');
+  assert(backPayload(box.posted).body.reason === 'not_found');
 });
 
 await check('点到控件但页面没变：报告 no_change（不谎报成功）', () => {

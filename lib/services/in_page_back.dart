@@ -111,6 +111,19 @@ abstract final class InPageBack {
     var t = lower(value);
     return t.indexOf('返回顶部') >= 0 || t.indexOf('back to top') >= 0;
   };
+  // 明确不是"返回"的控件（真机 no_change 实锤：平板上误点到折叠/菜单类图标
+  // 导致页面无变化、返回键看起来闪一下又回设备页）。命中即跳过。
+  var isNotBack = function (value) {
+    var t = lower(value);
+    return t.indexOf('收起') >= 0 || t.indexOf('展开') >= 0 ||
+      t.indexOf('侧边') >= 0 || t.indexOf('侧栏') >= 0 ||
+      t.indexOf('菜单') >= 0 || t.indexOf('搜索') >= 0 ||
+      t.indexOf('主题') >= 0 || t.indexOf('设置') >= 0 ||
+      t.indexOf('折叠') >= 0 || t.indexOf('更多') >= 0 ||
+      t.indexOf('collapse') >= 0 || t.indexOf('expand') >= 0 ||
+      t.indexOf('menu') >= 0 || t.indexOf('search') >= 0 ||
+      t.indexOf('theme') >= 0 || t.indexOf('settings') >= 0;
+  };
   var labelOf = function (el) {
     return [
       el.getAttribute('aria-label'),
@@ -124,6 +137,7 @@ abstract final class InPageBack {
     if (!text) return false;
     if (text.length > 24) return false;
     if (isBackToTop(text)) return false;
+    if (isNotBack(text)) return false;
     var t = lower(text);
     if (/^(返回|返回上一级|back|go back)\$/.test(t)) return true;
     return /(^|[\\s_-])(back|go-back)([\\s_-]|\$)/.test(t);
@@ -161,6 +175,7 @@ abstract final class InPageBack {
       var hits = document.querySelectorAll(selectors[s]);
       for (var i = 0; i < hits.length; i++) {
         if (isBackToTop(labelOf(hits[i]))) continue;
+        if (isNotBack(labelOf(hits[i]))) continue;
         push(hits[i]);
       }
     }
@@ -189,6 +204,10 @@ abstract final class InPageBack {
     for (var n = 0; n < nodes.length; n++) {
       var node = nodes[n];
       if (isBackToTop(labelOf(node))) continue;
+      if (isNotBack(labelOf(node))) continue;
+      // 折叠/开关类控件带 aria-expanded/aria-pressed：绝不当作返回键。
+      if (node.getAttribute('aria-expanded') !== null) continue;
+      if (node.getAttribute('aria-pressed') !== null) continue;
       if (!visible(node)) continue;
       var rect = node.getBoundingClientRect();
       if (rect.width < minSize || rect.width > maxSize) continue;
