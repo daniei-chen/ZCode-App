@@ -225,10 +225,6 @@ class _SecurityLockCardState extends ConsumerState<_SecurityLockCard> {
             l10n.securityLockTitle,
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
-          subtitle: Text(
-            l10n.securityLockSubtitle,
-            style: TextStyle(fontSize: 12, color: context.zt.textLo),
-          ),
           activeThumbColor: context.zt.accent,
           value: enabled,
           onChanged: _busy ? null : _toggle,

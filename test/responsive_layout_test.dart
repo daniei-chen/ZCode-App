@@ -121,7 +121,7 @@ void main() {
           ),
         );
         expect(tester.takeException(), isNull);
-        expect(find.text('生物识别门禁'), findsOneWidget);
+        expect(find.text('指纹锁'), findsOneWidget);
       });
     }
   }
@@ -187,7 +187,7 @@ void main() {
     expect(find.byTooltip('返回'), findsOneWidget);
   });
 
-  testWidgets('开关类控件带可读标题（读屏能读出"生物识别门禁"状态）', (tester) async {
+  testWidgets('开关类控件带可读标题（读屏能读出"指纹锁"状态）', (tester) async {
     await _pumpFrame(
       tester,
       size: const Size(411, 891),
@@ -203,14 +203,14 @@ void main() {
       ),
     );
     final tile = tester.widget<SwitchListTile>(
-      find.widgetWithText(SwitchListTile, '生物识别门禁'),
+      find.widgetWithText(SwitchListTile, '指纹锁'),
     );
     expect(tile.value, isFalse, reason: '默认关闭');
     final semantics = tester.ensureSemantics();
     expect(
       // SwitchListTile 会把标题与副标题合并进同一个语义节点，
       // 这里用包含匹配（读屏会整段朗读）。
-      find.bySemanticsLabel(RegExp('生物识别门禁')),
+      find.bySemanticsLabel(RegExp('指纹锁')),
       findsWidgets,
       reason: '开关标题必须进入语义树（TalkBack 能读出状态）',
     );

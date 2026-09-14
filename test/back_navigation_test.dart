@@ -62,6 +62,7 @@ Future<void> _pressSystemBack(WidgetTester tester) async {
 Future<void> _pumpLauncher(
   WidgetTester tester, [
   VoidCallback? onSettingsReturned,
+  Future<bool?> Function()? onProbe,
 ]) {
   return tester.pumpWidget(
     ProviderScope(
@@ -75,7 +76,10 @@ Future<void> _pumpLauncher(
         // 关掉墨水扩散动画：Windows 测试引擎缺 ink_sparkle.frag 着色器，
         // 点击会抛环境异常（与代码无关）；CI 上不受影响。
         theme: ThemeData(splashFactory: NoSplash.splashFactory),
-        home: ManagePage(onSettingsReturned: onSettingsReturned),
+        home: ManagePage(
+          onSettingsReturned: onSettingsReturned,
+          onProbeCombinedLayout: onProbe,
+        ),
       ),
     ),
   );
@@ -247,6 +251,41 @@ void main() {
       await _pressSystemBack(tester);
       expect(find.byType(SettingsPage), findsNothing);
       expect(calls, 0, reason: '手机：设置返回停在设备列表页，不揭示远控页');
+    });
+
+    testWidgets('页面探测优先于尺寸：大屏手机上官方页不是同屏 → 不揭示', (tester) async {
+      // 真机两次误判的修正点：决策看页面**实际布局**（任务列表+输入区
+      // 是否同屏），屏幕尺寸只是探测失败时的回退。
+      var calls = 0;
+      await _pumpLauncher(
+        tester,
+        () => calls++,
+        () async => false,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await _pressSystemBack(tester);
+      expect(calls, 0, reason: '探测报告非同屏：设置返回停设备列表页');
+    });
+
+    testWidgets('页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(411, 900);
+      addTearDown(tester.view.reset);
+      var calls = 0;
+      await _pumpLauncher(
+        tester,
+        () => calls++,
+        () async => true,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await _pressSystemBack(tester);
+      expect(calls, 1, reason: '探测报告同屏：设置返回揭示同屏页，再返回才是设备页');
     });
   });
 

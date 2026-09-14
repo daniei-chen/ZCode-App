@@ -37,13 +37,29 @@ import '../services/webview_storage.dart';
 /// route.
 class OfficialRemotePageController {
   Future<bool> Function()? _backHandler;
+  Future<bool> Function()? _layoutProbe;
+  bool _covered = false;
 
   void attach(Future<bool> Function() handler) {
     _backHandler = handler;
   }
 
+  /// 由页面挂上"当前是否为对话+列表同屏布局"的探测（设置返回的落地决策
+  /// 按页面**实际布局**判断，不再靠屏幕尺寸猜——真机两次误判的最终修正）。
+  void attachLayoutProbe(Future<bool> Function() probe) {
+    _layoutProbe = probe;
+  }
+
+  /// 外壳告知当前是否被设备页/启动器遮盖（主题变更的整页重载据此选择时机）。
+  void setCovered(bool covered) {
+    _covered = covered;
+  }
+
+  bool get covered => _covered;
+
   void detach() {
     _backHandler = null;
+    _layoutProbe = null;
   }
 
   Future<bool> handleBack() async {
@@ -56,6 +72,17 @@ class OfficialRemotePageController {
         LogField.reason: 'controller_exception',
       });
       return false;
+    }
+  }
+
+  /// 返回 null 表示无法探测（页面未就绪/脚本失败），调用方回退到尺寸启发。
+  Future<bool?> probeCombinedLayout() async {
+    final probe = _layoutProbe;
+    if (probe == null) return null;
+    try {
+      return await probe();
+    } catch (_) {
+      return null;
     }
   }
 }
@@ -96,130 +123,117 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   if (window.__zcodeHandshakeMaskInstalled) return;
   window.__zcodeHandshakeMaskInstalled = true;
 
-  function normalizedText(node) {
-    return String(node.innerText || node.textContent || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
+  // 隐藏由**长生命周期扫描**驱动（用户真机多轮反馈的最终形态）：
+  //   1. 1 秒节拍、30 分钟上限——卡片在任意时刻出现（冷启动、切换会话、
+  //      重连）都会被冷处理；旧实现用 60s deadline + 观察器，到点即死，
+  //      之后出现的卡片没人处理（本地注入实验实锤：卡片存活）。
+  //   2. 文本节点级定位（TreeWalker）替代逐元素 innerText——整页扫描在
+  //      流式输出期也只有 O(text nodes) 的字符串比较，且限制在 4000 个
+  //      文本节点内（F17 有界预算）。
+  //   3. 卡片判定要求命中 **≥2 个不同关键词**（卡片自身文本包含"加载工作区
+  //      +同步桌面端工作区+等待桌面端配对"多个），避免聊天正文里引用单个
+  //      词时误伤消息气泡。
+  var KEYS = ['加载工作区', '配对工作区', '同步桌面端工作区', '等待桌面端配对',
+    '同步工作区', '连接中转服务', '设备鉴权'];
+  var EN_KEYS = ['loading workspace', 'syncing workspace', 'pairing workspace',
+    'syncing desktop workspace', 'waiting for desktop pairing'];
 
-  function isHandshake(text) {
+  function markerCount(text) {
+    if (!text) return 0;
+    var n = 0;
+    for (var i = 0; i < KEYS.length; i++) {
+      if (text.indexOf(KEYS[i]) >= 0) n++;
+    }
     var lower = text.toLowerCase();
-    // 2026-09：官方页新文案是「正在配对工作区 / 加载工作区中」（用户真机
-    // 实测反馈）——按词根匹配，同时兼容旧文案。
-    var chinese = text.indexOf('加载工作区') >= 0 ||
-      text.indexOf('配对工作区') >= 0 ||
-      text.indexOf('同步桌面端工作区') >= 0 ||
-      text.indexOf('等待桌面端配对') >= 0;
-    var english = (lower.indexOf('loading workspace') >= 0 ||
-      lower.indexOf('syncing workspace') >= 0 ||
-      lower.indexOf('syncing desktop workspace') >= 0 ||
-      lower.indexOf('pairing workspace') >= 0) &&
-      (lower.indexOf('paired') >= 0 ||
-       lower.indexOf('connection established') >= 0 ||
-       lower.indexOf('desktop') >= 0);
-    var waiting = lower.indexOf('waiting for desktop pairing') >= 0 ||
-      lower.indexOf('phone is ready') >= 0 ||
-      (lower.indexOf('connect to relay service') >= 0 &&
-       lower.indexOf('authenticate device') >= 0);
-    return chinese || english || waiting;
+    for (var j = 0; j < EN_KEYS.length; j++) {
+      if (lower.indexOf(EN_KEYS[j]) >= 0) n++;
+    }
+    return n;
   }
 
-  function hide() {
-    if (!document.body) return;
-    var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-    var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    var candidates = Array.prototype.slice.call(document.body.querySelectorAll('div,section,main,aside,form,dialog'))
-      .filter(function (node) {
-        if (!(node instanceof HTMLElement)) return false;
-        var text = normalizedText(node);
-        if (!text || text.length > 800 || !isHandshake(text)) return false;
-        var rect = node.getBoundingClientRect();
-        var style = window.getComputedStyle(node);
-        var isOverlay = style.position === 'fixed' || style.position === 'absolute';
-        var isCard = rect.width >= Math.min(260, viewportWidth * 0.35) &&
-          rect.height >= 100 &&
-          rect.width < viewportWidth * 0.98 &&
-          rect.height < viewportHeight * 0.90;
-        return isOverlay || isCard;
-      });
-    if (!candidates.length) return false;
-
-    // Prefer the outermost card, not each individual line inside it.
-    var roots = candidates.filter(function (node) {
-      return !candidates.some(function (other) {
-        return other !== node && other.contains(node);
-      });
-    });
-    roots.forEach(function (node) {
-      node.style.setProperty('display', 'none', 'important');
-    });
-    return roots.length > 0;
+  function hideCardFrom(node) {
+    var el = node.parentElement;
+    var vw = window.innerWidth || document.documentElement.clientWidth;
+    for (var i = 0; i < 8 && el && el !== document.body &&
+        el !== document.documentElement; i++) {
+      if (!(el instanceof HTMLElement)) break;
+      try {
+        var style = window.getComputedStyle(el);
+        if (style.display === 'none') return false;
+        if (markerCount(String(el.textContent || '').slice(0, 2000)) >= 2) {
+          var rect = el.getBoundingClientRect();
+          if (rect.height >= 60 && rect.width >= Math.min(200, vw * 0.25) &&
+              rect.width <= vw * 0.995) {
+            el.style.setProperty('display', 'none', 'important');
+            return true;
+          }
+        }
+      } catch (e) {}
+      el = el.parentElement;
+    }
+    return false;
   }
 
-  // 握手卡片的观察是**有界**的（F17）：最多观察 60 秒，但**命中不断开**——
-  // 配对流程会多次重建这张卡（"等待桌面端配对"→"已配对，正在加载工作区"），
-  // 旧实现命中一次就停止观察，重建后的卡没人再隐藏（真机 v1.1.5 截图实锤；
-  // 另有一个漏改的 5s 硬停定时器，让 30s/60s 的 deadline 从未生效）。
-  // 真正的停止条件是**工作区就绪**（任务行/输入区出现）或 60s 上限。
-  // 去抖 150ms。工作区就绪后这里不再有任何 DOM 扫描。
-  var deadline = Date.now() + 60000;
-  var observer = null;
-  var debounce = null;
-  function workspaceReady() {
+  function sweep() {
+    if (!document.body) return 0;
+    var hits = 0;
+    var scanned = 0;
+    var walker;
     try {
-      if (document.querySelectorAll('[data-testid^="task-item-"]').length > 0) {
-        return true;
-      }
-      return !!document.querySelector('textarea, [contenteditable="true"]');
+      walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
     } catch (e) {
-      return false;
+      return 0;
     }
-  }
-  function stopWatching() {
-    if (observer) {
-      try { observer.disconnect(); } catch (e) {}
-      observer = null;
+    var node;
+    while ((node = walker.nextNode())) {
+      scanned++;
+      if (scanned > 4000) break;
+      var value = node.nodeValue;
+      if (!value || value.length > 120) continue;
+      if (markerCount(value) === 0) continue;
+      if (hideCardFrom(node)) hits++;
     }
-    if (debounce) {
-      clearTimeout(debounce);
-      debounce = null;
-    }
+    return hits;
   }
-  function runHide() {
-    if (observer === null) return;
-    if (workspaceReady()) { stopWatching(); return; }
-    if (Date.now() > deadline) { stopWatching(); return; }
-    hide();
-  }
-  function schedule() {
-    if (observer === null || debounce) return;
-    debounce = window.setTimeout(function () {
-      debounce = null;
-      runHide();
-    }, 150);
-  }
-  runHide();
-  observer = new MutationObserver(schedule);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true
-  });
-  window.setTimeout(schedule, 0);
-  window.setTimeout(schedule, 250);
-  window.setTimeout(schedule, 1000);
-  window.setTimeout(schedule, 3000);
-  window.setTimeout(schedule, 8000);
-  var tidy = window.setInterval(function () {
-    if (observer === null) {
-      window.clearInterval(tidy);
+
+  var deadline = Date.now() + 30 * 60 * 1000;
+  var timer = window.setInterval(function () {
+    if (Date.now() > deadline) {
+      window.clearInterval(timer);
       return;
     }
-    if (workspaceReady() || Date.now() > deadline) {
-      stopWatching();
-      window.clearInterval(tidy);
-    }
+    sweep();
   }, 1000);
+  sweep();
+  [0, 250, 600, 1200, 2500, 5000].forEach(function (delay) {
+    window.setTimeout(sweep, delay);
+  });
+  // 冷启动前 90 秒叠加 mutation 触发（及时性）；之后靠 1s 节拍兜底，
+  // 避免长时间挂着高噪声观察（流式输出持续触发 childList）。
+  try {
+    var observer = new MutationObserver(function () {
+      if (Date.now() > deadline) {
+        try { observer.disconnect(); } catch (e) {}
+        observer = null;
+        return;
+      }
+      if (observer.__pending) return;
+      observer.__pending = window.setTimeout(function () {
+        observer.__pending = null;
+        sweep();
+      }, 200);
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
+    window.setTimeout(function () {
+      if (observer) {
+        try { observer.disconnect(); } catch (e) {}
+        observer = null;
+      }
+    }, 90000);
+  } catch (e) {}
 })();
 ''';
 
@@ -438,6 +452,20 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 })()
 ''';
 
+  /// 同屏布局探测：任务列表行存在且只占视口一部分宽度（侧栏形态）=
+  /// 对话与列表同屏（平板形态）。列表占满全宽（手机列表页）或列表不存在
+  /// （手机对话页）都判 false。
+  static const String _combinedLayoutProbeScript = '''
+(() => {
+  const rows = document.querySelectorAll('[data-testid^="task-item-"]');
+  if (!rows.length) return JSON.stringify({ rows: 0, combined: false });
+  const rect = rows[0].getBoundingClientRect();
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const combined = rect.width > 0 && rect.width < vw * 0.6;
+  return JSON.stringify({ rows: rows.length, combined: combined });
+})()
+''';
+
   InAppWebViewController? _controller;
   bool _failed = false;
   bool _loading = true;
@@ -577,8 +605,24 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.backController?.attach(_handleBack);
+    widget.backController?.attachLayoutProbe(_probeCombinedLayout);
     _rotateBridgeToken();
     _armFirstLoadWatchdog();
+  }
+
+  /// 页面**实际布局**探测：任务列表行存在且只占视口的一部分宽度
+  /// （对话与列表同屏的侧栏形态）= 同屏布局。手机形态下列表占满全宽，
+  /// 打开对话后列表消失——两种情况都判 false。这样"列表页也算同一个
+  /// 页面"（用户口径：平板设置返回回到对话**或列表**里）。
+  Future<bool> _probeCombinedLayout() async {
+    final controller = _controller;
+    if (controller == null) return false;
+    final result = await controller.evaluateJavascript(
+      source: _combinedLayoutProbeScript,
+    );
+    final payload = jsonDecode(result?.toString() ?? '{}');
+    if (payload is! Map) return false;
+    return payload['combined'] == true;
   }
 
   void _armFirstLoadWatchdog() {
@@ -746,6 +790,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (oldWidget.backController != widget.backController) {
       oldWidget.backController?.detach();
       widget.backController?.attach(_handleBack);
+      widget.backController?.attachLayoutProbe(_probeCombinedLayout);
     }
     if (oldWidget.device.id != widget.device.id ||
         oldWidget.device.baseUrl != widget.device.baseUrl ||
@@ -1127,6 +1172,15 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     );
     ref.listen<String>(themeModeProvider, (_, _) {
       if (!mounted) return;
+      final controller = widget.backController;
+      if (controller != null && controller.covered) {
+        // 设备页遮盖着远控页时切换主题：**整页重载**而不是刷 DOM——官方页
+        // 自己的主题选择按钮状态只在挂载时读一次，就地改类名会让"页面是
+        // 夜间、按钮还写着日间"（用户真机反馈）。重载发生在不可见时，
+        // 重新挂载后按钮与实际主题一致。
+        unawaited(_reload());
+        return;
+      }
       unawaited(_applyWebTheme(_currentDark(context)));
     });
     ref.listen<PendingSessionJump?>(pendingSessionJumpProvider, (_, next) {

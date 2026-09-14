@@ -135,7 +135,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (decision == BackDecision.revealLauncher &&
           mounted &&
           !_launcherVisible) {
-        setState(() => _launcherVisible = true);
+        _setLauncherVisible(true);
       }
     } finally {
       _backHandling = false;
@@ -199,7 +199,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (index >= 0) {
       ref.read(eventFeedProvider.notifier).markRead(deviceId);
       ref.read(activeTabProvider.notifier).set(index);
-      if (_launcherVisible) setState(() => _launcherVisible = false);
+      if (_launcherVisible) _setLauncherVisible(false);
     }
     if (parts.length > 1 && parts[1].isNotEmpty) {
       ref
@@ -225,8 +225,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.read(eventFeedProvider.notifier).markRead(devices[index].id);
     ref.read(activeTabProvider.notifier).set(index);
     if (_launcherVisible) {
-      setState(() => _launcherVisible = false);
+      _setLauncherVisible(false);
     }
+  }
+
+  /// 统一维护"设备页/启动器是否遮盖远控页"：控制器据此决定主题变更时
+  /// 是就地刷 DOM 还是整页重载（重载只在被遮盖、用户看不见时执行）。
+  void _setLauncherVisible(bool visible) {
+    if (!mounted) return;
+    for (final controller in _remotePageControllers.values) {
+      controller.setCovered(visible);
+    }
+    setState(() => _launcherVisible = visible);
   }
 
   @override
@@ -263,7 +273,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         // show that it needs a decision.
         ref.read(eventFeedProvider.notifier).markRead(list[next].id);
         if (_launcherVisible && mounted) {
-          setState(() => _launcherVisible = false);
+          _setLauncherVisible(false);
         }
       }
     });
@@ -300,10 +310,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       (id, _) => !devices.any((device) => device.id == id),
     );
     for (final device in devices) {
-      _remotePageControllers.putIfAbsent(
+      final controller = _remotePageControllers.putIfAbsent(
         device.id,
         OfficialRemotePageController.new,
       );
+      // 新建的控制器要先同步当前遮盖状态（主题变更的整页重载据此选时机）。
+      controller.setCovered(_launcherVisible);
     }
     final activeBackController = _remotePageControllers[devices[index].id]!;
     return PopScope<void>(
@@ -332,12 +344,22 @@ class _AppShellState extends ConsumerState<AppShell> {
             Positioned.fill(
               child: ManagePage(
                 onOpenDevice: _openDevice,
-                // 平板：设置返回先回"对话+列表同屏"页，再一次返回才到设备页
-                // （手机不触发此回调，设置返回停在设备列表页）。
+                // 探测当前设备的官方页是否"对话+列表同屏"：设置返回的落地
+                // 决策按页面实际布局（真平板/大屏手机都能走对）。
+                onProbeCombinedLayout: () async {
+                  final devices = ref.read(deviceListProvider);
+                  if (devices.isEmpty) return null;
+                  final idx = ref
+                      .read(activeTabProvider)
+                      .clamp(0, devices.length - 1);
+                  return _remotePageControllers[devices[idx].id]
+                      ?.probeCombinedLayout();
+                },
+                // 同屏布局下从设置返回先回该页，再一次返回才到设备页。
                 onSettingsReturned: () {
                   if (!mounted || !_launcherVisible) return;
                   _settingsRevealedAt = DateTime.now();
-                  setState(() => _launcherVisible = false);
+                  _setLauncherVisible(false);
                 },
               ),
             ),

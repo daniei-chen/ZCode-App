@@ -23,14 +23,24 @@ import 'settings_page.dart';
 import 'unread_badge.dart';
 
 class ManagePage extends ConsumerWidget {
-  const ManagePage({super.key, this.onOpenDevice, this.onSettingsReturned});
+  const ManagePage({
+    super.key,
+    this.onOpenDevice,
+    this.onSettingsReturned,
+    this.onProbeCombinedLayout,
+  });
 
   final ValueChanged<int>? onOpenDevice;
 
-  /// 从设置页返回后调用（**仅平板**会触发，见 [_SettingsEntry]）：
-  /// 平板的对话与列表同屏，设置返回先回到该页，再一次返回才到设备页；
-  /// 手机的设置返回就是普通弹栈，停在设备列表页（用户 2026-09-14 口径）。
+  /// 从设置页返回后调用（**仅当页面实际是"对话+列表同屏"布局**）：
+  /// 平板语义是"设置返回 → 同屏页 → 再返回 → 设备页"；手机语义是
+  /// "设置返回 → 设备列表页"。落地由 [_SettingsEntry] 在进入设置前探测
+  /// 官方页的**真实布局**决定，不再靠屏幕尺寸猜（真机两次误判的修正）。
   final VoidCallback? onSettingsReturned;
+
+  /// 探测官方页当前是否为"任务列表 + 输入区同屏"。null/失败时回退到
+  /// 屏幕尺寸启发式。
+  final Future<bool?> Function()? onProbeCombinedLayout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -136,7 +146,10 @@ class ManagePage extends ConsumerWidget {
                 const ThemeSettingTile(),
                 const UpdateSettingTile(),
                 const SizedBox(height: 4),
-                _SettingsEntry(onReturned: onSettingsReturned),
+                _SettingsEntry(
+                  onReturned: onSettingsReturned,
+                  onProbe: onProbeCombinedLayout,
+                ),
                 const VersionFooter(),
               ],
             ),
@@ -1001,12 +1014,13 @@ class _DeviceCard extends ConsumerWidget {
 }
 
 class _SettingsEntry extends StatelessWidget {
-  const _SettingsEntry({this.onReturned});
+  const _SettingsEntry({this.onReturned, this.onProbe});
 
-  /// 设置页返回后的回调。**只在平板布局下触发**：平板从设置返回要先回到
-  /// "对话 + 列表同屏"页，再一次返回才到设备页；手机就是普通弹栈停在
-  /// 设备列表页（回调不会被调用）。
+  /// 设置页返回后的回调（仅当官方页是"对话+列表同屏"布局时触发）。
   final VoidCallback? onReturned;
+
+  /// 进入设置前探测官方页真实布局；null/失败回退屏幕尺寸启发式。
+  final Future<bool?> Function()? onProbe;
 
   @override
   Widget build(BuildContext context) {
@@ -1033,14 +1047,21 @@ class _SettingsEntry extends StatelessWidget {
         ),
         trailing: Icon(Icons.chevron_right, color: context.zt.textLo),
         onTap: () async {
-          // 跨 async gap 前先取布局判定：push 返回后 context 可能已失效。
-          final tablet = isTabletLayout(MediaQuery.of(context).size);
-          await Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
-          // 手机：设置返回 = 设备列表页（一次到位，普通弹栈）。
-          // 平板：设置返回 = 对话/列表同屏页（onReturned），再返回才到设备页。
-          if (tablet && context.mounted) {
+          // 跨 async gap 前先取 Navigator 与布局判定。
+          final navigator = Navigator.of(context);
+          final sizeTablet = isTabletLayout(MediaQuery.of(context).size);
+          bool? combined;
+          final probe = onProbe;
+          if (probe != null) {
+            try {
+              combined = await probe();
+            } catch (_) {}
+          }
+          final revealOnReturn = combined ?? sizeTablet;
+          await navigator.push(
+            MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+          );
+          if (revealOnReturn && context.mounted) {
             onReturned?.call();
           }
         },
