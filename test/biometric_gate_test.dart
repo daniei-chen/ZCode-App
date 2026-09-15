@@ -439,7 +439,9 @@ void main() {
     expect(visibleLock, findsOneWidget, reason: '必须停留在锁屏');
     expect(mutable._value, isTrue, reason: '失败时不得关闭安全偏好');
     expect(
-      find.text('擦除未完成（可能仍有残留），已保持锁定。请重试。'),
+      // 文案允许迭代（b5 评审 H-2 补了系统级出路一句），断言"失败原因必须
+      // 显示"而不绑定整句字面量。
+      find.textContaining('擦除未完成'),
       findsOneWidget,
       reason: '必须显示可重试的失败原因',
     );
