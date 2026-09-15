@@ -68,7 +68,7 @@
 - [x] EventObserver telemetry：`zrStats` 计数（fetch 命中/跳过、WS/SSE、
   分片异常、队列丢弃），诊断页可见，只含数字不含 URL/内容
 - [x] fetch 白名单：只 clone 事件相关命名空间，未命中计数供诊断核对
-  （WS/SSE 是事件主通道，不受此表影响）
+  （WS 是事件主通道，不受此表影响；SSE 不观察）
 - [x] fragment TTL/边界：`fragmentIndex` 范围、`fragmentCount` 上限、
   60 秒过期清扫、异常计数
 - [x] CI 分层：fast check 每次 push/PR 必跑；android 构建 + 模拟器 E2E 按
@@ -87,7 +87,8 @@
 
 ## v1.0.9（已发布 ✅）
 
-- [x] WS/SSE 白名单（W2）：只观察官方 relay（host + /ws 路径），其余透明计数
+- [x] WS 白名单（W2）：只观察官方 relay（host + /ws 路径），其余透明计数；
+  SSE 完全不观察（实测全部事件通道为 WS/REST，`sseIgnored` 计数保留）
 - [x] Renderer 崩溃恢复（v1.2.0 D）：onRenderProcessGone → generation 重建
 - [x] SBOM（CycloneDX）+ release-manifest.json + attestation 自验证（v1.4.0 A/B/C）
 - [x] emulator API 矩阵 [30, 34]（v1.2.0 C）

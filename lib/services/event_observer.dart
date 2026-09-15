@@ -64,7 +64,7 @@ abstract final class EventObserver {
         return;
       }
       if (q.length >= qMaxEntries) {
-        qBytes -= q.shift().n; // 条目自记字节数，避免重算
+        qBytes -= q.shift().w; // 条目自记字节数（w），避免重算
         if (window.__zrStats) window.__zrStats.queueDropped++;
       }
       q.push({ n: name, b: body, w: bodyBytes });
@@ -224,8 +224,12 @@ abstract final class EventObserver {
           return;
         }
         if (fi in slot.parts) {
-          // 重复片：按差量更新（旧实现只减旧值，bytes 记账要靠这里对齐）。
-          slot.bytes -= slot.parts[fi].length;
+          // 重复片：按差量更新——slot.bytes 与全局 asmBytes 都要先扣旧值
+          // （b5 评审 H-1：旧实现只减了 slot.bytes，asmBytes 多记的旧值
+          //  没有任何回收点，反复重发同一片可把全局预算永久耗尽）。
+          var oldLen = slot.parts[fi].length;
+          slot.bytes -= oldLen;
+          asmBytes -= oldLen;
         } else {
           slot.got++;
         }
@@ -427,12 +431,14 @@ abstract final class EventObserver {
     } catch (e) { return false; }
   };
   //
-  // SSE（P2-02 / b4 复审）：`docs/RELAY-PROTOCOL-VERIFIED.md` 实测记录写明
-  // 手机端协议是 **"4 个 REST + 2 条 WS"**，全程没有 EventSource/SSE —— SSE
-  // 从来不是本应用的事件通道。旧实现按"官方 host 即观察"给任何官方路径的
-  // SSE 挂 message 监听，属无收益的观察面（CPU/内存/隐私）。现在**完全不
-  // 观察 SSE**：不挂监听、不读正文、只计 sseIgnored；页面自身的 SSE 行为
-  // 不受影响（过滤只影响观测）。
+  // SSE（P2-02 / b4 复审；b5 评审 M-1 修正论据）：协议实测记录
+  // （`docs/RELAY-PROTOCOL-VERIFIED.md`）捕获到的全部事件通道是 WS/REST；
+  // EventSource/SSE 从未在任何实测中出现，也不属于本应用的事件通道
+  // （该文档"被推翻的推断"一节讲的是早期静态推断，不是本条的论据）。
+  // 旧实现按"官方 host 即观察"给任何官方路径的 SSE 挂 message 监听，
+  // 属无收益的观察面（CPU/内存/隐私）。现在**完全不观察 SSE**：不挂监听、
+  // 不读正文、只计 sseIgnored（计数保留，一旦官方出现 SSE 通道可在诊断页
+  // 第一时间发现）；页面自身的 SSE 行为不受影响（过滤只影响观测）。
   var OrigES = window.EventSource;
   if (OrigES) {
     var Wrapped = function(url, cfg) {

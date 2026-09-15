@@ -630,16 +630,20 @@ await check('R-13 队列按 UTF-8 字节收敛（多字节正文不超预算）'
   );
 });
 
-// 4e) R-13（复审 B12）：多个未完成 assembler 的**全局**在途总额。
+// 4e) R-13（复审 B12）：多个未完成 assembler 的**全局**在途总额（b5 评审 M-3 强化）。
 // 旧实现只有单帧上限，N 个伪造帧可把内存叠到 N×单帧（审计测得 18 MiB）。
-// 这里用**行为**断言：全程不断的未完成片不得让任何帧被解出（无 zrEvents
-// 输出），且不抛错；全局预算生效时 invalidFragments/expiredFragments 有增长。
-await check('R-13 多个未完成分片受全局在途总额约束', () => {
+// 注意：WS 文本在 JSON.parse 前先过 4 MiB 字节门，单条消息不可能超过 4 MiB——
+// 所以必须用**能真正送达**的分片尺寸（4M 字符 base64 ≈ 3 MB 解码）才能真正
+// 压到 assembler 路径；旧的 7M 字符样例其实被 WS 门提前挡下，断言通过但理由
+// 错误（4e 因此通过而覆盖不到全局预算）。现在断言拒绝路径的观测证据。
+await check('R-13 多个未完成分片受全局在途总额约束（invalidFragments 留痕）', () => {
   const box = makeSandbox();
   vm.runInContext("window.__zrToken = 'r13d'", box.context);
   vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
   const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13d');
-  const part = 'A'.repeat(7000000); // 单片 ≈5.2MB < 16MB 单帧上限
+  const before = vm.runInContext('window.__zrStats.invalidFragments', box.context);
+  const framesBefore = vm.runInContext('window.__zrStats.framesDecoded', box.context);
+  const part = 'A'.repeat(4000000); // base64 4M 字符 ≈ 3MB 解码，单条消息 < 4 MiB 可达
   for (let i = 0; i < 8; i += 1) {
     ws.listeners.message({
       data: JSON.stringify({
@@ -651,8 +655,19 @@ await check('R-13 多个未完成分片受全局在途总额约束', () => {
       }),
     });
   }
-  // 未完成帧不得产出事件；全局预算触发时计入 invalidFragments。
-  assert(box.posted.length === 0, `未完成分片不得产出桥消息（实际 ${box.posted.length}）`);
+  // 单帧 3MB < 16MB 单帧上限；第 6 帧起全局 16 MiB 被突破 → 拒绝并留痕。
+  // 注意：WS 信封本身会桥上报（这是观测设计），因此这里断言的是
+  // "没有帧被**解出**"（framesDecoded 不增长）+ 全局预算留下了拒绝记录。
+  const after = vm.runInContext('window.__zrStats.invalidFragments', box.context);
+  const framesAfter = vm.runInContext('window.__zrStats.framesDecoded', box.context);
+  assert(
+    after > before,
+    `全局在途总额触发必须计入 invalidFragments（${before} → ${after}）`,
+  );
+  assert(
+    framesAfter === framesBefore,
+    `未完成分片不得解出任何帧（framesDecoded ${framesBefore} → ${framesAfter}）`,
+  );
 });
 
 // 4f) R-13（复审 B13）：非分片 base64 以实际长度判定，不信任 messageBytes。
@@ -710,6 +725,95 @@ await check('P2-02 SSE 不挂 message 监听（观察面归零，页面行为不
   const after = vm.runInContext('window.__zrStats.sseIgnored', box.context);
   assert(after > before, `SSE 应计入 sseIgnored（${before} → ${after}）`);
 });
+
+// 4i) b5 评审 B-1：队列条数上限淘汰路径必须按**字节**扣账。
+// 旧实现 `qBytes -= q.shift().n`（.n 是 handler 名字符串）→ qBytes 变 NaN，
+// 字节收敛循环 `NaN > cap` 恒假 → 字节上限静默失效，队列只剩条数上限。
+// 行为断言：先塞满 qMaxEntries 条小消息（触发条数淘汰路径），再塞一条超预算
+// 大消息，注入令牌后补发总量仍必须 ≤ cap。
+await check('R-13 队列条数淘汰后字节上限仍生效（B-1 回归）', () => {
+  const box = makeSandbox();
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=b1');
+  const small = JSON.stringify({ type: 'tick', n: 1 });
+  // 2049 条：越过 qMaxEntries=2048 触发淘汰分支，然后再来一条较大的。
+  for (let i = 0; i < 2049; i += 1) {
+    ws.listeners.message({ data: small });
+  }
+  const big = JSON.stringify({ message: 'x'.repeat(2 * 1024 * 1024) }); // 2 MiB
+  ws.listeners.message({ data: big });
+  const big2 = JSON.stringify({ message: 'y'.repeat(2 * 1024 * 1024) });
+  ws.listeners.message({ data: big2 });
+  // 令牌到位 → 整体补发；补发总量必须 ≤ cap（若 qBytes 变 NaN 则循环失效，
+  // 2 MiB + 2 MiB + 2049 小条会全部补发，必然超 cap）。
+  vm.runInContext("window.__zrSetToken('b1-token')", box.context);
+  let flushed = 0;
+  for (const args of box.posted) {
+    if (args[0] === 'zrEvents') flushed += Buffer.byteLength(args[1], 'utf8');
+  }
+  assert(
+    flushed <= MAX_LISTEN_BYTES,
+    `条数淘汰后补发总量仍须 ≤ cap（实际 ${flushed} 字节；NaN 回归会让上限失效）`,
+  );
+});
+
+// 4j) b5 评审 H-1：重复分片的全局在途记账必须按差量回收。
+// 旧实现只减 slot.bytes、不减 asmBytes → 重复片把全局预算永久推高，
+// 之后所有分片被拒（会话观察整体停摆）。
+// 行为断言：重复片之后，一个完整合法帧仍必须被解出；且该帧刻意大于
+// "泄漏后残留的余量"（旧实现会把 asmBytes 稳定在 15MB 附近，仅剩约 1MB
+// 余量），保证回退修复时断言必然失败。
+await check('R-13 重复分片不泄漏全局在途预算（H-1 回归）', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'h1-token'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=h1');
+  const framesBefore = vm.runInContext('window.__zrStats.framesDecoded', box.context);
+  // 每片 3 MB 解码，重复 20 轮：旧实现把 asmBytes 推高到 15MB 且无法回收。
+  const threeMiB = 'A'.repeat(4000000);
+  for (let round = 0; round < 20; round += 1) {
+    ws.listeners.message({
+      data: JSON.stringify({
+        kind: 'fragment',
+        logicalFrameId: 'repeat-frame',
+        fragmentCount: 2,
+        fragmentIndex: 0,
+        dataBase64: threeMiB,
+      }),
+    });
+  }
+  // 合法两片帧，总解码 ≈2.4MB（大于旧实现的 ~1MB 残留余量）：
+  // 修复后 asmBytes 仅 ≈3MB（repeat 槽位），该帧两片都能通过全局门。
+  const payload = `{"type":"data","payload":"${'z'.repeat(2400000)}"}`;
+  const half = Math.floor(payload.length / 2);
+  const frameA = Buffer.from(payload.slice(0, half)).toString('base64');
+  const frameB = Buffer.from(payload.slice(half)).toString('base64');
+  ws.listeners.message({
+    data: JSON.stringify({
+      kind: 'fragment',
+      logicalFrameId: 'legal-frame',
+      fragmentCount: 2,
+      fragmentIndex: 0,
+      dataBase64: frameA,
+    }),
+  });
+  ws.listeners.message({
+    data: JSON.stringify({
+      kind: 'fragment',
+      logicalFrameId: 'legal-frame',
+      fragmentCount: 2,
+      fragmentIndex: 1,
+      dataBase64: frameB,
+    }),
+  });
+  const framesAfter = vm.runInContext('window.__zrStats.framesDecoded', box.context);
+  assert(
+    framesAfter > framesBefore,
+    `重复片不得耗尽全局预算：后续合法帧必须仍被解出（framesDecoded ${framesBefore} → ${framesAfter}）`,
+  );
+});
+
+// 4k) 已并入 4e（invalidFragments 留痕断言）——避免重复用例。
 
 // 5) B08 正例：正常大小的事件仍应送达（且带令牌）。
 await check('B08 正常大小 WS 文本照常上报', () => {

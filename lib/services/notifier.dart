@@ -361,7 +361,16 @@ class NotifierService {
   /// 通知 payload 里带着设备与会话 id，凭证都被清掉后它们不能继续留在
   /// 系统通知栏，否则点开还会带着已删除设备的跳转目标。失败只影响撤销，
   /// 由调用方决定是否视为擦除失败。
+  ///
+  /// b5 评审 H-2：插件通道的**瞬时**故障不应把"擦除失败"永久化（对没有系统
+  /// 锁屏凭据的用户，这会同时堵死两条恢复路径）。这里做一次短退避重试，
+  /// 仍失败才如实上报；成功语义不变（= 撤销请求已提交，插件无查询 API）。
   Future<void> cancelAll() async {
-    await _plugin.cancelAll();
+    try {
+      await _plugin.cancelAll();
+    } catch (_) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _plugin.cancelAll(); // 第二次失败即向上抛，由擦除事务如实记账。
+    }
   }
 }

@@ -44,8 +44,13 @@ ANDROID_IN_SUPPORT = re.compile(r"Android\s*([0-9]+\.[0-9]+)")
 CURRENT_VERSION_CLAIM = re.compile(r"当前(?:版本线|为)[^\n。]{0,20}?v?([0-9]+\.[0-9]+\.[0-9]+)")
 VERSION_IN_PUBSPEC = re.compile(r"(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)")
 # Flutter 固定版本：workflow 的 flutter-version 与 SUPPORT 表格里的版本号。
-FLUTTER_PIN = re.compile(r"flutter-version:\s*['\"]?([0-9]+\.[0-9]+\.[0-9]+)")
+# 行首允许空白但**不允许注释符**（`# flutter-version: …` 是历史注解，不能参与判定）。
+FLUTTER_PIN = re.compile(
+    r"(?m)^\s*flutter-version:\s*['\"]?([0-9]+\.[0-9]+\.[0-9]+)"
+)
 FLUTTER_SUPPORT = re.compile(r"\|\s*Flutter\s*\|\s*([0-9]+\.[0-9]+\.[0-9]+)")
+# pubspec 的 environment.flutter 下界（形如 ">=3.47.0"）。
+FLUTTER_ENV = re.compile(r"(?m)^\s*flutter:\s*[\"']?[><=^~]*([0-9]+\.[0-9]+)\.[0-9]+")
 
 # 允许复述"当前版本"的例外（发布说明天然要写版本号）。
 VERSION_CLAIM_FILES = (
@@ -109,26 +114,57 @@ def check_support_range(root: Path = ROOT) -> list[str]:
 
 
 def check_flutter_toolchain(root: Path = ROOT) -> list[str]:
-    """Flutter 固定版本必须三处一致（C-工具链 / b4 复审 P1-05）。
+    """Flutter 固定版本必须一致（C-工具链 / b4 复审 P1-05；b5 评审 M-2 加固）。
 
     复审证据：交付 APK 的 `release-manifest.toolchain.flutter` 为 3.47.4，
     而 workflow 与 SUPPORT 固定 3.47.3 —— 版本漂移会让"本地 APK 可由 CI
-    复现"这一声明不成立。这里把三处钉成同一个字符串：
-      * `.github/workflows/*.yml` 里的 `flutter-version:`；
+    复现"这一声明不成立。这里钉住四个来源：
+      * `.github/workflows/*.yml` 的 `flutter-version:`（每个 workflow 至少一处）；
       * `docs/SUPPORT.md` 的支持矩阵表格行；
-      * `pubspec.yaml` 的 `environment.flutter` 下界（只校验主次版本前缀）。
+      * `pubspec.yaml` 的 `environment.flutter` 下界（主次版本前缀须一致）。
+
+    b5 评审修正的三个漏检：
+      1. 只统计"出现过的版本集合"，pin 行整体消失时集合只剩 SUPPORT 一个值
+         → 静默通过。现在要求至少两处 pin 存在，且每个 workflow 至少一处。
+      2. 原正则匹配注释行（`# flutter-version: 3.47.3` 造成假失败）。
+      3. pubspec 的 flutter 下界此前未真正读取（docstring 与实现不符）。
     """
     errors: list[str] = []
     versions: set[str] = set()
-    for workflow in sorted((root / ".github/workflows").glob("*.yml")):
-        for match in FLUTTER_PIN.finditer(workflow.read_text(encoding="utf-8")):
-            versions.add(match.group(1))
+    pins = 0
+    workflows = sorted((root / ".github/workflows").glob("*.yml"))
+    for workflow in workflows:
+        found = FLUTTER_PIN.findall(workflow.read_text(encoding="utf-8"))
+        if not found:
+            errors.append(
+                f"{workflow.name} 没有 flutter-version 固定行"
+                "（CI 必须与交付工具链一致，缺行不得静默通过）"
+            )
+            continue
+        pins += len(found)
+        versions.update(found)
     support = (root / "docs/SUPPORT.md").read_text(encoding="utf-8")
     support_match = FLUTTER_SUPPORT.search(support)
     if support_match is None:
         errors.append("docs/SUPPORT.md 未写明 Flutter 固定版本（支持矩阵）")
     else:
+        pins += 1
         versions.add(support_match.group(1))
+    if pins < 2:
+        errors.append(
+            f"flutter-version 固定行只有 {pins} 处（至少需要 workflow 与 SUPPORT 各一处）"
+        )
+    pubspec = (root / "pubspec.yaml").read_text(encoding="utf-8")
+    env_match = FLUTTER_ENV.search(pubspec)
+    if env_match is None:
+        errors.append("pubspec.yaml 缺少 environment.flutter 下界")
+    elif versions:
+        prefix = {v.rsplit(".", 1)[0] for v in versions}
+        if env_match.group(1) not in prefix:
+            errors.append(
+                "Flutter 下界与固定版本主次号不一致：pubspec "
+                f">= {env_match.group(1)} vs 固定 {sorted(versions)}"
+            )
     if len(versions) > 1:
         errors.append(
             "Flutter 版本漂移：workflow 与 SUPPORT.md 出现多个版本 "
@@ -234,7 +270,8 @@ def _fixture(
         encoding="utf-8",
     )
     (root / "pubspec.yaml").write_text(
-        f"name: zremote\nversion: 9.9.9+99\nenvironment:\n  sdk: ^{sdk}\n",
+        f'name: zremote\nversion: 9.9.9+99\nenvironment:\n  sdk: ^{sdk}\n'
+        f'  flutter: ">={ci_flutter}"\n',
         encoding="utf-8",
     )
     (root / "pubspec.lock").write_text(
@@ -299,6 +336,46 @@ def _self_test() -> int:
         expect(
             "Flutter 版本漂移被拦下（workflow ≠ SUPPORT）",
             any("Flutter 版本漂移" in e for e in errors),
+        )
+
+        # b5 评审 M-2：pin 行整体消失不得静默通过。
+        broken = Path(raw) / "flutter-pin-missing"
+        _fixture(broken)
+        (broken / ".github/workflows/ci.yml").write_text(
+            "jobs:\n  check:\n    steps:\n      - uses: subosito/flutter-action@abc\n",
+            encoding="utf-8",
+        )
+        errors, _ = run_all(broken)
+        expect(
+            "workflow 缺 flutter-version 固定行被拦下",
+            any("没有 flutter-version 固定行" in e for e in errors),
+        )
+
+        # b5 评审 M-2：注释行里的 flutter-version 不参与判定（也不得制造假失败）。
+        broken = Path(raw) / "flutter-comment-pin"
+        _fixture(broken, ci_flutter="3.47.4")
+        (broken / ".github/workflows/ci.yml").write_text(
+            "jobs:\n  check:\n    steps:\n"
+            "      # 历史注解：flutter-version: 3.47.3（旧值）\n"
+            "      - uses: subosito/flutter-action@abc\n"
+            "        with:\n          flutter-version: 3.47.4\n",
+            encoding="utf-8",
+        )
+        errors, _ = run_all(broken)
+        expect("注释里的旧版本不制造假失败", not errors)
+
+        # b5 评审 M-2：pubspec 下界与固定版本主次号不一致。
+        broken = Path(raw) / "flutter-env-drift"
+        _fixture(broken, ci_flutter="3.47.4")
+        (broken / "pubspec.yaml").write_text(
+            'name: zremote\nversion: 9.9.9+99\nenvironment:\n  sdk: ^3.12.0\n'
+            '  flutter: ">=3.46.0"\n',
+            encoding="utf-8",
+        )
+        errors, _ = run_all(broken)
+        expect(
+            "pubspec 下界主次号不一致被拦下",
+            any("下界与固定版本主次号不一致" in e for e in errors),
         )
 
         # 文档硬编码当前版本
