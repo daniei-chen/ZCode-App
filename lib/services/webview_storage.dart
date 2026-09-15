@@ -2,6 +2,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_log.dart';
 import 'structured_log.dart';
+import 'wipe_result.dart';
 
 /// WebView 本地存储清单与清理策略（PR20 / F19）。
 ///
@@ -86,10 +87,12 @@ abstract final class WebViewStorage {
   /// `WebStorageManager.deleteAllData()`（按域清 localStorage/IndexedDB 等）
   /// 与全局 HTTP 缓存。
   ///
-  /// 每个域独立尝试并如实记录（失败不谎报成功）。凭证本体已由
-  /// `DeviceStore.clearAll` 在同一事务里删除；站点数据清理失败不阻断
-  /// 擦除，但日志会留下可核对的 partial 标记。
-  static Future<void> clearAllSiteData({String? reason}) async {
+  /// **b4 复审修正（R-17）**：旧实现把三个域各自 catch、只写一条日志就返回，
+  /// 调用方无法区分"全清干净"与"一个域都没清成"——与"任一失败保持锁定"的
+  /// 声明不符。现在**返回逐域结果**（[WipeStepResult]），由擦除事务汇总后
+  /// 决定是否放行；失败原因只记机器标签，不记录内容。
+  static Future<List<WipeStepResult>> clearAllSiteData({String? reason}) async {
+    final steps = <WipeStepResult>[];
     var siteDataOk = false;
     try {
       await WebStorageManager.instance().deleteAllData();
@@ -97,16 +100,31 @@ abstract final class WebViewStorage {
     } catch (_) {
       siteDataOk = false;
     }
+    steps.add(WipeStepResult(
+      step: WipeStep.siteData,
+      ok: siteDataOk,
+      reason: siteDataOk ? null : 'delete_all_data_failed',
+    ));
     var cacheOk = false;
     try {
       await InAppWebViewController.clearAllCache();
       cacheOk = true;
     } catch (_) {}
+    steps.add(WipeStepResult(
+      step: WipeStep.cache,
+      ok: cacheOk,
+      reason: cacheOk ? null : 'clear_cache_failed',
+    ));
     var cookiesOk = false;
     try {
       await CookieManager.instance().deleteAllCookies();
       cookiesOk = true;
     } catch (_) {}
+    steps.add(WipeStepResult(
+      step: WipeStep.cookies,
+      ok: cookiesOk,
+      reason: cookiesOk ? null : 'delete_cookies_failed',
+    ));
     final allOk = siteDataOk && cacheOk && cookiesOk;
     AppLog.event(
       LogEvent.webviewStorageCleared,
@@ -116,5 +134,6 @@ abstract final class WebViewStorage {
         LogField.ok: allOk,
       },
     );
+    return steps;
   }
 }

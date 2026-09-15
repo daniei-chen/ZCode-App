@@ -43,6 +43,9 @@ API_IN_SUPPORT = re.compile(r"API\s*([0-9]+)")
 ANDROID_IN_SUPPORT = re.compile(r"Android\s*([0-9]+\.[0-9]+)")
 CURRENT_VERSION_CLAIM = re.compile(r"当前(?:版本线|为)[^\n。]{0,20}?v?([0-9]+\.[0-9]+\.[0-9]+)")
 VERSION_IN_PUBSPEC = re.compile(r"(?m)^version:\s*([0-9]+\.[0-9]+\.[0-9]+)")
+# Flutter 固定版本：workflow 的 flutter-version 与 SUPPORT 表格里的版本号。
+FLUTTER_PIN = re.compile(r"flutter-version:\s*['\"]?([0-9]+\.[0-9]+\.[0-9]+)")
+FLUTTER_SUPPORT = re.compile(r"\|\s*Flutter\s*\|\s*([0-9]+\.[0-9]+\.[0-9]+)")
 
 # 允许复述"当前版本"的例外（发布说明天然要写版本号）。
 VERSION_CLAIM_FILES = (
@@ -103,6 +106,35 @@ def check_support_range(root: Path = ROOT) -> list[str]:
             f"支持范围漂移：SUPPORT.md 写 API {api.group(1)}，构建脚本 minSdk = {min_sdk.group(1)}"
         ]
     return []
+
+
+def check_flutter_toolchain(root: Path = ROOT) -> list[str]:
+    """Flutter 固定版本必须三处一致（C-工具链 / b4 复审 P1-05）。
+
+    复审证据：交付 APK 的 `release-manifest.toolchain.flutter` 为 3.47.4，
+    而 workflow 与 SUPPORT 固定 3.47.3 —— 版本漂移会让"本地 APK 可由 CI
+    复现"这一声明不成立。这里把三处钉成同一个字符串：
+      * `.github/workflows/*.yml` 里的 `flutter-version:`；
+      * `docs/SUPPORT.md` 的支持矩阵表格行；
+      * `pubspec.yaml` 的 `environment.flutter` 下界（只校验主次版本前缀）。
+    """
+    errors: list[str] = []
+    versions: set[str] = set()
+    for workflow in sorted((root / ".github/workflows").glob("*.yml")):
+        for match in FLUTTER_PIN.finditer(workflow.read_text(encoding="utf-8")):
+            versions.add(match.group(1))
+    support = (root / "docs/SUPPORT.md").read_text(encoding="utf-8")
+    support_match = FLUTTER_SUPPORT.search(support)
+    if support_match is None:
+        errors.append("docs/SUPPORT.md 未写明 Flutter 固定版本（支持矩阵）")
+    else:
+        versions.add(support_match.group(1))
+    if len(versions) > 1:
+        errors.append(
+            "Flutter 版本漂移：workflow 与 SUPPORT.md 出现多个版本 "
+            f"{sorted(versions)}（必须统一，否则本地 APK 不能声称可由 CI 复现）"
+        )
+    return errors
 
 
 def check_version_claims(root: Path = ROOT) -> list[str]:
@@ -166,6 +198,7 @@ def run_all(root: Path = ROOT) -> tuple[list[str], dict[str, int]]:
     checks = {
         "Dart SDK 下界一致": check_sdk_alignment(root),
         "支持范围与 minSdk 一致": check_support_range(root),
+        "Flutter 固定版本一致": check_flutter_toolchain(root),
         "文档不复述当前版本": check_version_claims(root),
         "文档齐全且 README 可达": check_docs_linked(root),
         "脚本/工作流行尾为 LF": check_line_endings(root),
@@ -181,9 +214,25 @@ def run_all(root: Path = ROOT) -> tuple[list[str], dict[str, int]]:
 # ---------------------------------------------------------------- self test
 
 
-def _fixture(root: Path, *, sdk: str = "3.12.0", min_sdk: str = "24") -> None:
+def _fixture(
+    root: Path,
+    *,
+    sdk: str = "3.12.0",
+    min_sdk: str = "24",
+    ci_flutter: str = "3.47.4",
+    support_flutter: str | None = None,
+) -> None:
+    support_flutter = support_flutter or ci_flutter
     (root / "docs").mkdir(parents=True, exist_ok=True)
     (root / "android/app").mkdir(parents=True, exist_ok=True)
+    (root / ".github/workflows").mkdir(parents=True, exist_ok=True)
+    # C-工具链防漂移夹具：workflow 与 SUPPORT 各有一处固定版本。
+    (root / ".github/workflows/ci.yml").write_text(
+        f"jobs:\n  check:\n    steps:\n"
+        f"      - uses: subosito/flutter-action@abc\n"
+        f"        with:\n          flutter-version: {ci_flutter}\n",
+        encoding="utf-8",
+    )
     (root / "pubspec.yaml").write_text(
         f"name: zremote\nversion: 9.9.9+99\nenvironment:\n  sdk: ^{sdk}\n",
         encoding="utf-8",
@@ -196,7 +245,8 @@ def _fixture(root: Path, *, sdk: str = "3.12.0", min_sdk: str = "24") -> None:
         encoding="utf-8",
     )
     (root / "docs/SUPPORT.md").write_text(
-        f"# 支持\n\n| 操作系统 | Android 7.0（API {min_sdk}）及以上 |\n",
+        f"# 支持\n\n| Flutter | {support_flutter}（stable） | CI |\n\n"
+        f"| 操作系统 | Android 7.0（API {min_sdk}）及以上 |\n",
         encoding="utf-8",
     )
     (root / "README.md").write_text(
@@ -241,6 +291,15 @@ def _self_test() -> int:
         )
         errors, _ = run_all(broken)
         expect("支持范围漂移被拦下", any("支持范围漂移" in e for e in errors))
+
+        # C-工具链：workflow 与 SUPPORT 的 Flutter 版本漂移（b4 复审 P1-05）
+        broken = Path(raw) / "flutter-drift"
+        _fixture(broken, ci_flutter="3.47.4", support_flutter="3.47.3")
+        errors, _ = run_all(broken)
+        expect(
+            "Flutter 版本漂移被拦下（workflow ≠ SUPPORT）",
+            any("Flutter 版本漂移" in e for e in errors),
+        )
 
         # 文档硬编码当前版本
         broken = Path(raw) / "version-claim"

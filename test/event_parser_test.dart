@@ -174,10 +174,19 @@ void main() {
       expect(s.contains("ws.addEventListener('message'"), isTrue);
     });
 
-    test('体积预检对称：缺 messageBytes 的帧用 base64 长度估算兜底', () {
+    test('体积预检不信任 messageBytes：按 base64 编码长度判定（R-13/B13）', () {
       final s = EventObserver.hookScript;
-      expect(s.contains('p.messageBytes != null'), isTrue);
-      expect(s.contains('* 0.75'), isTrue);
+      // b4 复审：旧实现用 messageBytes 作为 sizeHint（可伪造为 1 绕过），
+      // 修复后按 dataBase64 的**实际编码长度**估算，声明值不参与判定。
+      expect(s.contains('p.messageBytes'), isFalse,
+          reason: '不得再信任页面上报的 messageBytes（可伪造）');
+      expect(s.contains(r'Math.ceil(b64Len * 0.75)'), isTrue);
+      // 分片与非分片两档预算：单片允许到单帧上限，非分片必须即时收口。
+      // （hookScript 是插值后的运行期文本，$kMaxListenBytes 已展开为 4194304。）
+      expect(
+        s.contains('isFragment ? kMaxFragmentBytes : 4194304'),
+        isTrue,
+      );
     });
 
     test('分片计数去重：重复投递同一 fragmentIndex 不递增 got', () {

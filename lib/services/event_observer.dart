@@ -28,11 +28,29 @@ abstract final class EventObserver {
   // （收齐后的最终帧上限仍由 $kMaxListenBytes 判定）。
   var kMaxFragmentBytes = 16 * 1024 * 1024;
   var kMaxFragmentB64Chars = Math.ceil(kMaxFragmentBytes * 4 / 3) + 64;
+  // R-13：队列预算按 **UTF-8 字节**；assembler 另加全局在途总额与槽位上限，
+  // 防止多个未完成帧各自"合法"却把内存叠加到预想之外。
+  var kMaxQueueBytes = $kMaxListenBytes;
+  var kMaxAssemblerBytes = 16 * 1024 * 1024;
+  var asmLimit = 32;
+  // R-13：真实 UTF-8 字节数。ASCII 快路径（逐字符扫描，不分配）；含多字节
+  // 时用 TextEncoder；TextEncoder 缺失按 3 字节/字符保守上界（宁可少观察）。
+  var utf8Len = function(s) {
+    var ascii = true;
+    for (var ui = 0; ui < s.length; ui++) {
+      if (s.charCodeAt(ui) > 127) { ascii = false; break; }
+    }
+    if (ascii) return s.length;
+    try { return new TextEncoder().encode(s).length; }
+    catch (e) { return s.length * 3; }
+  };
   var post = function(name, body) {
     try {
-      // 单条消息预算（F04）：任何通道的文本在跨桥之前先判长——超限一律丢弃，
-      // 绝不把 4MiB+1 的正文送进 Dart（二进制路径另有各自的 size 检查）。
-      if (typeof body !== 'string' || body.length > $kMaxListenBytes) {
+      if (typeof body !== 'string') return;
+      // 单条消息预算（F04/R-13）：按 **UTF-8 字节**判定，字符数不是字节数。
+      // 超限一律丢弃，绝不把超预算正文送进桥（也不留在队列里）。
+      var bodyBytes = utf8Len(body);
+      if (bodyBytes > $kMaxListenBytes) {
         if (window.__zrStats) window.__zrStats.wsSkippedSize++;
         return;
       }
@@ -46,14 +64,15 @@ abstract final class EventObserver {
         return;
       }
       if (q.length >= qMaxEntries) {
-        qBytes -= q.shift().b.length;
+        qBytes -= q.shift().n; // 条目自记字节数，避免重算
         if (window.__zrStats) window.__zrStats.queueDropped++;
       }
-      q.push({ n: name, b: body });
-      qBytes += body.length;
-      // 队列按字节收敛；q.length > 0 保证单条超限项不会被永久保留（F04/B10）。
-      while (qBytes > $kMaxListenBytes && q.length > 0) {
-        qBytes -= q.shift().b.length;
+      q.push({ n: name, b: body, w: bodyBytes });
+      qBytes += bodyBytes;
+      // 队列按**真实字节**收敛；q.length > 0 保证单条超限项不会被永久保留
+      // （F04/B10；R-13：旧的 UTF-16 计数在中文/emoji 下会低估约 3 倍）。
+      while (qBytes > kMaxQueueBytes && q.length > 0) {
+        qBytes -= q.shift().w;
         if (window.__zrStats) window.__zrStats.queueDropped++;
       }
     } catch (e) {}
@@ -66,7 +85,7 @@ abstract final class EventObserver {
     if (!token) return false;
     while (q.length > 0) {
       var m = q.shift();
-      qBytes -= m.b.length;
+      qBytes -= m.w;
       try { h.callHandler(m.n, m.b, token); } catch (e) {}
     }
     return true;
@@ -130,6 +149,8 @@ abstract final class EventObserver {
   };
   var asm = {};
   var asmOrder = [];
+  // R-13：所有未完成 assembler 的在途字节总和（全局预算，见 tryDecodePayload）。
+  var asmBytes = 0;
   // 过期 assembler 清理（W2）：60 秒内没有新分片的逻辑帧视为坏帧，周期
   // 清扫，防止异常页面让 assembler 无限滞留。
   var asmSweep = setInterval(function() {
@@ -137,6 +158,7 @@ abstract final class EventObserver {
     for (var k2 = asmOrder.length - 1; k2 >= 0; k2--) {
       var key = asmOrder[k2];
       if (asm[key] && now - asm[key].t > 60000) {
+        asmBytes -= asm[key].bytes;
         delete asm[key];
         asmOrder.splice(k2, 1);
         bump('expiredFragments');
@@ -152,43 +174,67 @@ abstract final class EventObserver {
   var tryDecodePayload = function(p) {
     try {
       if (!p || typeof p.dataBase64 !== 'string' || p.dataBase64.length === 0) return;
-      var sizeHint = p.messageBytes != null ? p.messageBytes : Math.ceil(p.dataBase64.length * 0.75);
-      var bytesCapOk = sizeHint < $kMaxListenBytes;
-      if (!bytesCapOk) return;
+      // R-13：base64 判长用**编码后字符数**（解码前），且不信任 messageBytes
+      // （可伪造为 1 绕过）。分片单片允许到单帧预算（收齐后还要过 4 MiB 门），
+      // 非分片消息最终上限就是 4 MiB——编码长度超了必然超限，直接丢弃。
+      var isFragment = p.kind === 'fragment' && p.fragmentCount > 1;
+      var b64Len = p.dataBase64.length;
+      var estBytes = Math.ceil(b64Len * 0.75);
+      if (estBytes > (isFragment ? kMaxFragmentBytes : $kMaxListenBytes)) return;
       var bytes;
-      if (p.kind === 'fragment' && p.fragmentCount > 1) {
+      if (isFragment) {
         var id = p.logicalFrameId;
         if (!id) return;
         var fc = p.fragmentCount;
         var fi = p.fragmentIndex;
-        // 分片边界检查（W2）：count 上限与 index 范围不合法直接丢弃计数。
-        if (typeof fc !== 'number' || fc > 64 ||
-            typeof fi !== 'number' || fi < 0 || fi >= fc) {
+        // 分片边界检查（W2/R-13）：count/index 必须是**有限整数**且范围内
+        // （旧实现只查 typeof number，0.5 会被当作对象键保留）。
+        if (typeof fc !== 'number' || fc !== Math.floor(fc) || fc < 1 || fc > 64 ||
+            typeof fi !== 'number' || fi !== Math.floor(fi) || fi < 0 || fi >= fc) {
           bump('invalidFragments');
           return;
         }
         // 单片 base64 长度上限：解码之前就挡住"单片即超限"的输入（F04/B11）。
-        if (p.dataBase64.length > kMaxFragmentB64Chars) {
+        if (b64Len > kMaxFragmentB64Chars) {
           bump('invalidFragments');
           return;
         }
         var slot = asm[id];
         if (!slot) {
-          if (asmOrder.length > 32) { delete asm[asmOrder.shift()]; }
+          // 槽位上限；淘汰最老（R-13：另有全局在途总额兜底）。
+          while (asmOrder.length >= asmLimit) {
+            var evict = asmOrder.shift();
+            asmBytes -= asm[evict] ? asm[evict].bytes : 0;
+            delete asm[evict];
+            bump('invalidFragments');
+          }
           slot = asm[id] = { parts: {}, got: 0, bytes: 0, total: fc, t: Date.now() };
           asmOrder.push(id);
         }
         slot.t = Date.now();
         var part = b64Bytes(p.dataBase64);
+        // 解码后真实字节复查（base64 声明长度≠解码长度）：单片不得超过
+        // 单帧预算；单帧与全局的累计由下面的两道门负责。
+        if (part.length > kMaxFragmentBytes) {
+          asmBytes -= slot.bytes;
+          delete asm[id];
+          var oi = asmOrder.indexOf(id);
+          if (oi >= 0) asmOrder.splice(oi, 1);
+          bump('invalidFragments');
+          return;
+        }
         if (fi in slot.parts) {
+          // 重复片：按差量更新（旧实现只减旧值，bytes 记账要靠这里对齐）。
           slot.bytes -= slot.parts[fi].length;
         } else {
           slot.got++;
         }
         slot.bytes += part.length;
-        // 在途总预算（F04/B11）：边收边算，超限立即丢弃并释放，
-        // 不等到收齐才算（避免"未完成分片"长期占内存）。
-        if (slot.bytes > kMaxFragmentBytes) {
+        asmBytes += part.length;
+        // 单帧在途总额 + 全 assembler 全局总额（R-13/B12）：任一超限立即
+        // 释放该帧并重新核对全局。
+        if (slot.bytes > kMaxFragmentBytes || asmBytes > kMaxAssemblerBytes) {
+          asmBytes -= slot.bytes;
           delete asm[id];
           var dropIdx = asmOrder.indexOf(id);
           if (dropIdx >= 0) asmOrder.splice(dropIdx, 1);
@@ -197,6 +243,7 @@ abstract final class EventObserver {
         }
         slot.parts[fi] = part;
         if (slot.got < slot.total) return;
+        asmBytes -= slot.bytes;
         delete asm[id];
         var idx = asmOrder.indexOf(id);
         if (idx >= 0) asmOrder.splice(idx, 1);
@@ -241,6 +288,14 @@ abstract final class EventObserver {
     }
   };
   var sendWithDecode = function(body) {
+    // R-13（复审 B08）：预算判定必须在 **JSON.parse 之前**。旧实现先 parse
+    // 再判定（post 里才挡），超限正文仍会进入解析路径，制造大对象/GC 抖动。
+    // 这里先按真实 UTF-8 字节判定：超限直接丢弃（post 计数一次），不解析。
+    if (typeof body !== 'string') return;
+    if (utf8Len(body) > $kMaxListenBytes) {
+      if (window.__zrStats) window.__zrStats.wsSkippedSize++;
+      return;
+    }
     send(body);
     try {
       var env = JSON.parse(body);
@@ -356,47 +411,35 @@ abstract final class EventObserver {
       });
     };
   }
-  // W2 WS/SSE 白名单（依据实测协议记录：relay 端点为
-  // wss://zcode.z.ai/ws?mid=…）。只有官方 relay 的 WS 会被观察；其他
-  // WebSocket（第三方/诊断）完全透明——不挂监听、不读正文、不上报，
-  // 只计入 wsIgnored。SSE 同理先只限官方 host（路径待遥测确认）。
+  // W2 WS 白名单（依据实测协议记录：relay 端点为 wss://zcode.z.ai/ws?mid=…）：
+  // 只有官方 relay 的 WS 会被观察；其他 WebSocket（第三方/诊断）完全透明
+  // ——不挂监听、不读正文、不上报，只计入 wsIgnored。
   // 重要：过滤只影响"观测"，绝不改变页面自身的连接与功能。
-  var allowedHost = function(urlStr, scheme) {
-    try {
-      var u = new URL(urlStr, location.href);
-      if (u.protocol !== scheme || u.hostname.toLowerCase() !== 'zcode.z.ai') {
-        return false;
-      }
-      // 端口必须与 Dart 侧信任规则一致（F15/B17）：默认端口或 443。
-      return u.port === '' || u.port === '443';
-    } catch (e) { return false; }
-  };
   var wsAllowed = function(urlStr) {
     try {
       var u = new URL(urlStr, location.href);
       if (u.protocol !== 'wss:' || u.hostname.toLowerCase() !== 'zcode.z.ai') {
         return false;
       }
+      // 端口必须与 Dart 侧信任规则一致（F15/B17）：默认端口或 443。
       if (u.port !== '' && u.port !== '443') return false;
       return u.pathname === '/ws' || u.pathname.indexOf('/ws/') === 0;
     } catch (e) { return false; }
   };
-  var ssAllowed = function(urlStr) { return allowedHost(urlStr, 'https:'); };
+  //
+  // SSE（P2-02 / b4 复审）：`docs/RELAY-PROTOCOL-VERIFIED.md` 实测记录写明
+  // 手机端协议是 **"4 个 REST + 2 条 WS"**，全程没有 EventSource/SSE —— SSE
+  // 从来不是本应用的事件通道。旧实现按"官方 host 即观察"给任何官方路径的
+  // SSE 挂 message 监听，属无收益的观察面（CPU/内存/隐私）。现在**完全不
+  // 观察 SSE**：不挂监听、不读正文、只计 sseIgnored；页面自身的 SSE 行为
+  // 不受影响（过滤只影响观测）。
   var OrigES = window.EventSource;
   if (OrigES) {
     var Wrapped = function(url, cfg) {
       var es = new OrigES(url, cfg);
       try {
-        var esUrl = (url && url.href) ? url.href : String(url);
-        if (!ssAllowed(esUrl)) {
-          bump('sseIgnored');
-          return es;
-        }
+        bump('sseIgnored');
       } catch (e) {}
-      es.addEventListener('message', function(ev) {
-        bump('sseMessages');
-        sendWithDecode(ev.data);
-      });
       return es;
     };
     Wrapped.prototype = OrigES.prototype;

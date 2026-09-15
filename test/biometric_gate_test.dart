@@ -81,7 +81,7 @@ Future<void> pumpGate(
   bool prefUnreadable = false,
   SecurityPrefNotifier Function()? securityPrefNotifier,
   Future<bool> Function(String reason)? authenticateWithDeviceCredential,
-  Future<void> Function()? wipeProtectedData,
+  Future<bool> Function()? wipeProtectedData,
   Widget child = const Text('SECRET'),
 }) {
   return tester.pumpWidget(
@@ -361,7 +361,7 @@ void main() {
           code: LocalAuthExceptionCode.noBiometricsEnrolled,
         ),
       ),
-      wipeProtectedData: () async => wipeCalls++,
+      wipeProtectedData: () async { wipeCalls++; return true; },
       notifier: () => mutable,
     );
     await tester.pump(const Duration(milliseconds: 700));
@@ -390,7 +390,7 @@ void main() {
           code: LocalAuthExceptionCode.noBiometricsEnrolled,
         ),
       ),
-      wipeProtectedData: () async => wipeCalls++,
+      wipeProtectedData: () async { wipeCalls++; return true; },
       notifier: () => mutable,
     );
     await tester.pump(const Duration(milliseconds: 700));
@@ -403,6 +403,46 @@ void main() {
     expect(wipeCalls, 0);
     expect(visibleSecret, findsNothing);
     expect(mutable._value, isTrue);
+  });
+
+  // R-17 回归（b4 复审 P1-03）：擦除**未全部成功**时必须保持锁定。
+  // 旧实现只对磁盘路径 fail-closed：站点数据/通知失败会被静默放行。
+  testWidgets('擦除未全部成功：保持锁定并显示可重试状态（R-17）', (tester) async {
+    final mutable = _MutableBiometricNotifier(true);
+    var wipeCalls = 0;
+    await pumpGate(
+      tester,
+      enabled: true,
+      relockAfter: const Duration(seconds: 10),
+      authenticate: (reason) => throw BiometricUnavailableException(
+        const LocalAuthException(
+          code: LocalAuthExceptionCode.noBiometricsEnrolled,
+        ),
+      ),
+      // 返回 false = WipeResult.allRequiredSucceeded 为 false（有残留）。
+      wipeProtectedData: () async {
+        wipeCalls++;
+        return false;
+      },
+      notifier: () => mutable,
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+
+    await tester.tap(find.text('清除本机数据并关闭门禁'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清除并关闭'));
+    await tester.pumpAndSettle();
+
+    expect(wipeCalls, 1, reason: '事务必须被尝试');
+    expect(visibleSecret, findsNothing, reason: 'R-17：未全部成功不得放行');
+    expect(visibleLock, findsOneWidget, reason: '必须停留在锁屏');
+    expect(mutable._value, isTrue, reason: '失败时不得关闭安全偏好');
+    expect(
+      find.text('擦除未完成（可能仍有残留），已保持锁定。请重试。'),
+      findsOneWidget,
+      reason: '必须显示可重试的失败原因',
+    );
   });
 
   testWidgets('安全偏好读取失败：保持锁定；重试成功后回到正常解锁', (tester) async {

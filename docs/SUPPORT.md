@@ -26,7 +26,7 @@
 | 项 | 范围 | 依据 |
 | -- | -- | -- |
 | Dart SDK | 与 `pubspec.lock` 的 `sdks.dart` 下界一致（CI 校验两者相等） | `scripts/check-doc-drift.py` |
-| Flutter | 3.47.3（stable；与 CI 固定版本一致） | `.github/workflows/*.yml` |
+| Flutter | 3.47.4（stable；与 CI 固定版本、交付 APK 的 manifest.toolchain 三者一致） | `.github/workflows/*.yml` |
 | JDK（构建） | 17（Temurin） | 同上 |
 | Android Gradle Plugin | 见 `android/settings.gradle.kts`（SBOM 里记录实际版本） | `ZCode-v*.sbom.cyclonedx.json` |
 

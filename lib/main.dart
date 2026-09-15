@@ -201,12 +201,12 @@ class BiometricGate extends ConsumerStatefulWidget {
   /// 恢复路径：生物识别不可用时，必须用系统锁屏凭据验证身份才解锁。
   final Future<bool> Function(String reason) authenticateWithDeviceCredential;
 
-  /// 破坏性恢复路径的替身（仅测试注入）。
+  /// 破坏性恢复路径的替身（仅测试注入）；返回"全部必需项是否成功"。
   ///
   /// 生产为 null：实际执行 [ProtectedStateWipe.run]（磁盘 + 内存 Provider +
-  /// WebView 站点数据 + 通知的完整擦除事务，R-04）。测试传计数器替身时，
-  /// "内存态已清"由替身负责，锁屏不额外执行真实事务。
-  final Future<void> Function()? wipeProtectedData;
+  /// WebView 站点数据 + 通知的完整擦除事务），并按其
+  /// `WipeResult.allRequiredSucceeded` 决定是否放行（R-04 / R-17）。
+  final Future<bool> Function()? wipeProtectedData;
 
   static Future<bool> _defaultAuthenticate(String reason) =>
       BiometricService.instance.authenticate(reason);
@@ -393,7 +393,11 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     });
   }
 
-  /// 内联面板"清除并关闭"的确认动作（R-02/R-03/R-04）。
+  /// 内联面板"清除并关闭"的确认动作（R-02/R-03/R-04；失败语义按 R-17 收紧）。
+  ///
+  /// 只有擦除事务**全部必需项成功**（[WipeResult.allRequiredSucceeded]）才
+  /// 关闭门禁；任一项失败保持锁定并显示可重试状态（复审 P1-03：旧实现只对
+  /// 磁盘路径 fail-closed，站点数据/通知失败会被静默放行）。
   Future<void> _confirmWipe() async {
     if (_wipeBusy) return;
     setState(() {
@@ -403,15 +407,33 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     });
     try {
       final injected = widget.wipeProtectedData;
+      bool allOk;
       if (injected != null) {
-        // 测试替身：只累计调用次数，不碰真实存储。
-        await injected();
+        // 测试替身：返回是否"全部必需项成功"。
+        allOk = await injected();
       } else {
         // 生产：完整擦除事务（内存 Provider + 磁盘 + 站点数据 + 通知）。
         final container = ProviderScope.containerOf(context, listen: false);
-        await ProtectedStateWipe.run(container);
+        final result = await ProtectedStateWipe.run(container);
+        allOk = result.allRequiredSucceeded;
+        if (!allOk) {
+          AppLog.event(
+            LogEvent.protectedDataWipeFailed,
+            level: LogLevel.warn,
+            fields: {
+              LogField.reason:
+                  'wipe_incomplete_${result.failedSteps.map((s) => s.tag).join('_')}',
+              LogField.count: result.failedSteps.length,
+            },
+          );
+        }
       }
-      // 安全偏好写不动也不影响"就此放行"：受保护状态已经全部清除，
+      if (!allOk) {
+        // 存在残留（或无法证明已清除）：保持锁定，允许重试。
+        if (mounted) setState(() => _wipeFailed = true);
+        return;
+      }
+      // 安全偏好写不动也不影响"就此放行"：受保护状态已证明全部清除，
       // 没有数据可暴露。写失败只意味着下次启动仍走恢复流程。
       try {
         await ref.read(biometricProvider.notifier).set(false);
@@ -424,7 +446,7 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
         });
       }
     } catch (e) {
-      // 擦除未完成 = 可能仍有残留：保持锁定并给出重试（R-03/R-04）。
+      // 事务自身异常（理论上 run 不抛；兜底同样保持锁定）。
       logWipeFailure(e, 'wipe_transaction');
       if (mounted) setState(() => _wipeFailed = true);
     } finally {

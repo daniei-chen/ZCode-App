@@ -552,6 +552,165 @@ await check('B08 超限 WS 文本被丢弃、不产生桥消息', () => {
   assert(window.__zrStats.wsSkippedSize > 0, '应计入 wsSkippedSize');
 });
 
+// 4b) R-13（复审 B08）：超限文本不得进入 JSON.parse。
+// 旧实现先 parse 后判定，cap+1 的正文仍被解析（审计受控 VM 复现
+// largestParseChars=4194305）。这里用计数版 JSON.parse 复跑同一事实。
+await check('R-13 超限文本不进入 JSON.parse（解析计数不增长）', () => {
+  const box = makeSandbox();
+  let parsedChars = 0;
+  box.context.JSON = {
+    stringify: JSON.stringify,
+    parse: (value) => {
+      parsedChars = Math.max(parsedChars, String(value).length);
+      return JSON.parse(value);
+    },
+  };
+  vm.runInContext("window.__zrToken = 'r13-token'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13');
+  ws.listeners.message({ data: 'x'.repeat(MAX_LISTEN_BYTES + 1) });
+  assert(
+    parsedChars === 0,
+    `超限正文不得进入 JSON.parse（实际解析 ${parsedChars} 字符）`,
+  );
+});
+
+// 4c) R-13（复审 B09）：UTF-8 字节口径。1,500,000 个汉字 ≈ 4.5 MB UTF-8，
+// 字符数低于 cap，但字节数超 cap → 必须不进桥、不解析。
+await check('R-13 多字节正文按 UTF-8 字节判超限（不只看字符数）', () => {
+  const box = makeSandbox();
+  let parsedChars = 0;
+  box.context.JSON = {
+    stringify: JSON.stringify,
+    parse: (value) => {
+      parsedChars = Math.max(parsedChars, String(value).length);
+      return JSON.parse(value);
+    },
+  };
+  vm.runInContext("window.__zrToken = 'r13b-token'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const body = JSON.stringify({ message: '汉'.repeat(1500000) });
+  assert(body.length < MAX_LISTEN_BYTES, '前提：字符数低于 cap');
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13b');
+  const before = box.posted.length;
+  ws.listeners.message({ data: body });
+  assert(
+    box.posted.length === before,
+    `UTF-8 超限正文不得进桥（新增 ${box.posted.length - before} 条）`,
+  );
+  assert(
+    parsedChars === 0,
+    `UTF-8 超限正文不得进入 JSON.parse（实际 ${parsedChars}）`,
+  );
+});
+
+// 4d) R-13（复审 B10）：桥未就绪时队列按 UTF-8 字节收敛。
+// 旧实现按 UTF-16 code unit 计账，多字节内容可让队列实际字节超 cap 约 3 倍。
+// 队列内部变量在闭包里，这里用**行为**断言：注入令牌后补发的总字节 ≤ cap。
+await check('R-13 队列按 UTF-8 字节收敛（多字节正文不超预算）', () => {
+  const box = makeSandbox();
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13c');
+  const chunk = JSON.stringify({ message: '汉'.repeat(400000) }); // ≈1.2MB UTF-8
+  for (let i = 0; i < 6; i += 1) {
+    ws.listeners.message({ data: chunk });
+  }
+  // 令牌到位 → 队列整体补发；统计补发总量。
+  let flushedBytes = 0;
+  for (const args of box.posted) {
+    if (args[0] === 'zrEvents') flushedBytes += Buffer.byteLength(args[1], 'utf8');
+  }
+  assert(
+    flushedBytes <= MAX_LISTEN_BYTES,
+    `补发总量必须 ≤ cap（实际 ${flushedBytes} 字节）`,
+  );
+  assert(
+    box.window.__zrStats.queueDropped > 0,
+    `超限应计入 queueDropped（实际 ${box.window.__zrStats.queueDropped}）`,
+  );
+});
+
+// 4e) R-13（复审 B12）：多个未完成 assembler 的**全局**在途总额。
+// 旧实现只有单帧上限，N 个伪造帧可把内存叠到 N×单帧（审计测得 18 MiB）。
+// 这里用**行为**断言：全程不断的未完成片不得让任何帧被解出（无 zrEvents
+// 输出），且不抛错；全局预算生效时 invalidFragments/expiredFragments 有增长。
+await check('R-13 多个未完成分片受全局在途总额约束', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'r13d'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13d');
+  const part = 'A'.repeat(7000000); // 单片 ≈5.2MB < 16MB 单帧上限
+  for (let i = 0; i < 8; i += 1) {
+    ws.listeners.message({
+      data: JSON.stringify({
+        kind: 'fragment',
+        logicalFrameId: `frame-${i}`,
+        fragmentCount: 4,
+        fragmentIndex: 0,
+        dataBase64: part,
+      }),
+    });
+  }
+  // 未完成帧不得产出事件；全局预算触发时计入 invalidFragments。
+  assert(box.posted.length === 0, `未完成分片不得产出桥消息（实际 ${box.posted.length}）`);
+});
+
+// 4f) R-13（复审 B13）：非分片 base64 以实际长度判定，不信任 messageBytes。
+await check('R-13 非分片 base64 按实际长度判超限（messageBytes=1 不能绕过）', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'r13e'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13e');
+  const big = 'A'.repeat(8388608); // 8 MiB base64，声明 messageBytes=1
+  const before = box.posted.length;
+  ws.listeners.message({
+    data: JSON.stringify({ messageBytes: 1, dataBase64: big }),
+  });
+  assert(
+    box.posted.length === before,
+    `伪装 messageBytes 不得让超限 base64 进桥（新增 ${box.posted.length - before}）`,
+  );
+});
+
+// 4g) R-13（复审 B14）：fragmentIndex 必须有限整数（0.5 不得被保留）。
+await check('R-13 小数 fragmentIndex 被拒绝并计入 invalidFragments', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'r13f'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const ws = new box.window.WebSocket('wss://zcode.z.ai/ws?mid=r13f');
+  const before = box.window.__zrStats.invalidFragments;
+  ws.listeners.message({
+    data: JSON.stringify({
+      kind: 'fragment',
+      logicalFrameId: 'frac',
+      fragmentCount: 2,
+      fragmentIndex: 0.5,
+      dataBase64: 'QQ==',
+    }),
+  });
+  const after = vm.runInContext('window.__zrStats.invalidFragments', box.context);
+  assert(
+    after > before,
+    `小数 index 必须计入 invalidFragments（${before} → ${after}）`,
+  );
+});
+
+// 4h) P2-02（b4 复审）：SSE 完全不被观察。
+// 协议实测（docs/RELAY-PROTOCOL-VERIFIED.md）为"4 REST + 2 WS"，无 SSE；
+// 旧实现按官方 host 放行任何路径的 SSE 并挂 message 监听。
+await check('P2-02 SSE 不挂 message 监听（观察面归零，页面行为不变）', () => {
+  const box = makeSandbox();
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const before = box.window.__zrStats.sseIgnored;
+  const es = new box.window.EventSource('https://zcode.z.ai/events');
+  assert(
+    typeof es.listeners.message !== 'function',
+    'SSE 不得挂 message 监听（旧实现按 host 放行官方路径）',
+  );
+  const after = vm.runInContext('window.__zrStats.sseIgnored', box.context);
+  assert(after > before, `SSE 应计入 sseIgnored（${before} → ${after}）`);
+});
+
 // 5) B08 正例：正常大小的事件仍应送达（且带令牌）。
 await check('B08 正常大小 WS 文本照常上报', () => {
   const ws = new window.WebSocket('wss://zcode.z.ai/ws?mid=2');
