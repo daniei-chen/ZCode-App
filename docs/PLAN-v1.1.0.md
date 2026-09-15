@@ -546,7 +546,8 @@ b4 复审整改落地后出 build 25；交付前 code-reviewer 闸门抓到 1 �
 | 全套回归（build 26） | ✅ | `flutter analyze` 0；`flutter test` **574/574**；JS 门 **49/49**；脚本自测 20+22+25+9；doc-drift **11/11** |
 | 独立验收（test-engineer） | ✅ 已闭环 | 14 项中 1 项初判 FAIL 已根因定位（生成文件被 test 改写为 debug 形态→门禁报 dev 插件缺失；非产物缺陷）并复跑 PASS；顺序敏感性写入交接报告 |
 | code-reviewer（交付前闸门） | ✅ 已闭环 | 1 阻断（队列 `qBytes -= .n` 写成条目名→NaN 字节上限失效）+2 高（重复片 asmBytes 泄漏；通知硬失败锁死风险）全部修复；3 条新 JS 断言经"回退修复→断言失败"双向反证有效 |
-| b5 包 | 在制 | `D:/tmp/pkg/ZCodeApp审计包_v1.0.0+b5_{含,不含}密钥_20260915/`：构建产物（APK+sidecar+SBOM+manifest+mapping）＋源码导出（7ce0485）＋ git bundle |
+| b5 包 | ✅ 已出 | 桌面：`ZCodeApp审计包_v1.0.0+b5_含密钥_20260915.zip`（sha256 `70cea481…`，274 条目，密钥目录 3 条目）+ `…_不含密钥_…zip`（sha256 `3e18ad71…`，271 条目，0 密钥）；校验文件 `ZCodeApp_备份校验_20260915_b5{,_nokey}.sha256`；staging 留存 `D:/tmp/pkg/…b5_*`；b4 旧包已归档 `D:/tmp/zr/b4-audit-archive/` |
+| b5 安全审计（security-auditor） | ✅ 两变体均"可交付" | 密钥仅在含密钥版密钥目录；不含密钥版 0 密钥实体、口令值盲扫零命中、bundle 全历史无密钥 blob；两包 APK 摘要一致 `7401f98c…`；两条低风险提示（源码台账含开发机路径；不含密钥版 4 处文档引述 `_密钥_勿入git` 字符串——无实体）已评估为接受并记录 |
 
 **操作注意（写给下一个会话，别踩）**：
 1. `flutter test` / `flutter analyze` 会重写未跟踪生成文件 `GeneratedPluginRegistrant.java` 为 debug 形态（12 插件，含 integration_test）。**顺序**：先构建后测试无碍；先测试后构建会失败或产出剥插件坏包。恢复：删该文件，跑**带 pub 的** `flutter build apk --release`（重生 release 形态 11 插件）。坏包已隔离 `releases/broken-local-builds/app-release.BAD-16h23.apk`（dex 3,006,496）。
