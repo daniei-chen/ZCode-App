@@ -358,9 +358,16 @@ class UpdateService {
   /// `<64 位十六进制>  <文件名>`。文件名必须与契约资产完全一致，
   /// 防止把别的文件的摘要当成安装包的。
   ///
-  /// R-11：必须复用 [_get] 的逐跳校验——旧实现用 `client.get(uri)` 默认
-  /// `followRedirects=true`，重定向自动跟随会绕过 scheme/host/port/私网
-  /// 白名单（审计受控测试确认 `sidecarFollowsRedirects == true`）。
+  /// R-11：必须复用 [_get] 的**逐跳校验路径**——旧实现用 `client.get(uri)`
+  /// 让客户端自动跟随重定向（审计受控测试确认 `sidecarFollowsRedirects ==
+  /// true`），白名单只挡得住第一跳。
+  ///
+  /// 注意参数语义：`_get` 的 `followRedirects` 含义是"是否跟随"，而 `_get`
+  /// 内部本来就是对每一跳做 `resolveRedirect` 白名单校验的手动跟随。因此这里
+  /// **不能传 `followRedirects: false`**——那等于"遇到 302 直接返回"，而
+  /// GitHub release 资产的首跳必是 302 到 `release-assets.githubusercontent.com`
+  /// （白名单内），sidecar 将永远取不到摘要、API 限流回退路径的自动下载失效。
+  /// 默认（true）才是"逐跳校验后跟随"。
   Future<String?> _fetchSidecarDigest(
     Uri uri,
     http.Client client, {
@@ -374,7 +381,6 @@ class UpdateService {
         uri,
         current,
         timeout,
-        followRedirects: false,
       );
       if (response.statusCode != 200) return null;
       final match = RegExp(

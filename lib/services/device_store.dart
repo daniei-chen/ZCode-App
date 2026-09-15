@@ -211,8 +211,21 @@ class DeviceStore {
   /// 只有一个能留在索引里）。读操作不受影响。
   Future<void> _writeQueue = Future<void>.value();
 
-  Future<T> _serialized<T>(Future<T> Function() action) {
-    final result = _writeQueue.then((_) => action());
+  /// 写入代际（R-04/M1）：擦除事务让代际 +1，作废此前入队的一切写入。
+  ///
+  /// 场景：擦除（clearAll）与一条在途命令（warmup 延时写入、并发设备更新）
+  /// 交错时，旧命令若在擦除之后落盘，会把已删除的凭证写回安全存储，下次
+  /// 启动经孤儿发现"复活"设备。代际号在命令**入队时**捕获，真正执行时若
+  /// 已换代则静默丢弃——擦除之后的新命令（用户重新导入）属于新代际，
+  /// 不受影响。
+  int _epoch = 0;
+
+  Future<void> _serialized(Future<void> Function() action) {
+    final epochAtEnqueue = _epoch;
+    final result = _writeQueue.then((_) async {
+      if (epochAtEnqueue != _epoch) return; // 已被擦除事务作废
+      await action();
+    });
     _writeQueue = result.then<void>((_) {}, onError: (_) {});
     return result;
   }
@@ -387,32 +400,45 @@ class DeviceStore {
     return _secure.read(key: _warmupKey(deviceId));
   }
 
-  Future<void> setWarmupScript(String deviceId, String? json) async {
-    if (json == null) {
-      await _secure.delete(key: _warmupKey(deviceId));
-    } else {
-      await _secure.write(key: _warmupKey(deviceId), value: json);
-    }
-  }
+  Future<void> setWarmupScript(String deviceId, String? json) =>
+      _serialized(() async {
+        // 走写队列（M1）：与擦除事务同队列才能被代际号作废，否则在途
+        // warmup 写入可能在 clearAll 之后落盘，把已删设备的脚本写回。
+        if (json == null) {
+          await _secure.delete(key: _warmupKey(deviceId));
+        } else {
+          await _secure.write(key: _warmupKey(deviceId), value: json);
+        }
+      });
 
   /// 清除本机全部远控数据：设备凭证、索引、warmup 脚本与"最近设备"指针。
   ///
   /// 用途是"无法验证身份时的恢复"与后续的清除数据入口：清掉受保护数据本身
   /// 不需要再验证身份（没有数据可暴露了）。主题/通知等非敏感偏好不在此范围。
   /// 返回被删除的 secure storage 键数量，供调用方记录。
+  ///
+  /// M1：本操作走同一写队列，并在开始时让代际 +1——此后**执行**的旧命令
+  /// （入队时代际落后）一律作废；本操作自身排在队列尾部，前面已入队的写入
+  /// 先完成，然后才是删除，保证不会出现"擦除完成后又被写回"。
   Future<int> clearAll() async {
+    // 先自增（作废在途命令），再把自己排进队列等待前面的写入结束。
+    _epoch++;
+    final epochAtCall = _epoch;
     var cleared = 0;
-    final all = await _secure.readAll();
-    for (final key in all.keys) {
-      if (key == _indexKey ||
-          key.startsWith(_deviceKeyPrefix) ||
-          key.startsWith(_warmupKeyPrefix)) {
-        await _secure.delete(key: key);
-        cleared++;
+    await _serialized(() async {
+      if (epochAtCall != _epoch) return;
+      final all = await _secure.readAll();
+      for (final key in all.keys) {
+        if (key == _indexKey ||
+            key.startsWith(_deviceKeyPrefix) ||
+            key.startsWith(_warmupKeyPrefix)) {
+          await _secure.delete(key: key);
+          cleared++;
+        }
       }
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_lastDeviceKey);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastDeviceKey);
+    });
     return cleared;
   }
 }
