@@ -528,3 +528,30 @@ GeneratedPluginRegistrant 里 `new X()` 的类名全部存在（11/11）。
 - 校验全过：`verify-release-artifacts` OK（manifest/sidecar/digest/SBOM 绑定）；插件存活门 11/11 PASS + dex 4,341,364 字节（历史正常值）+ manifest 绑定通过。
 - 模拟器冒烟（zcode-api35）：覆盖安装 → 版本 24、无崩溃；卸载后干净安装 → 首启正常（通知权限弹窗、主界面 v1.0.0 正常渲染）。
 - **注意（发布层）**：`v1.0.0` tag 已存在于旧提交且 tag 规则禁止移动——若走 GitHub 发布链，tag 名需另取（如 `v1.0.0-build24`）或先理清 tag 策略；本版目前未推送，待用户决定。
+
+---
+
+# b5 审计包与 build 25→26 交付（2026-09-15 下午 · 滚动）
+
+b4 复审整改落地后出 build 25；交付前 code-reviewer 闸门抓到 1 阻断 + 2 高优，
+整改后重出 **build 26**，b5 包以 26 交付。本日闭环记录：
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| 版本/来源 | ✅ | `pubspec.yaml` = **1.0.0+26**；发布提交 `7ce0485`（release/v1.0.0，含 `2546869` b5 整改批）；`docs/releases/v1.0.0.md` 含 build 25/26 两节 |
+| APK | ✅ | `D:/tmp/zr/releases/ZCode-v1.0.0.apk` sha256 `7401f98c…f7f1b2b`、29,667,225 B、arm64-v8a、versionCode 26；签名 `07091ffd…`（与历史一致） |
+| 插件存活门 | ✅ PASS | 11/11 存活 + 注册表类保持原名 + manifest 绑定通过 |
+| b4 反例复跑 | ✅ 反转 | b4 审计方两组 Dart 用例原样拷入 `test/_audit_tmp` 复跑：state_update 5 条缺陷断言全部失败（=已修）；review_regressions 因依赖已删除 API 编译失败（与 build 24 同结论）；R-07 1 条用户已接受 |
+| b4 JS 探针复跑 | ✅ 反转 | 审计方 `probe.cjs` 原样复跑：首个断言即失败 ⇒ 缺陷已修；修复后验收 `r13_postfix_probe.cjs` **8/8**（@7ce0485） |
+| 全套回归（build 26） | ✅ | `flutter analyze` 0；`flutter test` **574/574**；JS 门 **49/49**；脚本自测 20+22+25+9；doc-drift **11/11** |
+| 独立验收（test-engineer） | ✅ 已闭环 | 14 项中 1 项初判 FAIL 已根因定位（生成文件被 test 改写为 debug 形态→门禁报 dev 插件缺失；非产物缺陷）并复跑 PASS；顺序敏感性写入交接报告 |
+| code-reviewer（交付前闸门） | ✅ 已闭环 | 1 阻断（队列 `qBytes -= .n` 写成条目名→NaN 字节上限失效）+2 高（重复片 asmBytes 泄漏；通知硬失败锁死风险）全部修复；3 条新 JS 断言经"回退修复→断言失败"双向反证有效 |
+| b5 包 | 在制 | `D:/tmp/pkg/ZCodeApp审计包_v1.0.0+b5_{含,不含}密钥_20260915/`：构建产物（APK+sidecar+SBOM+manifest+mapping）＋源码导出（7ce0485）＋ git bundle |
+
+**操作注意（写给下一个会话，别踩）**：
+1. `flutter test` / `flutter analyze` 会重写未跟踪生成文件 `GeneratedPluginRegistrant.java` 为 debug 形态（12 插件，含 integration_test）。**顺序**：先构建后测试无碍；先测试后构建会失败或产出剥插件坏包。恢复：删该文件，跑**带 pub 的** `flutter build apk --release`（重生 release 形态 11 插件）。坏包已隔离 `releases/broken-local-builds/app-release.BAD-16h23.apk`（dex 3,006,496）。
+2. 插件存活门 `--apk` 文件名必须与 manifest 一致（`ZCode-v1.0.0.apk`）；传 `app-release.apk` 会触发文件名绑定失败（非缺陷）。
+3. Dart-only 改动不改 R8 mapping（本轮 mapping 摘要 `5fd652d6…` 与 build 25 相同，属预期）。
+4. 台账已在 `6be5bd5` 入库；b5 节记录为工作区提交时同步。
+
+**b5 之后待办**：真机验收（用户侧：机型矩阵/48h/TalkBack/实体生物识别）；GitHub 账号恢复后推 `7ce0485` + 实跑 CI/发布链；**密钥处置决策**（b3 明文包 + 终端误输出两事件）；R-14（插件 6.2/最小补丁）、R-19（requestId 需上游证据）、每设备 WebView 隔离（产品决策）、资源池/DOM profile、公网 OSV；无凭据机型"显式知情确认出口"的最终产品决策。
