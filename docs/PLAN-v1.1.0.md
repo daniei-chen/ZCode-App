@@ -538,7 +538,7 @@ b4 复审整改落地后出 build 25；交付前 code-reviewer 闸门抓到 1 �
 
 | 项 | 状态 | 证据 |
 | --- | --- | --- |
-| 版本/来源 | ✅ | `pubspec.yaml` = **1.0.0+26**；发布提交 `7ce0485`（release/v1.0.0，含 `2546869` b5 整改批）；`docs/releases/v1.0.0.md` 含 build 25/26 两节 |
+| 版本/来源 | ✅ | `pubspec.yaml` = **1.0.0+26**；APK 内容对应的代码提交 `7ce0485`（release/v1.0.0，含 `2546869` b5 整改批）；**唯一权威**见 `构建产物/release-manifest.json` 的 `commit` 字段（其后仅台账/文档变动）；`docs/releases/v1.0.0.md` 含 build 25/26 两节 |
 | APK | ✅ | `D:/tmp/zr/releases/ZCode-v1.0.0.apk` sha256 `7401f98c…f7f1b2b`、29,667,225 B、arm64-v8a、versionCode 26；签名 `07091ffd…`（与历史一致） |
 | 插件存活门 | ✅ PASS | 11/11 存活 + 注册表类保持原名 + manifest 绑定通过 |
 | b4 反例复跑 | ✅ 反转 | b4 审计方两组 Dart 用例原样拷入 `test/_audit_tmp` 复跑：state_update 5 条缺陷断言全部失败（=已修）；review_regressions 因依赖已删除 API 编译失败（与 build 24 同结论）；R-07 1 条用户已接受 |
