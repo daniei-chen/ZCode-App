@@ -4,8 +4,8 @@
 
 | 文件 | 作用 | 典型命令 |
 |---|---|---|
-| `iteration_state.py` | 状态机验证/派生/同步/渲染；`--repo-root` 额外校验证据文件、审计报告、工件路径、E-/DEC- id、验收矩阵哈希、代码中引用的缺陷号、DONE 候选的 review_id | `python tools/iteration/iteration_state.py validate --repo-root . docs/continuous-iteration/ITERATION_STATE.json` |
-| `test_iteration_state.py` / `test_repo_links.py` | 验证器自测（7 + 14 条） | `cd tools/iteration && python -m unittest -q` |
+| `iteration_state.py` | 状态机验证/派生/同步/渲染；`--repo-root` 额外校验证据文件、审计报告、工件路径、E-/DEC- id、验收矩阵哈希、代码中引用的缺陷号、DONE 候选的 review_id；`validate --require-tracked` 再要求 source_map 目标、gate 证据与审计报告路径已被 git 跟踪（`git ls-files --error-unmatch`；非 git 目录降级为 warning） | `python tools/iteration/iteration_state.py validate --repo-root . docs/continuous-iteration/ITERATION_STATE.json` |
+| `test_iteration_state.py` / `test_repo_links.py` | 验证器自测（17 + 14 条） | `cd tools/iteration && python -m unittest -q` |
 | `gates.sh` | 在导出目录一键跑 pub get / analyze / test / JS 门 / doc-drift / 秘密扫描 / 脚本自测 / **state**（状态机 `--repo-root` 校验 + gitignore canary；默认 WARN，`--strict-state` 致命）（可选 `--osv`、`--build` debug APK）；证据写 `docs/continuous-iteration/evidence/<prefix>-*.log` + 汇总 JSON | `bash tools/iteration/gates.sh i3 --osv`；检查点终跑 `bash tools/iteration/gates.sh i3 --osv --strict-state` |
 | `mutate.py` + `mutations/*.json` | 声明式"回退即失败"变异验证；语料随轮次累积，每轮全量重跑 | `python tools/iteration/mutate.py --export /d/tmp/zr/ci_i3 --spec tools/iteration/mutations/iter2.json --require-green` |
 | `prompts/review-r2.md` / `security-r3.md` / `acceptance-te.md` | 零上下文审计提示词模板（覆盖标签槽位、必查通用项、报告落盘条款） | 替换 `{{...}}` 后作为子代理 prompt |

@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -852,10 +853,110 @@ def check_repo_links(data: dict[str, Any], repo_root: Path) -> tuple[list[str], 
     return errors, warnings
 
 
-def apply_repo_checks(result: dict[str, Any], data: dict[str, Any], repo_root: Path | None) -> None:
+def _tracked_reference_paths(data: dict[str, Any], root: Path) -> list[str]:
+    """Repo-relative paths --require-tracked must find in the git index.
+
+    Scope (W-015): source_map targets, gate evidence and audit reports.
+    Ledger ids (E-/DEC-) and unrecognised references are not file paths, only
+    in-repo relative paths are validated, and test_*.py fixtures are exempt
+    (iter3 F-1).
+    """
+    refs: list[str] = []
+    source_map = data.get("source_map")
+    if isinstance(source_map, dict):
+        refs.extend(value for value in source_map.values() if isinstance(value, str))
+    for gate in data.get("gates", []) or []:
+        if isinstance(gate, dict):
+            refs.extend(item for item in gate.get("evidence", []) or [] if isinstance(item, str))
+    for audit in data.get("audits", []) or []:
+        if isinstance(audit, dict) and isinstance(audit.get("report"), str):
+            refs.append(audit["report"])
+
+    targets: list[str] = []
+    for ref in refs:
+        value = ref.strip()
+        if not value or "://" in value:
+            continue
+        if EVIDENCE_REF.match(value) or DECISION_REF.match(value):
+            continue
+        # A real path containing "(" wins over the annotation split (iter3 F-7).
+        candidate = value if (root / value).exists() else _strip_annotation(value)
+        candidate = candidate.replace("\\", "/")
+        if candidate.startswith("/") or ":" in candidate.split("/", 1)[0]:
+            continue  # outside the repository: absolute path or scheme/drive prefix
+        candidate = candidate.strip("/")
+        segments = candidate.split("/")
+        if not candidate or ".." in segments:
+            continue
+        if candidate.endswith(".py") and segments[-1].startswith("test_"):
+            continue  # python self-tests carry synthetic ids as fixtures (iter3 F-1)
+        if ("/" in candidate or candidate.endswith((".md", ".log", ".json", ".txt"))) and candidate not in targets:
+            targets.append(candidate)
+    return targets
+
+
+def check_tracked_files(data: dict[str, Any], repo_root: Path) -> tuple[list[str], list[str]]:
+    """Require referenced evidence/report/source_map paths to be git-tracked.
+
+    Runs `git ls-files --error-unmatch` against repo_root for every path
+    _tracked_reference_paths collects. When repo_root is not inside a git work
+    tree, or git is unavailable, tracking cannot be proven: degrade to one
+    warning and no errors — the same silent fallback the repo's shell gates
+    use for git failures (gates.sh/clean_start.sh `2>/dev/null`).
+    Returns (errors, warnings).
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+    root = repo_root.resolve()
+    targets = _tracked_reference_paths(data, root)
+    if not targets:
+        return errors, warnings
+    try:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        warnings.append("git tracking not verified: git command unavailable")
+        return errors, warnings
+    if probe.returncode != 0 or probe.stdout.strip() != "true":
+        warnings.append("git tracking not verified: repo_root is not a git work tree")
+        return errors, warnings
+    for target in targets:
+        try:
+            completed = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", "--", target],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError:
+            warnings.append("git tracking not verified: git command unavailable")
+            break
+        if completed.returncode != 0:
+            errors.append(f"referenced file not git-tracked: {target}")
+    return errors, warnings
+
+
+def apply_repo_checks(
+    result: dict[str, Any],
+    data: dict[str, Any],
+    repo_root: Path | None,
+    require_tracked: bool = False,
+) -> None:
     if repo_root is None:
+        if require_tracked:
+            result["warnings"].append("require-tracked ignored: --repo-root not provided")
         return
     errors, warnings = check_repo_links(data, repo_root)
+    if require_tracked:
+        tracked_errors, tracked_warnings = check_tracked_files(data, repo_root)
+        errors.extend(tracked_errors)
+        warnings.extend(tracked_warnings)
     result["errors"].extend(errors)
     result["warnings"].extend(warnings)
     if errors:
@@ -883,7 +984,7 @@ def command_validate(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     result = analyze(data, check_claims=True)
-    apply_repo_checks(result, data, args.repo_root)
+    apply_repo_checks(result, data, args.repo_root, require_tracked=args.require_tracked)
     print_result(result, args.json)
     return 0 if result["valid"] else 1
 
@@ -952,6 +1053,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("state", type=Path)
     validate_parser.add_argument("--json", action="store_true", help="emit JSON diagnostics")
     validate_parser.add_argument("--repo-root", type=Path, default=None, help="also verify evidence/report/artifact paths, ledger ids, matrix hash, defect refs and review ids against this repository")
+    validate_parser.add_argument(
+        "--require-tracked",
+        action="store_true",
+        help="additionally require source_map targets, gate evidence and audit reports to be git-tracked (git ls-files --error-unmatch)",
+    )
     validate_parser.set_defaults(func=command_validate)
 
     derive_parser = subparsers.add_parser("derive", help="derive checks/status without modifying the file")

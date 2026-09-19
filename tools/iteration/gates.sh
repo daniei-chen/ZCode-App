@@ -121,6 +121,10 @@ t0=$(now)
     python "scripts/$s" --self-test 2>&1 | tail -1
     ec=${PIPESTATUS[0]}; echo "exit=$ec"; [ "$ec" = "0" ] || ST_FAIL=1
   done
+  # tools/iteration 自测（iter13 复核 F-2：--require-tracked 等 10 条 unittest 此前无门禁执行）
+  echo "## tools/iteration/test_iteration_state.py"
+  python -m unittest discover -s tools/iteration -p "test_*.py" 2>&1 | tail -2
+  ec=${PIPESTATUS[0]}; echo "exit=$ec"; [ "$ec" = "0" ] || ST_FAIL=1
   echo "RESULT: $([ $ST_FAIL = 0 ] && echo PASS || echo FAIL)"
 } > "$EV/$PREFIX-script-selftests.log" 2>&1
 if grep -q '^RESULT: PASS' "$EV/$PREFIX-script-selftests.log"; then record selftests PASS $(( $(now) - t0 )); else record selftests FAIL $(( $(now) - t0 )); FAILED=1; fi

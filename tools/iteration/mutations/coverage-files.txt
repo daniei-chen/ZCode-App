@@ -13,3 +13,4 @@ test/device_connectivity_test.dart
 test/iter11_hardening_test.dart
 test/iter12_hardening_test.dart
 test/manage_page_write_failure_test.dart
+test/iter13_hardening_test.dart

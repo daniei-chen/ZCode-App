@@ -1,0 +1,32 @@
+[
+ {
+  "id": "iter13-hidden-wall-set-removed",
+  "candidate": "W-030",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {\n      _hiddenFor ??= (Stopwatch()..start());\n      _hiddenSinceWall ??= DateTime.now();\n    } else if (state == AppLifecycleState.resumed) {",
+  "replace": "    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {\n      _hiddenFor ??= (Stopwatch()..start());\n    } else if (state == AppLifecycleState.resumed) {",
+  "test_file": "test/iter13_hardening_test.dart",
+  "expect_fail": [
+   "W-030：_hiddenFor 与 _hiddenSinceWall 成对出现，读取走 relockEvidence"
+  ],
+  "covers": [
+   "W-030：旧单字段 _hiddenSince 不再存在（防回退墙钟单钟）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter13-relock-evidence-wall-branch-gated",
+  "candidate": "W-030",
+  "file": "lib/services/biometric.dart",
+  "find": "    if (wallSince != null) {",
+  "replace": "    if (wallSince != null && monotonic == null) {",
+  "test_file": "test/iter13_hardening_test.dart",
+  "expect_fail": [
+   "深睡场景：单调钟冻结、墙钟差大 → 取墙钟并触发静默刷新"
+  ],
+  "covers": [
+   "回拨场景：墙钟差为负 → 取单调并触发静默刷新"
+  ],
+  "only": true
+ }
+]

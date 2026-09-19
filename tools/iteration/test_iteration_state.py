@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -183,6 +187,145 @@ class IterationStateTests(unittest.TestCase):
         result = iteration_state.analyze(data, check_claims=False)
         self.assertEqual(result["checks"]["T3"], "OPEN")
         self.assertEqual(result["derived_status"], "CONTINUE")
+
+
+class RequireTrackedChecks(unittest.TestCase):
+    """W-015: validate --require-tracked gates referenced paths on git tracking.
+
+    Uses a throwaway git repository (index staged, nothing committed, so no
+    git identity is needed) to exercise real `git ls-files --error-unmatch`
+    semantics against the temp directory only.
+    """
+
+    SEED = (
+        "docs/DEFECTS.md",
+        "docs/ACCEPTANCE_MATRIX.md",
+        "docs/EVIDENCE.md",
+        "docs/DECISIONS.md",
+        "docs/audits/r1.md",
+    )
+    UNTRACKED_GATE = "docs/evidence/gate.log"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+        self.git("init")
+        for rel in self.SEED:
+            self.write(rel, "ok\n")
+        self.git("add", "docs")
+        # Written after `git add` on purpose: on disk, absent from the index.
+        self.write(self.UNTRACKED_GATE, "ok\n")
+        self.data = {
+            "source_map": {
+                "defects": "docs/DEFECTS.md",
+                "acceptance": "docs/ACCEPTANCE_MATRIX.md",
+                "evidence": "docs/EVIDENCE.md",
+                "decisions": "docs/DECISIONS.md",
+                "audits": "docs/audits/",
+            },
+            "gates": [{"id": "G-1", "evidence": [self.UNTRACKED_GATE]}],
+            "audits": [{"id": "A-1", "report": "docs/audits/r1.md"}],
+        }
+
+    def write(self, rel: str, text: str, root: Path | None = None) -> None:
+        base = self.root if root is None else root
+        path = base / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def git(self, *args: str) -> None:
+        subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, text=True)
+
+    def tracked_errors(self) -> list[str]:
+        errors, _warnings = iteration_state.check_tracked_files(self.data, self.root)
+        return errors
+
+    def test_untracked_gate_evidence_fails(self) -> None:
+        errors = self.tracked_errors()
+        self.assertTrue(any(self.UNTRACKED_GATE in error for error in errors), errors)
+        # The `all` half proves source_map targets (incl. the trailing-slash
+        # audits directory) and the audit report do not raise extra errors.
+        self.assertTrue(all(self.UNTRACKED_GATE in error for error in errors), errors)
+
+    def test_tracked_references_pass(self) -> None:
+        self.data["gates"][0]["evidence"] = ["docs/EVIDENCE.md"]
+        self.assertEqual(self.tracked_errors(), [])
+
+    def test_default_off_ignores_untracked(self) -> None:
+        result = {"valid": True, "errors": [], "warnings": []}
+        iteration_state.apply_repo_checks(result, self.data, self.root)
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertEqual(result["errors"], [])
+
+    def test_flag_makes_untracked_fatal(self) -> None:
+        result = {"valid": True, "errors": [], "warnings": []}
+        iteration_state.apply_repo_checks(result, self.data, self.root, require_tracked=True)
+        self.assertFalse(result["valid"])
+        self.assertTrue(any(self.UNTRACKED_GATE in error for error in result["errors"]), result["errors"])
+
+    def test_non_git_root_degrades_to_warning(self) -> None:
+        # Fallback口径: git failure must degrade, not error — the repo's shell
+        # gates treat git output as best-effort (`2>/dev/null` in gates.sh /
+        # clean_start.sh); here the skipped verification is recorded as one
+        # warning and never flips validity.
+        with tempfile.TemporaryDirectory() as plain:
+            plain_root = Path(plain)
+            for rel in (*self.SEED, self.UNTRACKED_GATE):
+                self.write(rel, "ok\n", root=plain_root)
+            errors, warnings = iteration_state.check_tracked_files(self.data, plain_root)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(warnings), 1)
+            result = {"valid": True, "errors": [], "warnings": []}
+            iteration_state.apply_repo_checks(result, self.data, plain_root, require_tracked=True)
+            self.assertTrue(result["valid"])
+            self.assertEqual(len(result["warnings"]), 1)
+
+    def test_test_py_fixtures_are_exempt(self) -> None:
+        self.write("tools/test_fixture.py", "ids = []\n")
+        self.data["gates"][0]["evidence"] = ["tools/test_fixture.py"]
+        self.assertEqual(self.tracked_errors(), [])
+
+    def test_only_in_repo_relative_paths_validated(self) -> None:
+        self.data["gates"][0]["evidence"] = [
+            "https://example.test/gate.log",
+            "../outside/gate.log",
+            "C:\\escape\\gate.log",
+            "E-1",
+            "DEC-1",
+        ]
+        self.assertEqual(self.tracked_errors(), [])
+
+    def test_annotated_reference_resolves_before_tracking(self) -> None:
+        self.data["gates"][0]["evidence"] = ["docs/audits/r1.md（A-01）"]
+        self.assertEqual(self.tracked_errors(), [])
+        self.data["gates"][0]["evidence"] = ["docs/evidence/gate.log（A-01）"]
+        errors = self.tracked_errors()
+        self.assertTrue(any("docs/evidence/gate.log" in error for error in errors), errors)
+
+    def test_untracked_source_map_entry_fails(self) -> None:
+        self.git("rm", "--cached", "docs/DECISIONS.md")
+        self.assertTrue(any("docs/DECISIONS.md" in error for error in self.tracked_errors()))
+
+    def test_validate_cli_wiring(self) -> None:
+        state = self.root / "state.json"
+        state.write_text(json.dumps(self.data), encoding="utf-8")
+        parser = iteration_state.build_parser()
+        with_flag = parser.parse_args(
+            ["validate", str(state), "--repo-root", str(self.root), "--require-tracked"]
+        )
+        self.assertTrue(with_flag.require_tracked)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(iteration_state.command_validate(with_flag), 1)
+        self.assertIn(self.UNTRACKED_GATE, buffer.getvalue())
+        without_flag = parser.parse_args(["validate", str(state), "--repo-root", str(self.root)])
+        self.assertFalse(without_flag.require_tracked)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            iteration_state.command_validate(without_flag)
+        self.assertNotIn(self.UNTRACKED_GATE, buffer.getvalue())
+        self.assertNotIn("git-tracked", buffer.getvalue())
 
 
 if __name__ == "__main__":
