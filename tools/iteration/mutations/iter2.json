@@ -1,0 +1,27 @@
+[
+  {
+    "id": "iter2-dedupe-key-with-summary",
+    "defect": "D-20260916-10",
+    "file": "lib/services/event_observer.dart",
+    "find": "'${event.type}\\u0000${event.taskId ?? ''}\\u0000';",
+    "replace": "'${event.type}\\u0000${event.taskId ?? ''}\\u0000${event.summary ?? ''}';",
+    "test_file": "test/event_parser_test.dart",
+    "expect_fail": [
+      "轮换 summary 制造不出新键",
+      "缺 taskId 的事件同类型窗口内也只提醒一次"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter2-resolved-marker-without-trailing-nul",
+    "defect": "D-20260916-10",
+    "file": "lib/services/event_observer.dart",
+    "find": "final marker = '\\u0000$taskId\\u0000';",
+    "replace": "final marker = '\\u0000$taskId';",
+    "test_file": "test/event_parser_test.dart",
+    "expect_fail": [
+      "resolved 只清精确 taskId"
+    ],
+    "only": true
+  }
+]

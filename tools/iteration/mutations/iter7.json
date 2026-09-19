@@ -1,0 +1,108 @@
+[
+  {
+    "id": "iter7-prefs-optimistic-restored",
+    "candidate": "iter7-R2",
+    "file": "lib/state/notification_prefs.dart",
+    "find": "      await DeviceStore.instance.setNotificationPrefs(prefs);\n      state = prefs;",
+    "replace": "      state = prefs;\n      await DeviceStore.instance.setNotificationPrefs(prefs);",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "通知偏好：持久化必须先于 state 发布"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-startup-optimistic-restored",
+    "candidate": "iter7-R2",
+    "file": "lib/state/startup_target.dart",
+    "find": "      await DeviceStore.instance.setStartupTarget(value);\n      state = value;",
+    "replace": "      state = value;\n      await DeviceStore.instance.setStartupTarget(value);",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "启动进入页：同样的持久化优先"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-quarantine-log-muted",
+    "candidate": "iter7-R3",
+    "file": "lib/services/device_store.dart",
+    "find": "        AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {\n          LogField.reason: 'record_quarantined',",
+    "replace": "        if (false) AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {\n          LogField.reason: 'record_quarantined',",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "损坏记录被隔离"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-evict-ignores-pinned",
+    "candidate": "iter7-R8",
+    "file": "lib/state/session_index.dart",
+    "find": "      if (m[key]?.pinned ?? false) continue;",
+    "replace": "      if (false) continue;",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "驱逐只落在非 pinned 上"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-seen-codeunit-limit",
+    "candidate": "iter7-R9",
+    "file": "lib/services/warmup.dart",
+    "find": "    if (utf8.encode(body).length > 256 * 1024) return;",
+    "replace": "    if (body.length > 256 * 1024) return;",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "CJK 密集的合法 JSON"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-bridge-health-lingers",
+    "candidate": "iter7-R6",
+    "file": "lib/state/session_pool.dart",
+    "find": "    ref.read(bridgeHealthProvider.notifier).forget(id);",
+    "replace": "    ;",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "删除设备后 bridgeHealth 不再残留"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-outbound-scheme-check-removed",
+    "candidate": "iter7-C3",
+    "file": "lib/services/outbound_url_policy.dart",
+    "find": "    if (uri.scheme.toLowerCase() != 'https') return 'scheme_not_https';",
+    "replace": "    if (false) return 'scheme_not_https';",
+    "test_file": "test/outbound_url_policy_test.dart",
+    "expect_fail": [
+      "非 https"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-c2a-hook-constant-true",
+    "candidate": "iter7-C2a",
+    "file": "lib/ui/official_remote_page.dart",
+    "find": "                                  trusted: subFrameTrusted,",
+    "replace": "                                  trusted: true,",
+    "test_file": "test/security_invariants_test.dart",
+    "expect_fail": [
+      "子 frame 取证计数必须挂在导航判定结果上"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter7-scanner-write-failure-ux",
+    "candidate": "iter7-R1",
+    "exempt": true,
+    "test_file": "test/service_resilience_test.dart",
+    "covers": [
+      "扫码写失败复位与提示"
+    ],
+    "reason": "R-1 的扫码死锁修复是 UI 反馈路径（SnackBar/Navigator），行为级验证需要 Widget 测试与相机通道 mock；本轮以代码审查 + 源码走查确认 try/catch + finally 复位在位。显式豁免，W-018 候选补 widget 测试。"
+  }
+]

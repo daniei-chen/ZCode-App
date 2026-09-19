@@ -1,0 +1,15 @@
+# Test files that must be fully covered by the mutation corpora (one path per line).
+# gates.sh runs `mutate.py --coverage` over these with every corpus; a test case here
+# without a revert-must-fail mutation or a declared exemption fails the `mutcov` gate.
+# Add every test file created since the toolkit exists (iter3+). Legacy files are
+# covered incrementally through the entries that reference them.
+test/observer_alert_test.dart
+test/scale_test.dart
+test/page_refresh_policy_test.dart
+test/official_remote_page_controller_test.dart
+test/service_resilience_test.dart
+test/ui_hardening_test.dart
+test/device_connectivity_test.dart
+test/iter11_hardening_test.dart
+test/iter12_hardening_test.dart
+test/manage_page_write_failure_test.dart

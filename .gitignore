@@ -1,6 +1,8 @@
 # Miscellaneous
 *.class
 *.log
+# 持续迭代的门禁证据是台账的一部分，必须随仓库走（iter3 复审 F-5）
+!docs/continuous-iteration/evidence/*.log
 *.pyc
 *.swp
 .DS_Store
@@ -54,8 +56,9 @@ lib/l10n/*.dart
 # Flutter 工具本地状态
 .flutter_tool_state
 
-# 本地逆向/构建辅助工具（脚本产物与安装包不入库）
-tools/
+# 本地逆向/构建辅助工具（脚本产物与安装包不入库）；tools/iteration 是版本化的流程工具链（iter3 复审 F-2）
+tools/*
+!tools/iteration/
 artifacts/
 
 # CI 的临时 SBOM（部分清单，仅用于 PR 侧依赖报告）

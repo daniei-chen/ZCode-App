@@ -1,0 +1,181 @@
+[
+  {
+    "id": "iter3-sse-threshold-off-by-one",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (sse > 0) alerts.add(ObserverAlert(ObserverAlertCode.sseAppeared, sse));",
+    "replace": "if (sse > 1) alerts.add(ObserverAlert(ObserverAlertCode.sseAppeared, sse));",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "SSE：任一 SSE 计数 ≥1 即告警"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-ws-ratio-inclusive",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (wsMiss >= missSampleFloor && wsMiss * 2 > wsTotal) {",
+    "replace": "if (wsMiss >= missSampleFloor && wsMiss * 2 >= wsTotal) {",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "WS 未命中：样本地板 20 与 >50% 占比同时满足才告警"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-fetch-ratio-inclusive",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (fetchMiss >= missSampleFloor && fetchMiss * 2 > fetchTotal) {",
+    "replace": "if (fetchMiss >= missSampleFloor && fetchMiss * 2 >= fetchTotal) {",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "fetch 未命中：同样的地板与占比规则"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-fragment-floor-exclusive",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (fragments >= fragmentAnomalyFloor) {",
+    "replace": "if (fragments > fragmentAnomalyFloor) {",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "分片异常：无效 + 过期累计 ≥5"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-budget-drop-threshold",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (drops > 0) alerts.add(ObserverAlert(ObserverAlertCode.budgetDrop, drops));",
+    "replace": "if (drops > 1) alerts.add(ObserverAlert(ObserverAlertCode.budgetDrop, drops));",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "预算丢弃：队列或已见集合任一丢弃即告警"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-clamp-removed-overflow",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "return value > BridgeSchema.maxStatValue ? BridgeSchema.maxStatValue : value;",
+    "replace": "return value;",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "超上限值钳到 maxStatValue"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-subframe-wrong-key",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "final cancelled = at('subFrameCancelled');",
+    "replace": "final cancelled = at('subFrameTotal');",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "子 frame：只有 cancelled 触发"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-app-bridge-drop-threshold",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (droppedMessages <= 0) return const [];",
+    "replace": "if (droppedMessages <= 1) return const [];",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "桥丢弃计数 ≥1 → OB206"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-codesline-empty-not-none",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "return codes.isEmpty ? 'none' : codes.join(',');",
+    "replace": "return codes.join(',');",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "codesLine：空 → none",
+      "诊断包 alerts 分节"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-consumed-keys-guard",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "    'seenDropped',\n    'subFrameCancelled',\n  };",
+    "replace": "    'seenDropped',\n  };",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "键集合护栏"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-zero-counters-alert",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (sse > 0) alerts.add(ObserverAlert(ObserverAlertCode.sseAppeared, sse));",
+    "replace": "if (sse >= 0) alerts.add(ObserverAlert(ObserverAlertCode.sseAppeared, sse));",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "全零 / 空计数 → 无告警"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-negative-not-clamped",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "if (value == null || value < 0) return 0;",
+    "replace": "if (value == null) return 0;",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "负数按 0"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-rule-order-changed",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "alerts.add(ObserverAlert(ObserverAlertCode.subFrameBlocked, cancelled));",
+    "replace": "alerts.insert(0, ObserverAlert(ObserverAlertCode.subFrameBlocked, cancelled));",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "多条告警按固定规则顺序输出"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter3-result-mutable",
+    "candidate": "W-005",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "return List.unmodifiable(alerts);",
+    "replace": "return alerts;",
+    "test_file": "test/observer_alert_test.dart",
+    "expect_fail": [
+      "返回值不可变"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter3-unknown-keys-structural",
+    "candidate": "W-005",
+    "exempt": true,
+    "test_file": "test/observer_alert_test.dart",
+    "covers": [
+      "非白名单键被忽略"
+    ],
+    "reason": "策略按固定键名读取，“忽略未知键”是结构性质，不存在自然的回退变异（把策略改成遍历全部键才会失败，不是现实回归路径）。显式豁免。"
+  }
+]

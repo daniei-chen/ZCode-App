@@ -1,0 +1,98 @@
+[
+  {
+    "id": "iter6-refresh-boundary-exclusive",
+    "candidate": "W-017",
+    "file": "lib/services/page_refresh_policy.dart",
+    "find": "return hiddenFor >= staleAfter;",
+    "replace": "return hiddenFor > staleAfter;",
+    "test_file": "test/page_refresh_policy_test.dart",
+    "expect_fail": [
+      "不可见满 staleAfter 才刷新"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-refresh-null-refreshes",
+    "candidate": "W-017",
+    "file": "lib/services/page_refresh_policy.dart",
+    "find": "if (hiddenFor == null) return false;",
+    "replace": "if (hiddenFor == null) return true;",
+    "test_file": "test/page_refresh_policy_test.dart",
+    "expect_fail": [
+      "从未隐藏（null）不刷新"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-stale-after-huge",
+    "candidate": "W-017",
+    "file": "lib/services/page_refresh_policy.dart",
+    "find": "static const Duration staleAfter = Duration(seconds: 60);",
+    "replace": "static const Duration staleAfter = Duration(hours: 24);",
+    "test_file": "test/page_refresh_policy_test.dart",
+    "expect_fail": [
+      "长时间不可见必刷"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-refresh-ignores-current-device",
+    "candidate": "W-017",
+    "file": "lib/services/page_refresh_policy.dart",
+    "find": "if (!isCurrentDevice) return false;",
+    "replace": "if (false) return false;",
+    "test_file": "test/page_refresh_policy_test.dart",
+    "expect_fail": [
+      "非当前设备页永不刷新"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-refresh-ignores-inflight",
+    "candidate": "W-017",
+    "file": "lib/services/page_refresh_policy.dart",
+    "find": "if (loadInFlight || failed) return false;",
+    "replace": "if (false) return false;",
+    "test_file": "test/page_refresh_policy_test.dart",
+    "expect_fail": [
+      "加载在途 / 错误卡不抢各自恢复路径"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-cover-observer-same-value-fires",
+    "candidate": "W-017",
+    "file": "lib/ui/official_remote_page.dart",
+    "find": "if (_covered == covered) return;",
+    "replace": "if (false) return;",
+    "test_file": "test/official_remote_page_controller_test.dart",
+    "expect_fail": [
+      "同值 setCovered 不回调"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter6-cover-observer-survives-detach",
+    "candidate": "W-017",
+    "file": "lib/ui/official_remote_page.dart",
+    "find": "    _backHandler = null;\n    _layoutProbe = null;\n    _coverObserver = null;",
+    "replace": "    _backHandler = null;\n    _layoutProbe = null;",
+    "test_file": "test/official_remote_page_controller_test.dart",
+    "expect_fail": [
+      "detach 后不再回调"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter6-cover-observer-never-fires",
+    "candidate": "W-017",
+    "file": "lib/ui/official_remote_page.dart",
+    "find": "    _coverObserver?.call(covered);",
+    "replace": "    ;",
+    "test_file": "test/official_remote_page_controller_test.dart",
+    "expect_fail": [
+      "值变化回调一次并携带新值"
+    ],
+    "only": false
+  }
+]

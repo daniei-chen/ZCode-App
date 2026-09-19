@@ -1,0 +1,62 @@
+[
+  {
+    "id": "iter8-u1-dialog-scroll-removed",
+    "candidate": "W-022",
+    "file": "lib/ui/update_download_dialog.dart",
+    "find": "        child: SingleChildScrollView(\n          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),\n          child: Column(",
+    "replace": "        child: Padding(\n          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),\n          child: Column(",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "U-1：更新下载对话框内容可滚动"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter8-u2-minheight-reverted",
+    "candidate": "W-022",
+    "file": "lib/ui/settings_page.dart",
+    "find": "      child: ConstrainedBox(\n        constraints: const BoxConstraints(minHeight: _settingsRowHeight),\n        child: SwitchListTile(\n          contentPadding: const EdgeInsets.symmetric(horizontal: 14),\n          secondary: const _SettingsIcon(Icons.fingerprint),",
+    "replace": "      child: SizedBox(\n        height: _settingsRowHeight,\n        child: SwitchListTile(\n          contentPadding: const EdgeInsets.symmetric(horizontal: 14),\n          secondary: const _SettingsIcon(Icons.fingerprint),",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "U-2：设置行不再使用固定高度"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter8-u3-load-guard-removed",
+    "candidate": "W-022",
+    "file": "lib/state/notification_prefs.dart",
+    "find": "    _load().catchError((Object e) {",
+    "replace": "    _load();",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "U-3：通知偏好启动加载失败必须留痕"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter8-u7-log-dedup-removed",
+    "candidate": "W-022",
+    "file": "lib/ui/manage_page.dart",
+    "find": "              if (_cameraError != error.errorCode) {",
+    "replace": "              if (true) {",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "U-7：扫码错误日志按错误码去重"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter8-w019-orphan-sweep-removed",
+    "candidate": "W-019",
+    "file": "lib/services/device_store.dart",
+    "find": "        if (liveWarmupKeys.contains(key)) continue;",
+    "replace": "        ;",
+    "test_file": "test/service_resilience_test.dart",
+    "expect_fail": [
+      "W-019：加载时清扫孤儿 warmup 键"
+    ],
+    "only": true
+  }
+]

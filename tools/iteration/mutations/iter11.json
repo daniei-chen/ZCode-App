@@ -1,0 +1,87 @@
+[
+  {
+    "id": "iter11-ws-cap-removed",
+    "candidate": "W-014",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "cappedHits(at('wsMessages'), at('framesDecoded'))",
+    "replace": "at('wsMessages')",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "wsMessages 灌大不再稀释占比"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter11-fetch-cap-removed",
+    "candidate": "W-014",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "cappedHits(at('fetch200'), at('fetchCloned'))",
+    "replace": "at('fetch200')",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "fetch200 虚报用 fetchCloned 封顶"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter11-jump-segment-relaxed",
+    "candidate": "W-016",
+    "file": "lib/services/session_jump.dart",
+    "find": "      if (t !== tid && t.indexOf('task-item-' + tid) !== 0) continue;",
+    "replace": "      if (t.indexOf(tid) === -1) continue;",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "跳转脚本包含段匹配契约"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter11-jump-whitelist-removed",
+    "candidate": "W-016",
+    "file": "lib/services/session_jump.dart",
+    "find": "      RegExp(r'^[0-9A-Za-z_-]+$').hasMatch(taskId);",
+    "replace": "      true;",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "taskIdWellFormed：合法 id 通过"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter11-dedup-removed",
+    "candidate": "W-024",
+    "file": "lib/services/device_connectivity.dart",
+    "find": "    if (_inFlight) return;",
+    "replace": "    if (false) return;",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "重叠轮跳过"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter11-cap-direction-inverted",
+    "candidate": "W-014",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "int cappedHits(int hits, int cap) => cap <= 0 ? hits : (hits > cap ? cap : hits);",
+    "replace": "int cappedHits(int hits, int cap) => cap <= 0 ? hits : (hits < cap ? cap : hits);",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "wsMessages 灌大不再稀释占比",
+      "fetch200 虚报用 fetchCloned 封顶"
+    ],
+    "only": false
+  },
+  {
+    "id": "iter11-ws-total-dropped",
+    "candidate": "W-014",
+    "file": "lib/services/observer_alerts.dart",
+    "find": "    final wsTotal = wsMiss + wsHits;",
+    "replace": "    final wsTotal = wsMiss;",
+    "test_file": "test/iter11_hardening_test.dart",
+    "expect_fail": [
+      "framesDecoded 正常"
+    ],
+    "only": true
+  }
+]

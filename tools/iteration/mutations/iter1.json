@@ -1,0 +1,14 @@
+[
+  {
+    "id": "iter1-notifier-spec-failure-mislabelled",
+    "defect": "D-20260916-15",
+    "file": "lib/services/notifier.dart",
+    "find": "fields: {LogField.reason: 'spec'},",
+    "replace": "fields: {LogField.reason: 'show'},",
+    "test_file": "test/notifier_test.dart",
+    "expect_fail": [
+      "spec 构造抛错"
+    ],
+    "only": true
+  }
+]

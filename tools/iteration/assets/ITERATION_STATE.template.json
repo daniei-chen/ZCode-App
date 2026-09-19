@@ -1,0 +1,160 @@
+{
+  "schema_version": "3.0",
+  "run_id": "REPLACE_WITH_STABLE_RUN_ID",
+  "revision": 0,
+  "iteration": 0,
+  "phase": "RECOVER",
+  "status": "CONTINUE",
+  "target": {
+    "level": "release_candidate",
+    "score": 85
+  },
+  "budget": {
+    "kind": "none",
+    "limit": null,
+    "used": 0
+  },
+  "checkpoint": {
+    "id": "baseline-unverified",
+    "git_head": "UNKNOWN",
+    "diff_fingerprint": "sha256:UNSET",
+    "recorded_at": "1970-01-01T00:00:00Z"
+  },
+  "source_map": {
+    "defects": "docs/continuous-iteration/DEFECTS.md",
+    "acceptance": "docs/continuous-iteration/ACCEPTANCE_MATRIX.md",
+    "evidence": "docs/continuous-iteration/EVIDENCE.md",
+    "decisions": "docs/continuous-iteration/DECISIONS.md",
+    "audits": "docs/continuous-iteration/audits/"
+  },
+  "defects": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 0,
+    "P3": 0
+  },
+  "acceptance": {
+    "OPEN": 1,
+    "PARTIAL": 0,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "PASS": 0,
+    "DEFERRED": 0,
+    "NA": 0
+  },
+  "score": {
+    "dimensions": {
+      "core": {
+        "earned": 0,
+        "possible": 1
+      },
+      "security": {
+        "earned": 0,
+        "possible": 1
+      },
+      "tests": {
+        "earned": 0,
+        "possible": 1
+      },
+      "operations": {
+        "earned": 0,
+        "possible": 1
+      },
+      "docs": {
+        "earned": 0,
+        "possible": 1
+      }
+    },
+    "history": [
+      {
+        "iteration": 0,
+        "total": 0,
+        "source_hash": "sha256:UNSET"
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "G-001",
+      "command": "REPLACE_WITH_REQUIRED_PROJECT_GATE",
+      "required": true,
+      "status": "NOT_RUN",
+      "checkpoint_id": "baseline-unverified",
+      "evidence": []
+    }
+  ],
+  "audits": [],
+  "candidates": [
+    {
+      "id": "W-001",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null
+    }
+  ],
+  "blockers": [],
+  "artifacts": [
+    {
+      "path": "docs/continuous-iteration/PROJECT_AUDIT.md",
+      "required": true,
+      "revision": 0,
+      "status": "CURRENT",
+      "evidence": []
+    },
+    {
+      "path": "docs/continuous-iteration/PROJECT_MASTER_PLAN.md",
+      "required": true,
+      "revision": 0,
+      "status": "CURRENT",
+      "evidence": []
+    },
+    {
+      "path": "docs/continuous-iteration/ACCEPTANCE_MATRIX.md",
+      "required": true,
+      "revision": 0,
+      "status": "CURRENT",
+      "evidence": []
+    },
+    {
+      "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
+      "required": true,
+      "revision": 0,
+      "status": "CURRENT",
+      "evidence": []
+    },
+    {
+      "path": "docs/continuous-iteration/EXECUTION_STATE.md",
+      "required": true,
+      "revision": 0,
+      "status": "CURRENT",
+      "evidence": []
+    }
+  ],
+  "hygiene": {
+    "unresolved_placeholders": 2,
+    "secret_scan": "NOT_RUN",
+    "secret_scan_evidence": []
+  },
+  "termination": {
+    "claim": "CONTINUE",
+    "checks": {
+      "T1": "OPEN",
+      "T2": "OPEN",
+      "T3": "OPEN",
+      "T4": "OPEN",
+      "T5": "OPEN",
+      "T6": "OPEN",
+      "T7": "OPEN"
+    },
+    "reason": "Template initialized; replace values and record a real baseline."
+  },
+  "resume": {
+    "next_action": "Replace template values, collect baseline evidence, and create the first bounded batch.",
+    "retry_after": null
+  },
+  "change_log": []
+}

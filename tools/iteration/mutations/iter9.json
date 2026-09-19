@@ -1,0 +1,97 @@
+[
+ {
+  "id": "iter9-live-shortcut-removed",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    if (sessionStatus == SessionStatus.live) {\n      return DeviceLinkState.reachable;\n    }",
+  "replace": "    if (false) {\n      return DeviceLinkState.reachable;\n    }",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "relay 实流（live）最强"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter9-failed-mapped-reachable",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "if (probe == ProbeOutcome.failed) return DeviceLinkState.unreachable;",
+  "replace": "if (probe == ProbeOutcome.failed) return DeviceLinkState.reachable;",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "探测失败 → 不可达"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter9-probe-uri-keeps-query",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    return Uri(\n      scheme: 'https',\n      host: base.host,\n      port: 443,\n      path: base.path.isEmpty ? '/' : base.path,\n    );",
+  "replace": "    return base;",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "探测目标跟随控制链接路径"
+  ],
+  "only": false
+ },
+ {
+  "id": "iter9-live-devices-probed",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    if (status == SessionStatus.live) {\n      return (device.id, ProbeOutcome.ok);\n    }",
+  "replace": "    if (false) {\n      return (device.id, ProbeOutcome.ok);\n    }",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "live 设备跳过探测直接可达"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter9-unknown-impossible",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    return DeviceLinkState.unknown;",
+  "replace": "    return DeviceLinkState.reachable;",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "都没有 → unknown"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter9-connectivity-forget-noop",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    state = Map.of(state)..remove(deviceId);",
+  "replace": "    ;",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "forget 清理单设备"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter9-fetch-passthrough",
+  "candidate": "W-023",
+  "exempt": true,
+  "test_file": "test/device_connectivity_test.dart",
+  "covers": [
+   "注入 fetch：HTTP 响应（任意状态码语义）= ok",
+   "注入 fetch 抛错 = 原样上抛"
+  ],
+  "reason": "两条用例验证的是注入夹具与 probe() 的直通语义（probe 不吞结果），没有现实的回退变异路径；默认实现 defaultFetch 的真实网络行为由真机/集成覆盖。显式豁免。"
+ },
+ {
+  "id": "iter9-untrusted-early-return-removed",
+  "candidate": "W-023",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "    if (base == null || !LinkBuilder.isTrustedOrigin(base)) {\n      return Uri.https('invalid.probe', '/');\n    }",
+  "replace": "    if (base == null) {\n      return Uri.https('invalid.probe', '/');\n    }",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "非白名单源站"
+  ],
+  "only": true
+ }
+]

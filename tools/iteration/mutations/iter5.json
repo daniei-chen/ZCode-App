@@ -1,0 +1,164 @@
+[
+ {
+  "id": "iter5-depth-guard-removed",
+  "candidate": "W-009",
+  "file": "lib/services/bridge_message_pipeline.dart",
+  "find": "if (!_depthWithinLimit(body)) return null;",
+  "replace": "if (false) return null;",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "深度 64 以内可解析"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-depth-scanner-ignores-strings",
+  "candidate": "W-009",
+  "file": "lib/services/bridge_message_pipeline.dart",
+  "find": "      if (inString) {",
+  "replace": "      if (false) {",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "字符串内的括号不计入深度"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-session-index-unbounded",
+  "candidate": "W-009",
+  "file": "lib/state/session_index.dart",
+  "find": "    _evictOverflow(m);\n    _sessions[deviceId] = m;",
+  "replace": "    _sessions[deviceId] = m;",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "SessionIndex 6000 条唯一 id"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-differ-cap-removed",
+  "candidate": "W-009",
+  "file": "lib/services/event_observer.dart",
+  "find": "if (_prev.length > maxPrevEntries) {",
+  "replace": "if (false) {",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "StateDiffer 基线封顶"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-jump-id-accepts-nonfinite",
+  "candidate": "W-009",
+  "file": "lib/services/session_jump.dart",
+  "find": "if (id is! int || id < 0) return null;",
+  "replace": "if (id is! num || id < 0) return null;",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "Infinity / NaN 的 id"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-route-unclipped",
+  "candidate": "W-009",
+  "file": "lib/services/structured_log.dart",
+  "find": "return _clip('${uri.scheme}://${uri.host}$path');",
+  "replace": "return '${uri.scheme}://${uri.host}$path';",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "超长 path 截到 maxRouteChars"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-title-unclipped",
+  "candidate": "W-009",
+  "file": "lib/services/notifier.dart",
+  "find": "return title.isNotEmpty ? _clip(title, 120) : device.displayName(l10n);",
+  "replace": "return title.isNotEmpty ? title : device.displayName(l10n);",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "4 MB 会话标题被截到 120 字符"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-proto-pollution-restored",
+  "candidate": "W-009",
+  "file": "lib/services/event_observer.dart",
+  "find": "var asm = Object.create(null);",
+  "replace": "var asm = {};",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "hookScript 用无原型 assembler"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-token-guard-structural",
+  "candidate": "W-009",
+  "exempt": true,
+  "test_file": "test/security_invariants_test.dart",
+  "covers": [
+   "桥令牌只注入受信主文档"
+  ],
+  "reason": "S-5 的行为级验证需要真实 WebView（POST 主框架导航不经 shouldOverrideUrlLoading）；现有回归为 security_invariants_test 的源码断言（isTrustedRemotePage 守卫存在 + UserScript origin 计数相等），无单测文件内可判定的回退变异。显式豁免。"
+ },
+ {
+  "id": "iter5-normal-messages-sanity",
+  "candidate": "W-009",
+  "exempt": true,
+  "test_file": "test/security_hardening_test.dart",
+  "covers": [
+   "普通消息不受影响"
+  ],
+  "reason": "无回归哨兵：确认深度守卫不破坏正常流量。任何会“通过”它的变异必然先破坏大量既有解析测试，不存在只让该用例失效的现实回归路径。显式豁免。"
+ },
+ {
+  "id": "iter5-zrws-bare-jsondecode",
+  "candidate": "W-009",
+  "file": "lib/services/webview_sync.dart",
+  "find": "      final event = BridgeMessagePipeline.decode(body);",
+  "replace": "      final event = jsonDecode(body);",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "zrWs 通道不再有裸 jsonDecode"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-inject-guard-removed",
+  "candidate": "W-009",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "    if (!LinkBuilder.isTrustedRemotePage(await _controller?.getUrl())) {\n      return false;\n    }",
+  "replace": "",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "_injectBridgeToken 内含 URL 信任守卫"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter5-replace-tasks-unbounded",
+  "candidate": "W-009",
+  "exempt": true,
+  "test_file": "test/security_hardening_test.dart",
+  "reason": "iter12 N-P2-3 后 replaceTasks 的超限在 _rebuild 合并视图处二次收敛（iter12-merged-evict-removed 已钉），原内部驱逐变异在 state 上不可观察——保留内部收敛作纯冗余防御，显式豁免。",
+  "covers": [
+   "replaceTasks 快照整体替换同样收敛到上限"
+  ]
+ },
+ {
+  "id": "iter5-feed-title-unbounded",
+  "candidate": "W-009",
+  "file": "lib/state/event_feed.dart",
+  "find": "        lastSessionTitle: _boundedTitle(\n          TextSanitize.stripBidiControls(event.sessionTitle),\n        ),",
+  "replace": "        lastSessionTitle: event.sessionTitle,",
+  "test_file": "test/security_hardening_test.dart",
+  "expect_fail": [
+   "DeviceFeed.lastSessionTitle 与通知通道同上限"
+  ],
+  "only": true
+ }
+]

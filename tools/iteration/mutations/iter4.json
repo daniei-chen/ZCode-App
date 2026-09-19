@@ -1,0 +1,133 @@
+[
+  {
+    "id": "iter4-dedupe-gate-no-eviction",
+    "candidate": "W-008",
+    "file": "lib/services/event_observer.dart",
+    "find": "for (final entry in entries.take(entries.length - maxEntries ~/ 2)) {",
+    "replace": "for (final entry in entries.take(0)) {",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "个互不相同的事件"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-dedupe-gate-window-ignored",
+    "candidate": "W-008",
+    "file": "lib/services/event_observer.dart",
+    "find": "if (last != null && now.difference(last) < window) return false;",
+    "replace": "if (false) return false;",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e5 次同一事件重放：只放行一次"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-parser-dedupe-key-drops-task",
+    "candidate": "W-008",
+    "file": "lib/services/event_observer.dart",
+    "find": "final key = '${event.type}\\u0000${event.taskId ?? ''}';",
+    "replace": "final key = '${event.type}';",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e4 个事件、100 个键"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-feed-first-value-wins",
+    "candidate": "W-008",
+    "file": "lib/state/event_feed.dart",
+    "find": "pending[_keyOf(event)] = total;",
+    "replace": "pending.putIfAbsent(_keyOf(event), () => total);",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e4 条审批请求落到 100 个任务"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-feed-unread-not-incremented",
+    "candidate": "W-008",
+    "file": "lib/state/event_feed.dart",
+    "find": "unread: current.unread + 1,",
+    "replace": "unread: current.unread,",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e4 条审批请求落到 100 个任务"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-accept-string-length-only",
+    "candidate": "W-008",
+    "file": "lib/services/bridge_schema.dart",
+    "find": "if (utf8.encode(body).length > maxBytes) {",
+    "replace": "if (false) {",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "acceptString：按真实 UTF-8 字节判定"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-accept-stats-no-whitelist",
+    "candidate": "W-008",
+    "file": "lib/services/bridge_schema.dart",
+    "find": "if (k is! String || !statsKeys.contains(k)) continue;",
+    "replace": "if (k is! String) continue;",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "acceptStats：1e4 个垃圾键只留白名单"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-stats-chars-constant-sanity",
+    "candidate": "W-008",
+    "exempt": true,
+    "test_file": "test/scale_test.dart",
+    "reason": "用例「遥测 JSON 上限常量自洽」只证明 maxStatsChars 长度的合法 JSON 可解析；生产侧 > maxStatsChars 的丢弃判断在 official_remote_page.dart 的 WebView handler（:1611），单测够不到，无有意义的回退变异。显式豁免（纲领 §3 W-008 行的 exempt 条款）。",
+    "covers": [
+      "遥测 JSON 上限常量自洽"
+    ]
+  },
+  {
+    "id": "iter4-redactor-opaque-skipped",
+    "candidate": "W-008",
+    "file": "lib/services/structured_log.dart",
+    "find": "for (final pattern in _opaque) {",
+    "replace": "for (final pattern in <RegExp>[]) {",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e6 个连续字母",
+      "≥1 MiB 混合凭证"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-subframe-allowed-not-counted",
+    "candidate": "W-008",
+    "file": "lib/state/subframe_stats.dart",
+    "find": "allowed: prev.allowed + (trusted ? 1 : 0),",
+    "replace": "allowed: prev.allowed,",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1e5 次子 frame 记账"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter4-bundle-alerts-not-derived",
+    "candidate": "W-008",
+    "file": "lib/services/diagnostics_bundle.dart",
+    "find": "ObserverAlertPolicy.codesLine(ObserverAlertPolicy.evaluate(device.value)),",
+    "replace": "'none',",
+    "test_file": "test/scale_test.dart",
+    "expect_fail": [
+      "1000 台设备 × 全部计数键"
+    ],
+    "only": true
+  }
+]

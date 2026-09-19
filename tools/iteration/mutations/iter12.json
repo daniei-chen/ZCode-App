@@ -1,0 +1,305 @@
+[
+ {
+  "id": "iter12-takeover-reset-removed",
+  "candidate": "N-P1-1",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "    _takeoverLogged = false;",
+  "replace": "",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "_armBootCover 必须重置 _takeoverLogged"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-cover-disarm-removed",
+  "candidate": "N-P2-1",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "      setState(() => _bootCover = false);\n      _disarmCoverWatch();\n    });",
+  "replace": "      setState(() => _bootCover = false);\n    });",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "三处揭盖点都必须停掉盖板跟随计时器"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-merged-evict-removed",
+  "candidate": "N-P2-3",
+  "file": "lib/state/session_index.dart",
+  "find": "    _evictOverflow(merged);\n    state = {...state, deviceId: merged};",
+  "replace": "    state = {...state, deviceId: merged};",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "合并视图也必须 ≤ 上限"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-pending-cap-removed",
+  "candidate": "N-P2-5",
+  "file": "lib/state/event_feed.dart",
+  "find": "    if (pending.length <= maxPendingTasks) return pending;",
+  "replace": "    if (pending.isEmpty) return pending;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "上限内不提前驱逐，超限有界且最新键受保护"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-bidi-strip-removed",
+  "candidate": "W-021",
+  "file": "lib/services/text_sanitize.dart",
+  "find": "  static String _clean(String value) => value.replaceAll(_bidiControls, '');",
+  "replace": "  static String _clean(String value) => value;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "剥离 U+202A–E / U+2066–69，其余原样",
+   "lastSummary/lastSessionTitle 入表前清洗",
+   "标题/预览/工作区入表前清洗"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-tag-suffix-unanchored",
+  "candidate": "N-P2-6",
+  "file": "lib/services/update_service.dart",
+  "find": "r'^\\s*[vV]?(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?\\s*$',",
+  "replace": "r'^\\s*[vV]?(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?',",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "带后缀的 tag 一律非法（fail-closed，不参与比较）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-warmup-query-allowed",
+  "candidate": "N-P3-2",
+  "file": "lib/services/warmup.dart",
+  "find": "    if (uri.query.isNotEmpty || uri.fragment.isNotEmpty) return false;",
+  "replace": "",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "带 query 的只读面板请求不再进入重放脚本"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-alertmode-unnormalized",
+  "candidate": "W-021",
+  "file": "lib/models/notification_prefs.dart",
+  "find": "    kAlertSound || kAlertVibrate || kAlertSilent => value!,",
+  "replace": "    kAlertSound => value!,",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "alertMode 白名单归一：未知值回落 sound"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-startup-target-unnormalized",
+  "candidate": "W-021",
+  "file": "lib/services/device_store.dart",
+  "find": "    return value == 'launcher' ? 'launcher' : 'lastDevice';",
+  "replace": "    return value ?? 'lastDevice';",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "startupTarget 白名单归一：未知值回落 lastDevice"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-clip-surrogate-guard-removed",
+  "candidate": "W-021",
+  "file": "lib/services/structured_log.dart",
+  "find": "    if (last >= 0xD800 && last <= 0xDBFF) end -= 1;",
+  "replace": "    if (last < 0) end -= 1;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "LogRedactor._clip 不产出孤立代理",
+   "标题截断：emoji 落在 120 切点上不产出孤立代理"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-bridge-health-guard-opened",
+  "candidate": "W-021",
+  "file": "lib/state/bridge_health.dart",
+  "find": "    if (current != null && current.generation > generation) return;",
+  "replace": "    if (current != null && current.generation > generation && false) return;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "旧 generation 迟到状态两个方向都不得覆盖新代"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-biometric-record-removed",
+  "candidate": "W-021",
+  "file": "lib/services/biometric.dart",
+  "find": "        biometricOnly: true,\n        persistAcrossBackgrounding: true,\n      );\n      if (ok) {",
+  "replace": "        biometricOnly: true,\n        persistAcrossBackgrounding: true,\n      );\n      if (false) {",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "sinceLastSuccess 单调时长（成功后非空，失败前为 null）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-notif-null-failopen",
+  "candidate": "W-021",
+  "file": "lib/services/app_settings.dart",
+  "find": "          false;",
+  "replace": "          true;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "未知一律 false（fail-closed）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-notif-catch-failopen",
+  "candidate": "W-021",
+  "file": "lib/services/app_settings.dart",
+  "find": "    } catch (_) {\n      return false;\n    }\n  }",
+  "replace": "    } catch (_) {\n      return true;\n    }\n  }",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "未知一律 false（fail-closed）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-bundle-store-rows-removed",
+  "candidate": "W-018b",
+  "file": "lib/services/diagnostics_bundle.dart",
+  "find": "        'storeRepaired': storeRepaired ? 'yes' : 'no',",
+  "replace": "        'storeRepaired': 'no',",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "诊断包 settings 段含设备库完整性两行（只有数字/枚举）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-probe-root-only",
+  "candidate": "N-P2-2",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "      path: base.path.isEmpty ? '/' : base.path,",
+  "replace": "      path: '/',",
+  "test_file": "test/device_connectivity_test.dart",
+  "expect_fail": [
+   "探测目标跟随控制链接路径"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-sse-key-back-to-consumed",
+  "candidate": "N-P2-1b",
+  "file": "lib/services/observer_alerts.dart",
+  "find": "    'sseIgnored',\n    'wsIgnored',",
+  "replace": "    'wsIgnored',",
+  "test_file": "test/observer_alert_test.dart",
+  "expect_fail": [
+   "键集合护栏"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-evict-pin-skip-removed",
+  "candidate": "N-P2-3",
+  "file": "lib/state/session_index.dart",
+  "find": "      if (m[key]?.pinned ?? false) continue;",
+  "replace": "      if (false) continue;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "合并视图驱逐同样保护钉住会话"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-tag-two-segment-dropped",
+  "candidate": "N-P2-6",
+  "file": "lib/services/update_service.dart",
+  "find": "r'^\\s*[vV]?(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?\\s*$',",
+  "replace": "r'^\\s*[vV]?(\\d+)\\.(\\d+)\\.(\\d+)\\s*$',",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "合法形态兼容：v 前缀 / 两段 / 首尾空白"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-integrity-report-blanked",
+  "candidate": "W-018b",
+  "file": "lib/state/session_pool.dart",
+  "find": "      skippedRecords: result.skippedRecords,",
+  "replace": "      skippedRecords: 0,",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "integrity provider：加载结果上报 + 清空"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-rename-fail-snackbar-removed",
+  "candidate": "W-018a",
+  "file": "lib/ui/manage_page.dart",
+  "find": "        // 写失败反馈（iter7 R-1）。\n        if (!context.mounted) return;\n        ScaffoldMessenger.of(context).showSnackBar(\n          SnackBar(content: Text(l10n.operationFailed)),\n        );",
+  "replace": "        // 写失败反馈（iter7 R-1）。\n        if (!context.mounted) return;",
+  "test_file": "test/manage_page_write_failure_test.dart",
+  "expect_fail": [
+   "改名写失败"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-delete-fail-snackbar-removed",
+  "candidate": "W-018a",
+  "file": "lib/ui/manage_page.dart",
+  "find": "      // 写失败反馈（iter7 R-1）：删除失败时设备必须还在列表里，不能假成功。\n      if (!context.mounted) return;\n      ScaffoldMessenger.of(context).showSnackBar(\n        SnackBar(content: Text(l10n.operationFailed)),\n      );",
+  "replace": "      // 写失败反馈（iter7 R-1）：删除失败时设备必须还在列表里，不能假成功。\n      if (!context.mounted) return;",
+  "test_file": "test/manage_page_write_failure_test.dart",
+  "expect_fail": [
+   "删除写失败"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-epoch-guard-removed",
+  "candidate": "复核P2-盖板竞态",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "    if (epochAtProbe != _coverEpoch) return;",
+  "replace": "    // epoch guard removed",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "盖板纪元护栏"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-relock-evidence-wall-ignored",
+  "candidate": "复核P2-休眠冻结",
+  "file": "lib/services/biometric.dart",
+  "find": "      if (wall > best) best = wall;",
+  "replace": "      if (false) best = wall;",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "relockEvidence：深睡（墙钟大）与回拨（单调大）两场景都取真值"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter12-wipe-integrity-clear-removed",
+  "candidate": "复核P3-擦除覆盖",
+  "file": "lib/state/protected_wipe.dart",
+  "find": "      container.read(deviceStoreIntegrityProvider.notifier).clear();",
+  "replace": "      // integrity clear removed",
+  "test_file": "test/iter12_hardening_test.dart",
+  "expect_fail": [
+   "擦除事务清掉设备库完整性计数（同生命周期口径）"
+  ],
+  "only": true
+ }
+]

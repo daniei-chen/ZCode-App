@@ -1,0 +1,26 @@
+[
+  {
+    "id": "iter10-reorder-catch-removed",
+    "candidate": "iter10-F1",
+    "file": "lib/ui/manage_page.dart",
+    "find": ".catchError((Object e) {",
+    "replace": ".then((_) {}),\n                            ignore: (Object e) {",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "iter10 F-1"
+    ],
+    "only": true
+  },
+  {
+    "id": "iter10-wipe-connectivity-removed",
+    "candidate": "iter10-F2",
+    "file": "lib/state/protected_wipe.dart",
+    "find": "      container.read(deviceConnectivityProvider.notifier).clear();",
+    "replace": "      ;",
+    "test_file": "test/ui_hardening_test.dart",
+    "expect_fail": [
+      "iter10 F-2：擦除事务覆盖连通性探测 Provider"
+    ],
+    "only": true
+  }
+]
