@@ -19,7 +19,7 @@ dependencies:
   crypto: ^3.0.7
   http: ^1.6.0
   flutter_inappwebview: ^6.1.5
-  mobile_scanner: ^7.4.0
+  mobile_scanner: ^7.4.2
   # 11.1.0 uses Flutter's compileSdkVersion (36) instead of pinning API 37,
   # so it remains compatible with the Flutter 3.47 / AGP 8.11 build chain.
   flutter_secure_storage: ^11.1.1
