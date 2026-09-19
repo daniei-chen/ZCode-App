@@ -738,12 +738,12 @@
       "id": "W-BL5",
       "severity": "P1",
       "required_for_target": true,
-      "status": "BLOCKED",
+      "status": "DONE",
       "blocker_id": "BL-006",
       "defer_reason": null,
       "approval_ref": null,
-      "review_id": null,
-      "description": "D2：tag 策略（v1.0.0 已占用）落定"
+      "review_id": "A-124",
+      "description": "tag 策略（v1.0.0 已占用）：已拍板（DEC-18）——沿用 v1.0.0、内部 versionCode 递增；复核在 A-124 批次内覆盖（台账一致性）"
     },
     {
       "id": "W-BL6",
@@ -1055,11 +1055,11 @@
       "required_for_target": true,
       "status": "OPEN",
       "recommended_option": "恢复仓库推送权限后推送 release 分支改动 + 实跑 ci.yml / ci-heavy.yml，累积模拟器 E2E 稳定性证据",
-      "unlock_condition": "①向 GitHub Support 申诉解封（https://support.github.com）恢复 2421873411a-rgb；或 ②换新账号+新仓库并 `git remote set-url origin` 重定向后由 AI 重推。本地三个提交（807204e）已就绪，通道一通即推。",
+      "unlock_condition": "推送已全部完成（E-47）；余：ci.yml/ci-heavy.yml/release.yml 三工作流在新仓库实跑验证（需仓库 Actions 启用与运行窗口，结果归档 BENCHMARKS-RESULTS）",
       "evidence": [
         "docs/PROJECT_AUDIT.md（A-04）",
         "docs/ROADMAP.md",
-        "2026-09-19 git push 实测：remote 403 \"Your account is suspended\"（账号级封停，非令牌问题；gh keyring 令牌同因失效）"
+        "docs/EVIDENCE.md（E-47）"
       ],
       "blocks": [
         "T2"
@@ -1112,11 +1112,12 @@
       "id": "BL-006",
       "type": "USER",
       "required_for_target": true,
-      "status": "OPEN",
+      "status": "RESOLVED",
       "recommended_option": "决定 tag 策略：沿用 v1.0.0（内部 versionCode 递增）或为新线启用新 tag 名（不复用被占用的 v1.0.0）",
       "unlock_condition": "用户选择并记入 docs/DECISIONS.md；涉及发布链配置的改动由后续轮次实施",
       "evidence": [
-        "docs/PROJECT_AUDIT.md（A-04 注）"
+        "docs/PROJECT_AUDIT.md（A-04 注）",
+        "docs/DECISIONS.md（DEC-18）"
       ],
       "blocks": [
         "T2"
