@@ -64,3 +64,27 @@ gh release edit v1.1.0 --prerelease=false --latest
 - 观察期内出现的 P1 回归走修复分支 + PR（main 已启用规则保护），
   修复后按同一发布流程出补丁版本，不做热修直推。
 - 观察期结束后更新 README/About 描述中的版本口径为最新已发布版本。
+## CI 自动出包启用清单（W-031，iter13 记录）
+
+`release.yml` 已具备完整签名发布链（keystore 恢复 → arm64 构建 → 签名连续性校验 → SBOM → 发布资产），
+在仓库设置完成以下配置前，tag 触发的运行会在 `Verify provenance` 一步拒绝（保护性失败，不影响手工发布）。
+
+### 1. 配置仓库 Secrets（Settings → Secrets and variables → Actions）
+
+| Secret | 内容 | 生成方式（在你本机做，AI 不接触密钥） |
+| --- | --- | --- |
+| `KEYSTORE_BASE64` | 发布 keystore 的 base64 | `certutil -encode android/app/zcode-app-release.jks tmp.b64 && `（去掉首尾行）或 git-bash：`base64 -w0 android/app/zcode-app-release.jks` |
+| `KEYSTORE_PASSWORD` | keystore 的 store/key 口令（脚本约定两者相同） | 你保存的口令 |
+
+密钥别名固定为 `zcode-app`（脚本内写死），无需额外 Secret。
+
+### 2. 分支保护与发版路径
+
+- 保护 `main`：Settings → Branches → Add branch protection rule（至少禁止直推、要求 PR）。
+- 发版路径：`release/v1.0.0` → PR 合并进 `main` → 在 `main` HEAD 上打 tag（`vX.Y.Z`，版本号必须与 `pubspec.yaml` 一致）。
+- 首次接通建议先跑演练：Actions → release → Run workflow（`dry_run: true`），确认签名与校验链全绿后再打正式 tag。
+
+### 3. 当前已知差异（截至 2026-09-19）
+
+- `main` 停在 95d6b2a，`release/v1.0.0` 领先大量提交；CI 出包前需先合并同步。
+- 合并后把 v1.0.0 tag 重指到 main HEAD（或按新版本号打新 tag，见 DEC-18）。

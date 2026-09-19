@@ -1,7 +1,7 @@
 {
   "schema_version": "3.0",
   "run_id": "zcode-app-maturation-2026-09",
-  "revision": 14,
+  "revision": 15,
   "iteration": 13,
   "phase": "RECOVER",
   "status": "CONTINUE",
@@ -896,7 +896,7 @@
       "defer_reason": null,
       "approval_ref": null,
       "review_id": "A-125",
-      "description": "iter3 审计 F-5：验证器 --repo-root 增加 --require-tracked（git ls-files --error-unmatch 校验证据/报告已跟踪）；DEC-06 阶段恒 FAIL，待用户首次提交后启用；已落地（iter13）：validate 加 --require-tracked，31 条 unittest 全绿并接入门 selftests 段"
+      "description": "iter3 审计 F-5：验证器 --repo-root 增加 --require-tracked（git ls-files --error-unmatch 校验证据/报告已跟踪）；DEC-06 阶段恒 FAIL，待用户首次提交后启用；已落地（iter13）：validate 加 --require-tracked，31 条 unittest 全绿并接入门 selftests 段；启用完成：--strict-state 检查点路径强制，i14 门禁实测通过（E-51）"
     },
     {
       "id": "W-016",
@@ -1061,7 +1061,7 @@
       "defer_reason": "需用户在新仓库做管理配置",
       "approval_ref": null,
       "review_id": null,
-      "description": "iter13 CI 观察：release.yml 仅有的 run 挂在 Verify provenance（要求受保护 main）——需配置签名 Secrets 与分支保护后 CI 自动出包链才通（本地构建路径已可用，E-48）"
+      "description": "iter13 CI 观察：release.yml 仅有的 run 挂在 Verify provenance（要求受保护 main）——需配置签名 Secrets 与分支保护后 CI 自动出包链才通（本地构建路径已可用，E-48）；操作手册已写入 docs/RELEASE-CHECKLIST.md（E-51）"
     }
   ],
   "blockers": [
@@ -1524,6 +1524,15 @@
         "D-20260919-15"
       ],
       "reason": "dynamic-workflow 批：W-026 l10n 净删 184 死键（386→202）+ SessionGrouping 删除；W-030 _hiddenSince 双钟化（复用 relockEvidence）；W-015 验证器 --require-tracked（31 条 unittest 接入 selftests 门）；复核员一轮通过，5 条注记全部闭环（F-1 变异全语料补跑 / F-2 自测接线 / F-3 死代码删除 / F-4 计数口径 / F-5 arb 元数据）；CI 观察 ci/ci-heavy 实跑 success、release.yml 挂 provenance→W-031；本地候选清零（W-026/W-030 关闭后仅剩需提交的 W-015 已 DONE）"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_13_followup",
+      "ids": [
+        "W-015",
+        "W-031"
+      ],
+      "reason": "W-015 启用半步：--require-tracked 接入 gates.sh --strict-state 检查点路径（批次运行豁免原因写入注释），i14 全门禁实测通过；W-031 操作手册（Secrets 名与生成法/分支保护/发版路径/dry_run 演练）写入 RELEASE-CHECKLIST；CI 实时复查因 GCM 非交互凭据不可用暂缓（事实以 A-125 CI 观察为准）"
     }
   ]
 }

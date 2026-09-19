@@ -134,7 +134,15 @@ if grep -q '^RESULT: PASS' "$EV/$PREFIX-script-selftests.log"; then record selft
 # so the check runs on every gate pass instead of when someone remembers.
 t0=$(now)
 STATE_BAD=0
-if ( cd "$REPO" && python tools/iteration/iteration_state.py validate --repo-root . docs/continuous-iteration/ITERATION_STATE.json ) > "$EV/$PREFIX-state.log" 2>&1; then
+# W-015 启用（iter13 收尾）：检查点运行（--strict-state）同时要求台账引用的
+# 证据/报告/决策文件已被 git 跟踪——批次运行不要求（evidence 在门禁期间新写、
+# 尚未提交，恒 FAIL 是预期），检查点运行时仓库应已提交，未被跟踪才是真问题。
+if [ $STRICT_STATE = 1 ]; then
+  STATE_REQ_TRACKED="--require-tracked"
+else
+  STATE_REQ_TRACKED=""
+fi
+if ( cd "$REPO" && python tools/iteration/iteration_state.py validate --repo-root . $STATE_REQ_TRACKED docs/continuous-iteration/ITERATION_STATE.json ) > "$EV/$PREFIX-state.log" 2>&1; then
   # iter3 F-2/F-5: a referenced file that .gitignore swallows is "present" locally and
   # absent for everyone else. Canary the classes we have been bitten by.
   if ( cd "$REPO" && git check-ignore -q "docs/continuous-iteration/evidence/$PREFIX-test.log" tools/iteration/gates.sh docs/continuous-iteration/ITERATION_STATE.json 2>/dev/null ); then
