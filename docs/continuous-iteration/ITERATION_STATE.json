@@ -1,8 +1,8 @@
 {
   "schema_version": "3.0",
   "run_id": "zcode-app-maturation-2026-09",
-  "revision": 13,
-  "iteration": 12,
+  "revision": 14,
+  "iteration": 13,
   "phase": "RECOVER",
   "status": "CONTINUE",
   "target": {
@@ -15,10 +15,10 @@
     "used": 0
   },
   "checkpoint": {
-    "id": "cp-12-iter12",
-    "git_head": "16a7d8ee9d1cf084ba6df3c52fcc32633b9fb19b",
-    "diff_fingerprint": "sha256:082a600a22a40cb952125b16e7475a39bc03b219c370c9480acbbc693ce59a80",
-    "recorded_at": "2026-09-19T23:25:00+08:00"
+    "id": "cp-13-iter13",
+    "git_head": "7622034e5f5e3734944066d13e555bd39d5daee1",
+    "diff_fingerprint": "sha256:62a361b3e199608bdc05bcd1f41efc257e0efc87bb86bb5f291302f9455d77b7",
+    "recorded_at": "2026-09-19T23:59:00+08:00"
   },
   "source_map": {
     "defects": "docs/DEFECTS.md",
@@ -130,6 +130,11 @@
         "iteration": 12,
         "total": 80,
         "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 13,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
       }
     ]
   },
@@ -139,9 +144,9 @@
       "command": "flutter analyze（tools/iteration/gates.sh 导出目录，DEC-02）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-analyze.log"
+        "docs/continuous-iteration/evidence/i13-analyze.log"
       ]
     },
     {
@@ -149,9 +154,9 @@
       "command": "flutter test 全量（同上导出目录）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-test.log"
+        "docs/continuous-iteration/evidence/i13-test.log"
       ]
     },
     {
@@ -159,9 +164,9 @@
       "command": "node scripts/check_injected_js.mjs",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-js.log"
+        "docs/continuous-iteration/evidence/i13-js.log"
       ]
     },
     {
@@ -169,9 +174,9 @@
       "command": "python scripts/check-doc-drift.py",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-docdrift.log"
+        "docs/continuous-iteration/evidence/i13-docdrift.log"
       ]
     },
     {
@@ -179,9 +184,9 @@
       "command": "秘密扫描（git ls-files 扩展名过滤 + git grep 凭据字面量 + check-ignore）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-secrets.log"
+        "docs/continuous-iteration/evidence/i13-secrets.log"
       ]
     },
     {
@@ -189,7 +194,7 @@
       "command": "python scripts/check-dependency-advisories.py --sbom <b5 SBOM> --exceptions scripts/security-exceptions.json --fail-on high（公网 OSV）",
       "required": true,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
         "docs/continuous-iteration/evidence/i11-osv.log"
       ]
@@ -199,9 +204,9 @@
       "command": "发布脚本自测：check-doc-drift / check-dependency-advisories / check-plugin-survival / verify-release-artifacts / generate-sbom（--self-test）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-script-selftests.log"
+        "docs/continuous-iteration/evidence/i13-script-selftests.log"
       ]
     },
     {
@@ -209,7 +214,7 @@
       "command": "flutter build apk --release + check-plugin-survival --apk（11 插件存活门）+ verify-release-artifacts",
       "required": false,
       "status": "NOT_RUN",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": []
     },
     {
@@ -217,7 +222,7 @@
       "command": "GitHub Actions CI 三条工作流真实实跑（ci.yml / ci-heavy.yml / release.yml）",
       "required": false,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": []
     },
     {
@@ -225,9 +230,9 @@
       "command": "python tools/iteration/mutate.py --export <导出> --spec tools/iteration/mutations/*.json --require-green（全语料\"回退即失败\"变异验证）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-mutations.log"
+        "docs/continuous-iteration/evidence/i13-mutations.log"
       ]
     },
     {
@@ -235,10 +240,10 @@
       "command": "tools/iteration/gates.sh state + mutcov 门：iteration_state.py validate --repo-root . + gitignore canary（检查点终跑 --strict-state）；mutate.py --coverage 对 mutations/coverage-files.txt 全覆盖",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12-state.log",
-        "docs/continuous-iteration/evidence/i12-mutcov.log"
+        "docs/continuous-iteration/evidence/i13-state.log",
+        "docs/continuous-iteration/evidence/i13-mutcov.log"
       ]
     },
     {
@@ -246,7 +251,7 @@
       "command": "导出目录 flutter build apk --debug（编译可行性门；release 需密钥属 P0 治理，AI 不做）",
       "required": false,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
         "docs/continuous-iteration/evidence/b1-build.log"
       ]
@@ -256,7 +261,7 @@
       "command": "tools/iteration/clean_start.sh <prefix>（冷启动门：fresh export → pub get → gen-l10n 漂移检查 → analyze → 全量 test；必败样验证过 DRIFT→exit 1）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-12-iter12",
+      "checkpoint_id": "cp-13-iter13",
       "evidence": [
         "docs/continuous-iteration/evidence/i12b-cleanstart.log"
       ]
@@ -632,6 +637,22 @@
       "new_p0": 0,
       "new_p1": 0,
       "report": "docs/audits/2026-09-19-iter12-deep-probe.md"
+    },
+    {
+      "id": "A-125",
+      "iteration": 13,
+      "reviewer_id": "code-reviewer-iter13-r1（dynamic-workflow 零上下文）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-13-iter13-pre-closure",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter13-review.md"
     }
   ],
   "candidates": [
@@ -870,12 +891,12 @@
       "id": "W-015",
       "severity": "P3",
       "required_for_target": false,
-      "status": "LOCAL",
+      "status": "DONE",
       "blocker_id": null,
       "defer_reason": null,
       "approval_ref": null,
-      "review_id": null,
-      "description": "iter3 审计 F-5：验证器 --repo-root 增加 --require-tracked（git ls-files --error-unmatch 校验证据/报告已跟踪）；DEC-06 阶段恒 FAIL，待用户首次提交后启用"
+      "review_id": "A-125",
+      "description": "iter3 审计 F-5：验证器 --repo-root 增加 --require-tracked（git ls-files --error-unmatch 校验证据/报告已跟踪）；DEC-06 阶段恒 FAIL，待用户首次提交后启用；已落地（iter13）：validate 加 --require-tracked，31 条 unittest 全绿并接入门 selftests 段"
     },
     {
       "id": "W-016",
@@ -980,12 +1001,12 @@
       "id": "W-026",
       "severity": "P3",
       "required_for_target": false,
-      "status": "LOCAL",
+      "status": "DONE",
       "blocker_id": null,
       "defer_reason": null,
       "approval_ref": null,
-      "review_id": null,
-      "description": "iter12 清扫：l10n 死键 189 个清理 + session_index 硬编码 '未命名工作区'（消费链 SessionGrouping 已无 lib 内调用方，一并核实）"
+      "review_id": "A-125",
+      "description": "iter12 清扫：l10n 死键 189 个清理 + session_index 硬编码 '未命名工作区'（消费链 SessionGrouping 已无 lib 内调用方，一并核实）；已落地（iter13）：净删 184 死键（386→202，4 键被原始键名兜底救活、1 键复核加回；189 为 iter12 粗扫估计值）+ SessionGrouping 整类删除（含硬编码文案）；SessionRanking/RelativeTime 保留（零 lib 调用但测试钉住，v1.1 预留）"
     },
     {
       "id": "W-027",
@@ -1024,12 +1045,23 @@
       "id": "W-030",
       "severity": "P3",
       "required_for_target": false,
-      "status": "LOCAL",
+      "status": "DONE",
       "blocker_id": null,
       "defer_reason": null,
       "approval_ref": null,
+      "review_id": "A-125",
+      "description": "iter12 复核 P3：`_hiddenSince` 墙钟改单调/双钟口径（回拨/休眠只影响静默刷新时机，UX 级）；已落地（iter13）：_hiddenFor/_hiddenSinceWall 成对字段 + relockEvidence 取大，测试与变异 iter13.json"
+    },
+    {
+      "id": "W-031",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "BLOCKED",
+      "blocker_id": "BL-004",
+      "defer_reason": "需用户在新仓库做管理配置",
+      "approval_ref": null,
       "review_id": null,
-      "description": "iter12 复核 P3：`_hiddenSince` 墙钟改单调/双钟口径（回拨/休眠只影响静默刷新时机，UX 级）"
+      "description": "iter13 CI 观察：release.yml 仅有的 run 挂在 Verify provenance（要求受保护 main）——需配置签名 Secrets 与分支保护后 CI 自动出包链才通（本地构建路径已可用，E-48）"
     }
   ],
   "blockers": [
@@ -1086,9 +1118,10 @@
       "required_for_target": true,
       "status": "OPEN",
       "recommended_option": "对 ADR-004 拍板：是否启用每设备独立 WebView 数据目录（隔离收益 vs 多设备常驻成本）",
-      "unlock_condition": "用户对 ADR-004 选项与代价作出决定并记入 docs/DECISIONS.md",
+      "unlock_condition": "ci.yml/ci-heavy.yml 已在新仓库实跑 success（E-49）；余：release.yml 需签名 Secrets 与分支保护（W-031，用户仓库管理操作）",
       "evidence": [
-        "docs/adr/ADR-004-per-device-webview-isolation.md"
+        "docs/adr/ADR-004-per-device-webview-isolation.md",
+        "docs/EVIDENCE.md（E-49）"
       ],
       "blocks": [
         "T2"
@@ -1142,7 +1175,7 @@
     {
       "path": "docs/ACCEPTANCE_MATRIX.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1153,7 +1186,7 @@
     {
       "path": "docs/DEFECTS.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1166,7 +1199,7 @@
     {
       "path": "docs/EVIDENCE.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1186,7 +1219,7 @@
     {
       "path": "docs/DECISIONS.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "DEC-10",
@@ -1196,7 +1229,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1206,7 +1239,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_STATE.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1216,7 +1249,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1227,7 +1260,7 @@
     {
       "path": "docs/continuous-iteration/LESSONS.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1239,7 +1272,7 @@
     {
       "path": "tools/iteration/README.md",
       "required": true,
-      "revision": 13,
+      "revision": 14,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1266,16 +1299,16 @@
     "checks": {
       "T1": "OPEN",
       "T2": "OPEN",
-      "T3": "DONE",
+      "T3": "OPEN",
       "T4": "OPEN",
       "T5": "OPEN",
       "T6": "DONE",
       "T7": "OPEN"
     },
-    "reason": "ITERATION 12 完成：两路深探审计 14 项修复闭环（W-018/W-021 DONE）；独立复核两轮（A-123 需返修→A-124 可合并）；725/725、变异 100/100+7、10 门 PASS（OSV BLOCKED）；分数 80 不变（无验收翻转）。本地候选清零（W-015 待首次提交；W-026/W-030 为本轮新登记小项），下一步转 BLOCKED 等用户决策。"
+    "reason": "ITERATION 13 完成：W-015/W-026/W-030 关闭（本地候选清零）；复核员一轮通过、5 注记闭环；702/702、变异 102/102+7、10 门 PASS（OSV BLOCKED）；分数 80 不变。剩余全部为用户决策/管理项：ADR-003/004/005、tag 线已收口（DEC-18）、release.yml 签名 Secrets（W-031）、真机窗口（W-025/W-027/W-028 + BL-003）。T3 置回 OPEN：复核 A-125 覆盖三件修复本体（cp-13-pre-closure），其后的闭环编辑（F-1..F-5）由门禁机器验证、独立复评留给下一轮。"
   },
   "resume": {
-    "next_action": "本地候选清零，转 BLOCKED 等用户：① ADR-003 密钥处置（P0，W-BL1）② ADR-004/005 拍板 ③ tag 策略 ④ GitHub 账号（解锁 G-006 OSV 复跑 / G-009 CI / W-BL4）⑤ 真机窗口（BL-003，连带 W-025/W-027/W-028 验证）⑥ W-029 更新包发布源验签决策。可做的小项仅剩 W-026（l10n 死键清理）与 W-030（_hiddenSince 口径）。",
+    "next_action": "本地候选清零。待用户：① ADR-003 密钥处置（P0）② ADR-004/005 ③ W-031 release.yml 签名 Secrets+分支保护（新仓库管理配置）④ 真机窗口（W-025/W-027/W-028/BL-003）⑤ iter13 改动是否提交推送（DEC-06，等确认）。",
     "retry_after": null
   },
   "change_log": [
@@ -1479,6 +1512,18 @@
         "W-030"
       ],
       "reason": "两路零上下文深探（WebView/网络 + 状态/持久化）：P1×1（顶号日志丢失）+P2×5（盖板定时器与竞态、sse 死键、探测语义、合并视图上限、pendingByTask 无界、tag 归一、休眠钟 relock 回退）+P3×2 全部当轮闭环；W-018（写失败 widget 测试+诊断隔离计数）/W-021（卫生批）DONE；独立复核 A-123 需返修（变异锚唯一性×3、阈值带存活、盖板竞态、Stopwatch 休眠冻结）→ 返修后 A-124 可合并；iter5/iter9 三条旧语料锚续接更新；725/725、100/100+7、10 门 PASS；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_13",
+      "ids": [
+        "W-015",
+        "W-026",
+        "W-030",
+        "W-031",
+        "D-20260919-15"
+      ],
+      "reason": "dynamic-workflow 批：W-026 l10n 净删 184 死键（386→202）+ SessionGrouping 删除；W-030 _hiddenSince 双钟化（复用 relockEvidence）；W-015 验证器 --require-tracked（31 条 unittest 接入 selftests 门）；复核员一轮通过，5 条注记全部闭环（F-1 变异全语料补跑 / F-2 自测接线 / F-3 死代码删除 / F-4 计数口径 / F-5 arb 元数据）；CI 观察 ci/ci-heavy 实跑 success、release.yml 挂 provenance→W-031；本地候选清零（W-026/W-030 关闭后仅剩需提交的 W-015 已 DONE）"
     }
   ]
 }

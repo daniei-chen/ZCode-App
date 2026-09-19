@@ -49,12 +49,15 @@
 | iter10 | ≈35 | **85 s** | 合并复核 iter8+9：8 / 8（含 1 错 catch）/ 3（N-1 错 catch、N-2 台账、N-3 注释） | 2（Edit 失败未重试、replace 无 assert） | 独立复核恢复；F-3 supersedeable 通道设计干净；694/694 |
 | 收尾轮（iter11） | ≈40 | ≈90 s | 复核 10 / 10 / 0 | 2 | 700/700；语料 76+6 |
 | iter12 | ≈60 | 门禁 ≈95 s×2（一轮返修重跑）+ 变异 ≈13 min×3 | 深探 21（证实14/证伪1/裁定1/候选化5）/ 修复 14 / 复核 12（2×P1 语料+阈值带、1×P2 竞态、1×P2 休眠钟、6×P3） | 5（heredoc unicode ×2、python 双写、测试竞态 drain、CRLF 误判） | 725/725；语料 100/100+7；W-018/W-021 闭环；新候选 W-025..030 |
+| iter13 | ≈25（workflow 编排，主代理仅修 run 环境） | 门禁 ≈70 s；变异全语料补跑 | 工作流内零上下文复核一轮通过，5 注记当轮闭环（F-1 变异补跑/F-2 自测接线/F-3 死代码/F-4 计数/F-5 元数据） | 1（world.run PATH） | 702/702；W-015/026/030 关闭；CI ci/ci-heavy 实跑 success |
 
 ## 二.5、iter12 新教训（L-25–L-27）
 
 - **L-25（改代码先查语料）**：修复批动到旧变异锚时，先对全部语料 find 串做唯一性预检——iter12 改 `_boundedTitle`/`probeUri`/合并驱逐后，iter5/iter9 三条旧锚 0 命中（ERROR）或被更强守卫掩盖（survived）。正确顺序：改代码 → 语料预检 → 全语料重跑；被新守卫覆盖的旧变异转 declared exempt 并写明理由，不得静默删除。
 - **L-26（heredoc 转义第 4 课）**：含 Dart/正则转义的补丁（`\u{...}`、`\+`）在 bash heredoc + python 非原始字符串里必炸。一律 r-string 拼接，必要时 `chr(92)` 组装单反斜杠；写完用 `cat -A`/grep 验证落盘字节，不要信"替换成功"的输出。
 - **L-27（测试编排竞态）**：widget/container 测试里 `read(provider)` 触发 build→异步 `_load`→report 的链路，会把同步断言目标（擦除后应为 null 的状态）在毫秒级顶回来。断言前 drain 在途异步（`Future.delayed` + 注释论证生产无此窗口），断言本身保持严格。
+
+- **L-28（world.run 无 profile PATH）**：dynamic-workflow 的 world.run 直接 spawn、不经 shell profile——Windows 上 `bash` 不在 PATH（spawn ENOENT），flutter/python 同理可能缺失。解法：命令用绝对路径（PortableGit usr/bin/bash.exe）+ `-lc` 登录 shell 继承 PATH；先在会话内确认绝对路径再写进脚本。
 
 ## 三、待观察的假设
 
