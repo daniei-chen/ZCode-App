@@ -7,8 +7,8 @@ void main() {
   group('允许的目标', () {
     test('GitHub 官方域与其发布资产 CDN', () {
       for (final url in const [
-        'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.1.0/ZCode-v1.1.0.apk',
-        'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
+        'https://github.com/daniei-chen/ZCode-App/releases/download/v1.1.0/ZCode-v1.1.0.apk',
+        'https://api.github.com/repos/daniei-chen/ZCode-App/releases/latest',
         'https://objects.githubusercontent.com/github-production-release-asset/x?sig=y',
         'https://release-assets.githubusercontent.com/github-production-release-asset/x',
       ]) {

@@ -172,7 +172,7 @@ void main() {
   group('security invariants：更新链', () {
     test('下载 URL 钉死官方仓库 release/download 路径', () {
       final src = read('lib/services/update_service.dart');
-      expect(src.contains('/2421873411a-rgb/zcode-app/releases/download/'), isTrue);
+      expect(src.contains('/daniei-chen/zcode-app/releases/download/'), isTrue);
     });
 
     test('无 digest 不允许自动下载（U1 fail-closed）', () {

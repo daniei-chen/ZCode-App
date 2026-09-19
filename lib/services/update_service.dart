@@ -124,7 +124,7 @@ class UpdateService {
 
   static final instance = UpdateService._();
 
-  static const repositoryUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
+  static const repositoryUrl = 'https://github.com/daniei-chen/ZCode-App';
   static final latestReleasePage = Uri.parse('$repositoryUrl/releases/latest');
 
   /// 非 Android 平台的更新入口：直接打开最新发布页。
@@ -134,7 +134,7 @@ class UpdateService {
     } catch (_) {}
   }
   static final latestReleaseApi = Uri.parse(
-    'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
+    'https://api.github.com/repos/daniei-chen/ZCode-App/releases/latest',
   );
   static const _promptedVersionKey = 'zremote.update.promptedVersion';
 
@@ -806,7 +806,7 @@ class UpdateService {
         uri.scheme.toLowerCase() != 'https' ||
         uri.host.toLowerCase() != 'github.com' ||
         !uri.path.toLowerCase().startsWith(
-          '/2421873411a-rgb/zcode-app/releases/tag/',
+          '/daniei-chen/zcode-app/releases/tag/',
         )) {
       return null;
     }
@@ -820,7 +820,7 @@ class UpdateService {
         uri.scheme.toLowerCase() != 'https' ||
         uri.host.toLowerCase() != 'github.com' ||
         !uri.path.toLowerCase().startsWith(
-          '/2421873411a-rgb/zcode-app/releases/download/',
+          '/daniei-chen/zcode-app/releases/download/',
         ) ||
         !uri.path.toLowerCase().endsWith(allowedExtension)) {
       return null;
@@ -840,7 +840,7 @@ class UpdateService {
 
   static Uri? _releaseUriFromHtml(String html) {
     final match = RegExp(
-      r'https://github\.com/2421873411a-rgb/ZCode-App/releases/tag/[^"\s<]+',
+      r'https://github\.com/daniei-chen/ZCode-App/releases/tag/[^"\s<]+',
       caseSensitive: false,
     ).firstMatch(html);
     return _safeReleaseUri(match?.group(0));

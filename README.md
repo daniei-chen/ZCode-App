@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/2421873411a-rgb/ZCode-App/releases">下载 Release</a>
+  <a href="https://github.com/daniei-chen/ZCode-App/releases">下载 Release</a>
   ·
-  <a href="https://github.com/2421873411a-rgb/ZCode-App/issues">反馈问题</a>
+  <a href="https://github.com/daniei-chen/ZCode-App/issues">反馈问题</a>
 </p>
 
 > ZCode App 是个人开发的非官方软件，与 Z.ai 无隶属关系。ZCode 及相关名称、图标和商标归其各自所有者所有。
@@ -130,7 +130,7 @@ test/           Dart 单元测试与 Widget 测试
 
 质量门禁以 CI 为准（不手工维护测试数字）：
 
-[![ci](https://github.com/2421873411a-rgb/ZCode-App/actions/workflows/ci.yml/badge.svg)](https://github.com/2421873411a-rgb/ZCode-App/actions/workflows/ci.yml)
+[![ci](https://github.com/daniei-chen/ZCode-App/actions/workflows/ci.yml/badge.svg)](https://github.com/daniei-chen/ZCode-App/actions/workflows/ci.yml)
 
 - `flutter analyze` + `flutter test`：每次 push / PR 在 CI 执行
 - 包名：`com.zcode.app`（Android 专用，不支持 iOS）

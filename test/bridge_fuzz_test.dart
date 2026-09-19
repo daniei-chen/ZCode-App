@@ -135,7 +135,7 @@ void main() {
             302,
             headers: {
               'location':
-                  'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v9.9.9',
+                  'https://github.com/daniei-chen/ZCode-App/releases/tag/v9.9.9',
             },
           );
         }

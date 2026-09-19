@@ -68,7 +68,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final repoLink = find.text(
-      'ZCode v1.4.0 · github.com/2421873411a-rgb/ZCode-App',
+      'ZCode v1.4.0 · github.com/daniei-chen/ZCode-App',
     );
     await tester.tap(repoLink);
     await tester.pump();
@@ -77,7 +77,7 @@ void main() {
     expect(launches.single.method, 'launch');
     expect(
       launches.single.arguments['url'],
-      'https://github.com/2421873411a-rgb/ZCode-App',
+      'https://github.com/daniei-chen/ZCode-App',
     );
     expect(launches.single.arguments['useWebView'], isFalse);
 

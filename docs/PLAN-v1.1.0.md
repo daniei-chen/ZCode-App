@@ -343,7 +343,7 @@ v1.1.7（握手卡长周期冷处理、设置返回按页面实际布局探测�
 - 本地全套：analyze 零问题、JS 32/32、back_navigation 18/18、+536/-4（-4 为 Windows 已知引擎限制）
 - 平板模拟器实测：注入卡片 2.5s 内隐藏（v1.1.6 同实验卡片存活）；设置返回落在同屏页（探测 rowWidth 232/800 → combined=true）；文案“指纹锁/电池限制”截图确认
 
-**阻断**：2026-09-14 起 GitHub 账号 `2421873411a-rgb` 被平台暂停（git ls-remote / API 均返回 403 "Your account is suspended"）——PR #52 的合并、tag `v1.1.7`、发布全部无法执行，需账号所有者向 https://support.github.com 申诉恢复。
+**阻断**：2026-09-14 起 GitHub 账号 `daniei-chen` 被平台暂停（git ls-remote / API 均返回 403 "Your account is suspended"）——PR #52 的合并、tag `v1.1.7`、发布全部无法执行，需账号所有者向 https://support.github.com 申诉恢复。
 本地留存：`D:/tmp/zr/ZCode-v1.1.7-debug.apk`（debug 签名，与发布版签名不同，需卸载后安装）。
 
 ## 本地清理与正式签名本地构建（2026-09-14）

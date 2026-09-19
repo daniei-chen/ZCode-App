@@ -16,7 +16,7 @@
 | versionCode / versionName | 9 / 1.0.8 |
 | ABI | arm64-v8a（纯单包） |
 | SHA256 | `A1C042240E7E2AE33CB7F7D5BFC6EA8A5158DABE04258FAC774F5FD10EDE412A` |
-| 来源证明 | Actions attestation（`gh attestation verify ZCode-v1.0.8.apk --repo 2421873411a-rgb/ZCode-App`，需新版 gh） |
+| 来源证明 | Actions attestation（`gh attestation verify ZCode-v1.0.8.apk --repo daniei-chen/ZCode-App`，需新版 gh） |
 
 安装前核对：`sha256sum ZCode-v1.0.8.apk` 必须与上表一致，否则停止测试并记录异常。
 

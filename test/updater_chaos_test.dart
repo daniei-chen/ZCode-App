@@ -39,10 +39,10 @@ void main() {
     currentVersion: '1.0.0',
     latestVersion: '1.0.1',
     releaseUri: Uri.parse(
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+      'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
     ),
     downloadUri: Uri.parse(
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk',
+      'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk',
     ),
     downloadFileName: 'ZCode-v1.0.1.apk',
     downloadSize: 1000,

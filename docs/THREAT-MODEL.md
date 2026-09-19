@@ -22,7 +22,7 @@
 | T1 | 恶意二维码/链接导入（伪造 host、私网地址） | 导入只接受 https + 精确 host `zcode.z.ai` + `/remote/v<数字>` 路径；拒绝 userInfo/非 443 端口/点段与空段 | `link_builder.dart` `isTrustedRemotePage`；`link_builder_trust_test.dart`（11 条） | 官方域被攻陷（供应链级，超范围） |
 | T2 | 页面被替换后调用原生 bridge | 三层信任（origin/remote page/导航）+ 五个 bridge 回调 Dart 侧 `_bridgeAllowed()` 二次校验 + UserScript `allowedOriginRules` | `official_remote_page.dart`；`security_invariants_test.dart` | 官方页面自身 XSS（依赖上游修复） |
 | T3 | 导航逃逸到非远控页面 | 主框架导航只放行 `/remote/v<数字>`；其余 CANCEL 并记 release 可见日志（只记 path） | `shouldOverrideUrlLoading`；实测零误拦（模拟器） | 新官方路由需随日志补充策略 |
-| T4 | 更新包被替换（镜像/中间人） | 下载 URL 钉死 `github.com/2421873411a-rgb/zcode-app/releases/download/`；必须携带 SHA256 digest 才自动下载；回退路径经 `.sha256` sidecar 摘要校验；下载后全量 SHA256 比对 | `update_service.dart`；`update_service_test.dart`（含回退/404/文件名不符）；API 黑洞实测 | GitHub 账号被盗（见 T5） |
+| T4 | 更新包被替换（镜像/中间人） | 下载 URL 钉死 `github.com/daniei-chen/zcode-app/releases/download/`；必须携带 SHA256 digest 才自动下载；回退路径经 `.sha256` sidecar 摘要校验；下载后全量 SHA256 比对 | `update_service.dart`；`update_service_test.dart`（含回退/404/文件名不符）；API 黑洞实测 | GitHub 账号被盗（见 T5） |
 | T5 | GitHub 账号/Release 被劫持 | APK 需与已装应用同签名（预校验 `signerMismatch` + 系统安装器兜底）；Actions 产物 attestation；main 规则保护（Require PR + checks） | `MainActivity.inspectApk`、`precheckApk`、release.yml attestation | 账号与 keystore 同时失守（不可恢复级） |
 | T6 | 旧版本降级攻击 | versionCode 单调递增；客户端预校验拒绝 downgrade（-25 场景有人话拦截） | `precheckApk`；`apk_precheck_test.dart` | 攻击者诱导卸载重装（需用户配合） |
 | T7 | 日志泄露凭证/会话内容 | AppLog 规则：只记 path 不记 query；release 只保留白名单事件（nav blocked/silent reload/renderer）；页面 console 仅 debug 转发 | `app_log.dart`；`official_remote_page.dart`；security invariants | 用户主动导出的日志需自行甄别 |

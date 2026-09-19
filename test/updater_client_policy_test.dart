@@ -37,7 +37,7 @@ class TimeoutThenOkClient extends http.BaseClient {
     }
     return http.StreamedResponse(const Stream.empty(), 302, headers: {
       'location':
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v2.0.0',
+          'https://github.com/daniei-chen/ZCode-App/releases/tag/v2.0.0',
     });
   }
 
@@ -92,7 +92,7 @@ void main() {
       }
       return http.Response('', 302, headers: {
         'location':
-            'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v2.0.0',
+            'https://github.com/daniei-chen/ZCode-App/releases/tag/v2.0.0',
       });
     });
     final result = await UpdateService.instance.checkForUpdate(
@@ -119,7 +119,7 @@ void main() {
       }
       return http.Response('', 302, headers: {
         'location':
-            'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v2.0.0',
+            'https://github.com/daniei-chen/ZCode-App/releases/tag/v2.0.0',
       });
     });
     final result = await UpdateService.instance.checkForUpdate(
@@ -158,7 +158,7 @@ void main() {
       }
       return http.Response('', 302, headers: {
         'location':
-            'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v2.0.0',
+            'https://github.com/daniei-chen/ZCode-App/releases/tag/v2.0.0',
       });
     });
     final result = await UpdateService.instance.checkForUpdate(

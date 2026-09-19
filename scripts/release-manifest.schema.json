@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/2421873411a-rgb/ZCode-App/scripts/release-manifest.schema.json",
+  "$id": "https://github.com/daniei-chen/ZCode-App/scripts/release-manifest.schema.json",
   "title": "ZCode App release manifest",
   "description": "release-manifest.json 的结构契约。发布工作在生成 manifest 后由 scripts/verify-release-artifacts.py 校验（该脚本实现本 schema 的受支持子集并保持同步）。",
   "type": "object",

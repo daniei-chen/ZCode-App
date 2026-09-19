@@ -46,10 +46,10 @@ void main() {
       expect(request.url, UpdateService.latestReleaseApi);
       return http.Response(
         '{"tag_name":"v1.0.2",'
-        '"html_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2",'
+        '"html_url":"https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2",'
         '"assets":[{"name":"ZCode-v1.0.2.apk",'
         '"size":1234,'
-        '"browser_download_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk",'
+        '"browser_download_url":"https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk",'
         '"digest":"sha256:abc"}]}',
         200,
       );
@@ -65,7 +65,7 @@ void main() {
     expect(result.canDownload, isTrue);
     expect(
       result.downloadUri.toString(),
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
+      'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
     );
     expect(result.downloadFileName, 'ZCode-v1.0.2.apk');
     expect(result.downloadSize, 1234);
@@ -75,10 +75,10 @@ void main() {
     final client = MockClient((request) async {
       return http.Response(
         '{"tag_name":"v1.0.2",'
-        '"html_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2",'
+        '"html_url":"https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2",'
         '"assets":[{"name":"ZCode.apk",'
         '"size":1234,'
-        '"browser_download_url":"https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk"}]}',
+        '"browser_download_url":"https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode.apk"}]}',
         200,
       );
     });
@@ -103,14 +103,14 @@ void main() {
           302,
           headers: {
             'location':
-                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+                'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
           },
         );
       }
       // sidecar：契约资产 ZCode-v1.0.1.apk 的摘要文件。
       expect(
         request.url.toString(),
-        'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk.sha256',
+        'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk.sha256',
       );
       return http.Response(
         '${'a' * 64}  ZCode-v1.0.1.apk\n',
@@ -127,11 +127,11 @@ void main() {
     expect(result.latestVersion, '1.0.1');
     expect(
       result.releaseUri.toString(),
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+      'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
     );
     expect(
       result.downloadUri.toString(),
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk',
+      'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.1/ZCode-v1.0.1.apk',
     );
     expect(result.downloadFileName, 'ZCode-v1.0.1.apk');
     expect(result.assetDigest, 'sha256:${'a' * 64}');
@@ -149,7 +149,7 @@ void main() {
           302,
           headers: {
             'location':
-                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+                'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
           },
         );
       }
@@ -179,7 +179,7 @@ void main() {
           302,
           headers: {
             'location':
-                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+                'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
           },
         );
       }
@@ -217,10 +217,10 @@ void main() {
       currentVersion: '1.0.0',
       latestVersion: '1.0.2',
       releaseUri: Uri.parse(
-        'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+        'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2',
       ),
       downloadUri: Uri.parse(
-        'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+        'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode.apk',
       ),
       downloadFileName: 'ZCode.apk',
       downloadSize: 5,
@@ -263,10 +263,10 @@ void main() {
         currentVersion: '1.0.0',
         latestVersion: '1.0.2',
         releaseUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+          'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2',
         ),
         downloadUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+          'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode.apk',
         ),
         downloadFileName: 'ZCode.apk',
       downloadSize: 5,
@@ -320,10 +320,10 @@ void main() {
         currentVersion: '1.0.6',
         latestVersion: '1.0.7',
         releaseUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.7',
+          'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.7',
         ),
         downloadUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.7/ZCode-v1.0.7.apk',
+          'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.7/ZCode-v1.0.7.apk',
         ),
         downloadFileName: 'ZCode-v1.0.7.apk',
       );
@@ -337,10 +337,10 @@ void main() {
         currentVersion: '1.0.0',
         latestVersion: '1.0.2',
         releaseUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+          'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2',
         ),
         downloadUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
+          'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode-v1.0.2.apk',
         ),
         downloadFileName: 'ZCode-v1.0.2.apk',
         downloadSize: 1000,
@@ -397,10 +397,10 @@ void main() {
         currentVersion: '1.0.0',
         latestVersion: '1.0.2',
         releaseUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.2',
+          'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2',
         ),
         downloadUri: Uri.parse(
-          'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.0.2/ZCode.apk',
+          'https://github.com/daniei-chen/ZCode-App/releases/download/v1.0.2/ZCode.apk',
         ),
         downloadFileName: 'ZCode.apk',
         downloadSize: 5,
@@ -457,7 +457,7 @@ void main() {
           302,
           headers: {
             'location':
-                'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.0.1',
+                'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.1',
           },
         );
       }
@@ -499,7 +499,7 @@ void main() {
       status: UpdateCheckStatus.updateAvailable,
       latestVersion: '1.1.0',
       releaseUri: Uri.parse(
-        'https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v1.1.0',
+        'https://github.com/daniei-chen/ZCode-App/releases/tag/v1.1.0',
       ),
       downloadUri: downloadUri,
       assetDigest: digest,
@@ -509,7 +509,7 @@ void main() {
     );
 
     final officialUri = Uri.parse(
-      'https://github.com/2421873411a-rgb/ZCode-App/releases/download/v1.1.0/ZCode-v1.1.0.apk',
+      'https://github.com/daniei-chen/ZCode-App/releases/download/v1.1.0/ZCode-v1.1.0.apk',
     );
 
     test('重定向到非白名单地址 → 拒绝下载（不跟随、不落盘）', () async {

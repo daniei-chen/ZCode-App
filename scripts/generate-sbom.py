@@ -495,7 +495,7 @@ def build_bom(
     if apk_path is not None and apk_path.is_file():
         root_component["hashes"] = [{"alg": "SHA-256", "content": sha256_file(apk_path)}]
         root_component["externalReferences"] = [
-            {"type": "distribution", "url": f"https://github.com/2421873411a-rgb/ZCode-App/releases/tag/v{version}"}
+            {"type": "distribution", "url": f"https://github.com/daniei-chen/ZCode-App/releases/tag/v{version}"}
         ]
 
     tools = [
