@@ -1055,10 +1055,11 @@
       "required_for_target": true,
       "status": "OPEN",
       "recommended_option": "恢复仓库推送权限后推送 release 分支改动 + 实跑 ci.yml / ci-heavy.yml，累积模拟器 E2E 稳定性证据",
-      "unlock_condition": "GitHub 账号可用（推送与 Actions 运行权限）",
+      "unlock_condition": "①向 GitHub Support 申诉解封（https://support.github.com）恢复 2421873411a-rgb；或 ②换新账号+新仓库并 `git remote set-url origin` 重定向后由 AI 重推。本地三个提交（807204e）已就绪，通道一通即推。",
       "evidence": [
         "docs/PROJECT_AUDIT.md（A-04）",
-        "docs/ROADMAP.md"
+        "docs/ROADMAP.md",
+        "2026-09-19 git push 实测：remote 403 \"Your account is suspended\"（账号级封停，非令牌问题；gh keyring 令牌同因失效）"
       ],
       "blocks": [
         "T2"
