@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/event_observer.dart';
+import '../services/text_sanitize.dart';
 
 abstract final class SessionRanking {
   /// Drawer order inside one workspace: pinned first, then sessions that
@@ -32,6 +33,43 @@ class SessionIndexNotifier
   final Map<String, Map<String, SessionState>> _tasks = {};
   final Map<String, Map<String, SessionState>> _sessions = {};
 
+  /// 单设备单表条目上限（安全审计 S-1）：敌对页面可用唯一 `sessionId` 无限
+  /// 灌大 `_sessions/_tasks`（一条 4 MiB 帧就能带 ~10 万个 id），把整个进程
+  /// 打进 OOM/ANR。超限按**插入序**把表压到上限的 7/8（留 1/8 headroom，
+  /// 避免每次插入都触发驱逐；Dart LinkedHashMap 保插入序，刷新不改位置，
+  /// 活跃会话天然沉底）。真实页面远低于此值。
+  ///
+  /// iter12 N-P2-3：上限同时约束**合并视图**——两表独立计数时，只出现在
+  /// 单侧的 id 会让 `_rebuild` 的 merged 达到 2×上限；合并后再次执行
+  /// 本驱逐，保证 `state[deviceId]` 也 ≤ 上限（合并表按 tasks 先、sessions
+  /// 后的并集插入序驱逐，钉住的会话同样最后驱逐）。驱逐是**视图级**的：
+  /// 被裁掉的 id 仍在背表 `_tasks/_sessions`（各自有界），下一轮 `_rebuild`
+  /// 会重新并集、重新驱逐——不变量每轮成立，但敌对灌满时视图内容可随
+  /// 重建顺序抖动（复核 P3，如实记录）。
+  static const int maxEntriesPerDevice = 5000;
+
+  void _evictOverflow(Map<String, SessionState> m) {
+    if (m.length <= maxEntriesPerDevice) return;
+    final overflow = m.length - maxEntriesPerDevice + maxEntriesPerDevice ~/ 8;
+    // 钉住的会话最后驱逐（iter7 R-8）：洪泛不应挤掉用户的钉住标记；
+    // 极端全 pinned 时走第二轮兜底，保有界性优先。
+    // Set（LinkedHashSet）保插入序：第二轮兜底无需 contains 的 O(n²) 扫描
+    // （复核 P3：全 pinned 的 5000 条敌对输入在 UI 线程跑 1250 万次比较）。
+    final drop = <String>{};
+    for (final key in m.keys) {
+      if (drop.length >= overflow) break;
+      if (m[key]?.pinned ?? false) continue;
+      drop.add(key);
+    }
+    for (final key in m.keys) {
+      if (drop.length >= overflow) break;
+      drop.add(key);
+    }
+    for (final key in drop) {
+      m.remove(key);
+    }
+  }
+
   @override
   Map<String, Map<String, SessionState>> build() => const {};
 
@@ -39,8 +77,9 @@ class SessionIndexNotifier
     if (states.isEmpty) return;
     final m = Map.of(_sessions[deviceId] ?? const <String, SessionState>{});
     for (final s in states) {
-      m[s.sessionId] = s;
+      m[s.sessionId] = _sanitize(s);
     }
+    _evictOverflow(m);
     _sessions[deviceId] = m;
     _rebuild(deviceId);
   }
@@ -49,8 +88,9 @@ class SessionIndexNotifier
     if (taskEntries.isEmpty) return;
     final m = Map.of(_tasks[deviceId] ?? const <String, SessionState>{});
     for (final t in taskEntries) {
-      m[t.sessionId] = t;
+      m[t.sessionId] = _sanitize(t);
     }
+    _evictOverflow(m);
     _tasks[deviceId] = m;
     _rebuild(deviceId);
   }
@@ -63,11 +103,15 @@ class SessionIndexNotifier
     final prev = _tasks[deviceId];
     _tasks[deviceId] = {
       for (final t in taskEntries)
-        t.sessionId:
-            preservePinned && !t.pinned && (prev?[t.sessionId]?.pinned ?? false)
-            ? _withPinned(t, true)
-            : t,
+        t.sessionId: _sanitize(
+          preservePinned && !t.pinned && (prev?[t.sessionId]?.pinned ?? false)
+              ? _withPinned(t, true)
+              : t,
+        ),
     };
+    // 快照整体替换同样要收敛到上限（安全审计 S-1/N-3）：一帧 4 MiB 快照
+    // 可带数万条任务，虽无跨帧累积，但“表压到上限”的承诺必须一致。
+    _evictOverflow(_tasks[deviceId]!);
     _rebuild(deviceId);
   }
 
@@ -88,6 +132,38 @@ class SessionIndexNotifier
     workspacePath: s.workspacePath,
     pinned: pinned,
   );
+
+  /// 页面来源文本（标题/预览/工作区名）在入表前剥离 Bidi 控制符
+  /// （iter12 W-021，[TextSanitize]）：它们会原样进入会话列表渲染。
+  static SessionState _sanitize(SessionState s) {
+    final title = TextSanitize.stripBidiControls(s.title);
+    final preview = TextSanitize.stripBidiControls(s.preview);
+    final workspace = TextSanitize.stripBidiControls(s.workspace);
+    final workspacePath = TextSanitize.stripBidiControls(s.workspacePath);
+    if (identical(title, s.title) &&
+        identical(preview, s.preview) &&
+        identical(workspace, s.workspace) &&
+        identical(workspacePath, s.workspacePath)) {
+      return s;
+    }
+    return SessionState(
+      sessionId: s.sessionId,
+      title: title,
+      phase: s.phase,
+      sessionEnded: s.sessionEnded,
+      permissionCount: s.permissionCount,
+      userInputCount: s.userInputCount,
+      interactionKind: s.interactionKind,
+      toolName: s.toolName,
+      description: s.description,
+      preview: preview,
+      lastActivityAt: s.lastActivityAt,
+      createdAt: s.createdAt,
+      workspace: workspace,
+      workspacePath: workspacePath,
+      pinned: s.pinned,
+    );
+  }
 
   void removeSessions(String deviceId, List<String> sessionIds) {
     if (sessionIds.isEmpty) return;
@@ -131,6 +207,7 @@ class SessionIndexNotifier
     final merged = <String, SessionState>{
       for (final id in ids) id: _mergeTaskSession(tasks?[id], sessions?[id]),
     };
+    _evictOverflow(merged);
     state = {...state, deviceId: merged};
   }
 

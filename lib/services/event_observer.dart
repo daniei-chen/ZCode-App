@@ -147,7 +147,9 @@ abstract final class EventObserver {
       seenQ.push({ u: url, m: String(method || 'GET').toUpperCase(), b: b });
     } catch (e) {}
   };
-  var asm = {};
+  // 无原型对象（安全审计 S-3）：普通 `{}` 上 `asm["__proto__"]` 命中原型链，
+  // 敌对 logicalFrameId 可污染 Object.prototype 破坏官方页脚本。
+  var asm = Object.create(null);
   var asmOrder = [];
   // R-13：所有未完成 assembler 的在途字节总和（全局预算，见 tryDecodePayload）。
   var asmBytes = 0;
@@ -184,7 +186,13 @@ abstract final class EventObserver {
       var bytes;
       if (isFragment) {
         var id = p.logicalFrameId;
-        if (!id) return;
+        // id 必须是受限字符串（安全审计 S-3）：__proto__/constructor 等键落在
+        // Object.prototype 链上会污染原型或读到继承属性；正则把键空间钉死。
+        // 注意本脚本整体处于 Dart 插值字符串内，JS 正则的美元符须转义书写。
+        if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,128}\$/.test(id)) {
+          bump('invalidFragments');
+          return;
+        }
         var fc = p.fragmentCount;
         var fi = p.fragmentIndex;
         // 分片边界检查（W2/R-13）：count/index 必须是**有限整数**且范围内
@@ -531,12 +539,35 @@ const Set<String> kNotifiableTypes = {
   'error',
 };
 
+/// 单任务待处理计数上限（R-19 复审）。观察面数值来自页面内容，超出这个
+/// 量级只可能是异常或操纵；封顶后 permission + userInput 求和不会回绕为负。
+const int kMaxPendingCount = 1024;
+
+/// 页面可控数值 → 有限整数。非 num 或非有限值一律按缺席处理：
+/// `jsonDecode('1e999')` 得到 `double.infinity`，直接 `toInt()` 会抛异常并
+/// 中断整帧观察处理（安全复审 P2）。
+int? _finiteInt(Object? value) {
+  if (value is! num || !value.isFinite) return null;
+  return value.toInt();
+}
+
+/// 待处理计数：只认非负 int（小数 / 指数 / 超范围字面量经 jsonDecode 都是
+/// double，不采信），并封顶 [kMaxPendingCount]。缺席或非法一律 0。
+int _pendingCount(Object? value) {
+  if (value is! int || value < 0) return 0;
+  return value > kMaxPendingCount ? kMaxPendingCount : value;
+}
+
+/// 该值是否是一个合法的待处理计数（用于判定任务行是否表达了 pending 状态）。
+bool _hasPendingCount(Object? value) => value is int && value >= 0;
+
 class ObservedEvent {
   const ObservedEvent({
     required this.type,
     this.taskId,
     this.sessionTitle,
     this.summary,
+    this.pendingTotal,
   });
 
   final String type;
@@ -547,13 +578,25 @@ class ObservedEvent {
 
   final String? summary;
 
-  ObservedEvent copyWith({String? sessionTitle, String? summary}) =>
-      ObservedEvent(
-        type: type,
-        taskId: taskId,
-        sessionTitle: sessionTitle ?? this.sessionTitle,
-        summary: summary ?? this.summary,
-      );
+  /// 转移完成后该任务的剩余待处理交互总数（permission + userInput）。
+  ///
+  /// R-19：观察面（`pendingInteractionSummary`）只有按任务聚合的计数，
+  /// 没有请求级 id，所以 pending 记账按计数降级——resolved 携带剩余量，
+  /// 同任务还有剩余交互时红点与系统通知都保留。null = 观察面给不出计数
+  /// （例如任务整行消失），消费方按"未知"处理而非当成 0。
+  final int? pendingTotal;
+
+  ObservedEvent copyWith({
+    String? sessionTitle,
+    String? summary,
+    int? pendingTotal,
+  }) => ObservedEvent(
+    type: type,
+    taskId: taskId,
+    sessionTitle: sessionTitle ?? this.sessionTitle,
+    summary: summary ?? this.summary,
+    pendingTotal: pendingTotal ?? this.pendingTotal,
+  );
 }
 
 abstract final class EventParser {
@@ -596,11 +639,26 @@ abstract final class EventParser {
   /// The same request can arrive once as an explicit event and once alongside
   /// the state delta that produced it.
   static List<ObservedEvent> dedupe(Iterable<ObservedEvent> input) {
-    final seen = <String>{};
+    final indexByKey = <String, int>{};
     final result = <ObservedEvent>[];
     for (final event in input) {
       final key = '${event.type}\u0000${event.taskId ?? ''}';
-      if (seen.add(key)) result.add(event);
+      final kept = indexByKey[key];
+      if (kept == null) {
+        indexByKey[key] = result.length;
+        result.add(event);
+        continue;
+      }
+      // 显式页面事件排在 differ 事件之前、且不带计数；同一逻辑事件的后到
+      // 副本若带权威剩余计数，要合并进保留副本，否则 feed 只能按"在场"
+      // 记 1（R-19 复审）。保留副本的文案不动，只补计数与缺失的标题。
+      final current = result[kept];
+      if (current.pendingTotal == null && event.pendingTotal != null) {
+        result[kept] = current.copyWith(
+          pendingTotal: event.pendingTotal,
+          sessionTitle: current.sessionTitle ?? event.sessionTitle,
+        );
+      }
     }
     return result;
   }
@@ -700,6 +758,7 @@ class SessionState {
     this.sessionEnded,
     this.permissionCount = 0,
     this.userInputCount = 0,
+    this.hasPendingSummary = false,
     this.interactionKind,
     this.toolName,
     this.description,
@@ -717,6 +776,12 @@ class SessionState {
   final bool? sessionEnded;
   final int permissionCount;
   final int userInputCount;
+
+  /// 源节点是否真的带 `pendingInteractionSummary`（R-19）。
+  ///
+  /// 计数缺省是 0，"没带 summary"与"确认无待处理"不可区分；重复副本
+  /// 合并时靠它挡住缺 summary 的扁平行覆盖带 summary 的会话镜像。
+  final bool hasPendingSummary;
   final String? interactionKind;
   final String? toolName;
 
@@ -737,6 +802,29 @@ class SessionState {
 
   final bool pinned;
 
+  /// 缺 summary 的行不表达 pending 状态：沿用 [baseline] 的计数（R-19）。
+  ///
+  /// 返回的副本标记为权威（`hasPendingSummary=true`），这样下一条真正带
+  /// summary 的同计数行不会被当成 0→N 的新转移而重复发请求事件。
+  SessionState inheritPendingFrom(SessionState baseline) => SessionState(
+    sessionId: sessionId,
+    title: title,
+    phase: phase,
+    sessionEnded: sessionEnded,
+    permissionCount: baseline.permissionCount,
+    userInputCount: baseline.userInputCount,
+    hasPendingSummary: true,
+    interactionKind: interactionKind ?? baseline.interactionKind,
+    toolName: toolName ?? baseline.toolName,
+    description: description ?? baseline.description,
+    preview: preview ?? baseline.preview,
+    lastActivityAt: lastActivityAt,
+    createdAt: createdAt,
+    workspace: workspace,
+    workspacePath: workspacePath,
+    pinned: pinned,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is SessionState &&
@@ -746,6 +834,7 @@ class SessionState {
       other.sessionEnded == sessionEnded &&
       other.permissionCount == permissionCount &&
       other.userInputCount == userInputCount &&
+      other.hasPendingSummary == hasPendingSummary &&
       other.interactionKind == interactionKind &&
       other.toolName == toolName &&
       other.description == description &&
@@ -764,6 +853,7 @@ class SessionState {
     sessionEnded,
     permissionCount,
     userInputCount,
+    hasPendingSummary,
     interactionKind,
     toolName,
     description,
@@ -866,12 +956,9 @@ abstract final class SessionStateExtractor {
     var userInputCount = 0;
     final summary = node['pendingInteractionSummary'];
     if (summary is Map) {
-      final p = summary['permissionCount'];
-      final u = summary['userInputCount'];
-      if (p is int) permCount = p;
-      if (u is int) userInputCount = u;
+      permCount = _pendingCount(summary['permissionCount']);
+      userInputCount = _pendingCount(summary['userInputCount']);
     }
-
     String? interactionKind;
     String? toolName;
     String? description;
@@ -910,12 +997,13 @@ abstract final class SessionStateExtractor {
           : null,
       permissionCount: permCount,
       userInputCount: userInputCount,
+      hasPendingSummary: summary is Map,
       interactionKind: interactionKind,
       toolName: toolName,
       description: description,
       preview: previewOf(node),
-      lastActivityAt: laa is num ? laa.toInt() : null,
-      createdAt: ca is num ? ca.toInt() : null,
+      lastActivityAt: _finiteInt(laa),
+      createdAt: _finiteInt(ca),
       workspace: workspaceLabel ?? workspaceBasenameOf(workspacePath),
       workspacePath: workspacePath,
     );
@@ -1193,8 +1281,8 @@ abstract final class TaskIndexExtractor {
       title: t['title'] is String ? t['title'] as String? : null,
       preview: SessionStateExtractor.previewOf(t),
       phase: phase,
-      lastActivityAt: laa is num ? laa.toInt() : null,
-      createdAt: ca is num ? ca.toInt() : null,
+      lastActivityAt: _finiteInt(laa),
+      createdAt: _finiteInt(ca),
       workspace: wsLabel is String && wsLabel.isNotEmpty
           ? wsLabel
           : SessionStateExtractor.workspaceBasenameOf(
@@ -1232,25 +1320,21 @@ abstract final class TaskIndexExtractor {
       return null;
     }
 
-    int intFromMaps(String key) {
+    int countFromMaps(String key) {
       for (final source in containers) {
         final value = source[key];
-        if (value is num) return value.toInt();
+        if (_hasPendingCount(value)) return _pendingCount(value);
       }
       return 0;
     }
 
     final pendingSummary = firstMap('pendingInteractionSummary');
     final permissionCount = pendingSummary == null
-        ? intFromMaps('permissionCount')
-        : ((pendingSummary['permissionCount'] is num)
-              ? (pendingSummary['permissionCount'] as num).toInt()
-              : 0);
+        ? countFromMaps('permissionCount')
+        : _pendingCount(pendingSummary['permissionCount']);
     final userInputCount = pendingSummary == null
-        ? intFromMaps('userInputCount')
-        : ((pendingSummary['userInputCount'] is num)
-              ? (pendingSummary['userInputCount'] as num).toInt()
-              : 0);
+        ? countFromMaps('userInputCount')
+        : _pendingCount(pendingSummary['userInputCount']);
 
     final pending = firstMap('pendingInteraction');
     final interactionKind = pending != null && pending['kind'] is String
@@ -1286,18 +1370,15 @@ abstract final class TaskIndexExtractor {
 
     int? lastActivityAt;
     if (activity is Map) {
-      final v = activity['lastActivityAt'];
-      if (v is num) lastActivityAt = v.toInt();
+      lastActivityAt = _finiteInt(activity['lastActivityAt']);
     }
     if (lastActivityAt == null && meta is Map) {
-      final v = meta['updatedAt'];
-      if (v is num) lastActivityAt = v.toInt();
+      lastActivityAt = _finiteInt(meta['updatedAt']);
     }
 
     int? createdAt;
     if (meta is Map) {
-      final v = meta['createdAt'];
-      if (v is num) createdAt = v.toInt();
+      createdAt = _finiteInt(meta['createdAt']);
     }
 
     String? phase;
@@ -1326,6 +1407,16 @@ abstract final class TaskIndexExtractor {
       }
     }
 
+    // 任务行是否真的表达了 pending 状态（R-19）：summary 对象存在，或容器里
+    // 任一扁平计数字段是合法非负 int，即算权威（负数/小数视为缺席）；两者都
+    // 缺时计数 0 只是缺省值，StateDiffer 会沿用基线而不是当成"已解决"。
+    bool hasFlatCount(String key) =>
+        containers.any((source) => _hasPendingCount(source[key]));
+    final hasPendingSummary =
+        pendingSummary != null ||
+        hasFlatCount('permissionCount') ||
+        hasFlatCount('userInputCount');
+
     return SessionState(
       sessionId: taskId,
       title: title,
@@ -1334,6 +1425,7 @@ abstract final class TaskIndexExtractor {
       sessionEnded: sessionEnded,
       permissionCount: permissionCount,
       userInputCount: userInputCount,
+      hasPendingSummary: hasPendingSummary,
       interactionKind: interactionKind,
       toolName: toolName,
       description: description,
@@ -1356,6 +1448,10 @@ abstract final class TaskIndexExtractor {
 class StateDiffer {
   StateDiffer();
 
+  /// 基线条目上限（安全审计 S-1，与 `SessionIndexNotifier` 的单设备上限
+  /// 同量级）：超限按插入序淘汰最旧的条目。
+  static const int maxPrevEntries = 10000;
+
   final Map<String, SessionState> _prev = {};
 
   List<ObservedEvent> apply(
@@ -1376,16 +1472,33 @@ class StateDiffer {
     // session mirror. Collapse those copies before diffing; otherwise the
     // same non-current session can produce an event and immediately overwrite
     // its baseline with a second representation.
+    //
+    // 同一投递内的重复副本描述同一时刻，分歧只能是形状差异而非新鲜度
+    // （R-19）：缺 pendingInteractionSummary 的扁平行不能覆盖带 summary 的
+    // 镜像——否则计数被 0 覆盖后立刻产生假 resolved，把仍在等待的红点清掉。
     final latestById = <String, SessionState>{};
     for (final next in incoming) {
+      final kept = latestById[next.sessionId];
+      if (kept != null && kept.hasPendingSummary && !next.hasPendingSummary) {
+        continue;
+      }
       latestById[next.sessionId] = next;
     }
-    for (final next in latestById.values) {
-      final prev = _prev[next.sessionId];
+    for (final candidate in latestById.values) {
+      final prev = _prev[candidate.sessionId];
+      // 跨投递同理（R-19）：任务索引刷新只发扁平行时，基线里的 1 不能被
+      // 缺省 0 覆盖成"已解决"。沿用基线计数并标记权威，避免下一条真正
+      // 带 summary 的同计数行被当成新转移重复发请求。
+      final next =
+          prev != null && prev.hasPendingSummary && !candidate.hasPendingSummary
+          ? candidate.inheritPendingFrom(prev)
+          : candidate;
       _prev[next.sessionId] = next;
 
       final prevPerm = prev?.permissionCount ?? 0;
       final prevInput = prev?.userInputCount ?? 0;
+      // 权威剩余量：观察面按任务聚合的总计数（无请求级 id，R-19 降级口径）。
+      final pendingTotal = next.permissionCount + next.userInputCount;
 
       if (next.permissionCount > 0 && prevPerm == 0) {
         events.add(
@@ -1394,6 +1507,7 @@ class StateDiffer {
             taskId: next.sessionId,
             sessionTitle: next.title,
             summary: next.description ?? next.preview,
+            pendingTotal: pendingTotal,
           ),
         );
       }
@@ -1404,6 +1518,7 @@ class StateDiffer {
             taskId: next.sessionId,
             sessionTitle: next.title,
             summary: next.description ?? next.preview,
+            pendingTotal: pendingTotal,
           ),
         );
       }
@@ -1415,6 +1530,7 @@ class StateDiffer {
             type: 'resolved',
             taskId: next.sessionId,
             sessionTitle: next.title,
+            pendingTotal: pendingTotal,
           ),
         );
       }
@@ -1459,6 +1575,14 @@ class StateDiffer {
             summary: next.preview ?? next.description ?? prev.preview,
           ),
         );
+      }
+    }
+    // 安全审计 S-1：`_prev` 基线按插入序封顶（Map 保插入序）。被驱逐的
+    // 会话下次出现会重新产生一次边沿事件——这是攻击下的可接受代价，
+    // 换来敌对页面无法用唯一 sessionId 灌爆进程内存。
+    if (_prev.length > maxPrevEntries) {
+      for (final id in _prev.keys.take(_prev.length - maxPrevEntries).toList(growable: false)) {
+        _prev.remove(id);
       }
     }
     return events;
@@ -1561,7 +1685,11 @@ abstract final class NotificationGate {
 ///
 /// 一次投递内的重复由 [EventParser.dedupe] 处理；重连重放、同帧多通道投递
 /// 会让同一条逻辑事件跨消息再次到达，这里用一个**有界 + 带窗口**的表抑制它：
-/// - 窗口内完全相同的 (type, taskId, summary) 只放行一次；
+/// - 窗口内相同的 (type, taskId) 只放行一次；
+/// - 键**不含** summary：敌对页面轮换摘要文本制造不出新键（D-20260916-10）；
+///   同任务的第二笔请求在窗口内不再单独提醒，红点数量仍由观察面的
+///   权威计数（pendingTotal / resolved 字道）保证准确——窗口内计数值
+///   可能滞后到下一条 resolved 才校准，红点在场性不受影响；
 /// - 窗口外允许再次提醒（不压制合法的"新一轮"）；
 /// - 收到 resolved 时清掉该任务的历史键——用户处理完一轮后，
 ///   同一任务的新请求必须照常提醒（N06）。
@@ -1579,8 +1707,10 @@ class EventDedupeGate {
   /// 便于测试注入时钟。
   DateTime Function() clock = DateTime.now;
 
+  /// 键尾保留空 summary 段：resolved 清理用 `\0taskId\0` 标记做包含匹配，
+  /// 键必须以 `\0taskId\0` 结尾才不会被前缀更长的 taskId 误清。
   static String keyOf(ObservedEvent event) =>
-      '${event.type}\u0000${event.taskId ?? ''}\u0000${event.summary ?? ''}';
+      '${event.type}\u0000${event.taskId ?? ''}\u0000';
 
   /// true = 应提醒；false = 窗口内重复，抑制。
   bool allow(ObservedEvent event) {

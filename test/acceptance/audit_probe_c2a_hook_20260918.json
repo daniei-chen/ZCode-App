@@ -1,0 +1,8 @@
+[
+  {"id": "audit-probe-c2a-hook-not-pinned", "file": "lib/ui/official_remote_page.dart",
+   "find": "trusted: subFrameTrusted,",
+   "replace": "trusted: true,",
+   "test_file": "test/subframe_stats_test.dart",
+   "expect_fail": ["__probe__no_test_should_fail__"],
+   "comment": "探针（预期存活）：把 shouldOverrideUrlLoading 的子 frame 受信判定改成恒 true。若没有任何测试失败，说明 C2a 的 WebView 接线（shouldOverrideUrlLoading -> record）无自动化守卫——该条 FAIL 即缺口证据，不代表产品缺陷。"}
+]

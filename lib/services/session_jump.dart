@@ -58,7 +58,9 @@ class JumpOutcome {
     }
     if (decoded is! Map) return null;
     final id = decoded['id'];
-    if (id is! num || id < 0) return null;
+    // 必须 is! int 而非 num：Infinity/NaN 能过 `num` 与 `< 0` 检查，但
+    // `toInt()` 会抛 UnsupportedError 逃出 handler（安全审计 S-4）。
+    if (id is! int || id < 0) return null;
     final ok = decoded['ok'];
     if (ok is! bool) return null;
     final reason = decoded['reason'];
@@ -95,6 +97,17 @@ abstract final class SessionJump {
   /// 主 frame 令牌到位前的报告重试次数与间隔（20 × 150ms = 3s）。
   static const reportRetryMax = 20;
 
+  /// taskId 字符白名单（安全审计 S-8/W-016）：页内 testid 由
+  /// `[0-9A-Za-z_-]` 构成，taskId 最终要进 `querySelector('[data-testid]')`
+  /// 匹配——白名单之外的字符（空格/引号/斜杠）不可能命中合法 testid，
+  /// 只会扩大子串误击面。超长同样拒绝（页面 id 不超过 128）。
+  static bool taskIdWellFormed(String taskId) =>
+      taskId.isNotEmpty &&
+      taskId.length <= 128 &&
+      RegExp(r'^[0-9A-Za-z_-]+$').hasMatch(taskId);
+
+  /// 跳转脚本不做格式裁剪——调用方（_jumpToSession）先用
+  /// [taskIdWellFormed] 把关，不合格直接走 invalid 分支。
   static String jumpScript(String taskId, {String? workspace, int attemptId = 0}) {
     final tidLiteral = jsonEncode(taskId);
     final wsLiteral = workspace == null ? 'null' : jsonEncode(workspace);
@@ -156,7 +169,10 @@ abstract final class SessionJump {
     var els = document.querySelectorAll('[data-testid]');
     for (var i = 0; i < els.length; i++) {
       var t = els[i].getAttribute('data-testid') || '';
-      if (t.indexOf(tid) === -1) continue;
+      // 段匹配收紧（安全审计 S-8/W-016）：只接受 testid 精确等于 tid，
+      // 或官方列表项契约 `task-item-` + tid——任意子串命中会把"查看"
+      // 手势劫持成对页面上任意元素的点击。
+      if (t !== tid && t.indexOf('task-item-' + tid) !== 0) continue;
       if (els[i].getClientRects().length === 0) continue;
       if (!els[i].isConnected) continue;
       els[i].scrollIntoView({block: 'center'});

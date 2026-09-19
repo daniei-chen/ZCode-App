@@ -7,7 +7,10 @@ import '../services/app_log.dart';
 import '../services/device_store.dart';
 import '../services/structured_log.dart';
 import '../services/warmup.dart';
+import 'bridge_health.dart';
+import '../services/device_connectivity.dart';
 import 'observer_stats.dart';
+import 'subframe_stats.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
   DeviceListNotifier({List<RemoteDevice>? seed})
@@ -46,6 +49,8 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
       if (!ref.mounted) return;
       state = result.devices;
       ref.read(deviceStoreUnavailableProvider.notifier).set(result.unavailable);
+      // 完整性计数随加载更新（iter12 W-018b）：诊断面可见，不再只在日志里。
+      ref.read(deviceStoreIntegrityProvider.notifier).report(result);
     });
   }
 
@@ -84,6 +89,12 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     await ref.read(warmupMemoryProvider.notifier).forget(id);
     // 遥测与设备同生命周期（PR20/F18）：设备不在了，诊断页不该还显示它的计数。
     ref.read(observerStatsProvider.notifier).forget(id);
+    // 子 frame 取证计数同生命周期（ADR-002 步骤 1）。
+    ref.read(subFrameStatsProvider.notifier).forget(id);
+    // 桥健康同生命周期（iter7 R-6）：否则诊断包仍带已删设备的 bridge 行。
+    ref.read(bridgeHealthProvider.notifier).forget(id);
+    // 连通性探测结果同生命周期（iter8）。
+    ref.read(deviceConnectivityProvider.notifier).forget(id);
     if (!ref.mounted) return;
     final removedIndex = state.indexWhere((d) => d.id == id);
     final activeIndex = ref.read(activeTabProvider);
@@ -304,4 +315,42 @@ class DeviceStoreUnavailableNotifier extends Notifier<bool> {
 final deviceStoreUnavailableProvider =
     NotifierProvider<DeviceStoreUnavailableNotifier, bool>(
       DeviceStoreUnavailableNotifier.new,
+    );
+
+/// 最近一次设备库加载的完整性结果（iter12 W-018b）。
+///
+/// 之前 [DeviceLoadResult.repaired]/[skippedRecords] 只进 AppLog、不进任何
+/// 状态面——诊断页/诊断包看不到"存储发生过隔离/修复"，故障只剩日志里一条
+/// 短 reason。这里把最近一次加载的结果挂到 provider：只含**数字与布尔**，
+/// 符合诊断红线；null 表示本轮启动尚未加载过。
+class DeviceStoreIntegrity {
+  const DeviceStoreIntegrity({
+    required this.skippedRecords,
+    required this.repaired,
+  });
+
+  /// 被隔离（解析失败/键值 id 不符）的记录数。
+  final int skippedRecords;
+
+  /// 本次加载是否触发过索引修复/重建。
+  final bool repaired;
+}
+
+class DeviceStoreIntegrityNotifier extends Notifier<DeviceStoreIntegrity?> {
+  @override
+  DeviceStoreIntegrity? build() => null;
+
+  void report(DeviceLoadResult result) {
+    state = DeviceStoreIntegrity(
+      skippedRecords: result.skippedRecords,
+      repaired: result.repaired,
+    );
+  }
+
+  void clear() => state = null;
+}
+
+final deviceStoreIntegrityProvider =
+    NotifierProvider<DeviceStoreIntegrityNotifier, DeviceStoreIntegrity?>(
+      DeviceStoreIntegrityNotifier.new,
     );

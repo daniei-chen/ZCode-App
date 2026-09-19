@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/app_log.dart';
+import '../services/device_connectivity.dart';
 import '../services/device_store.dart';
 import '../services/notifier.dart';
 import '../services/structured_log.dart';
@@ -11,10 +12,11 @@ import 'active_session.dart';
 import 'bridge_health.dart';
 import 'event_feed.dart';
 import 'observer_stats.dart';
-import 'root_tabs.dart';
+import 'pending_session_jump.dart';
 import 'session_index.dart';
 import 'session_pool.dart';
 import 'session_status.dart';
+import 'subframe_stats.dart';
 
 /// 受保护状态擦除事务（R-04，失败语义按 R-17 / b4 复审修正）。
 ///
@@ -47,9 +49,12 @@ abstract final class ProtectedStateWipe {
     'sessionStatusProvider',
     'eventFeedProvider',
     'observerStatsProvider',
+    'subFrameStatsProvider',
     'bridgeHealthProvider',
     'warmupMemoryProvider',
     'pendingSessionJumpProvider',
+    'deviceConnectivityProvider',
+    'deviceStoreIntegrityProvider',
   ];
 
   /// 执行擦除并返回逐项结果；**不抛异常**（失败在返回值里）。
@@ -69,9 +74,14 @@ abstract final class ProtectedStateWipe {
       container.read(sessionStatusProvider.notifier).clearAll();
       container.read(eventFeedProvider.notifier).clearAll();
       container.read(observerStatsProvider.notifier).clear();
+      container.read(subFrameStatsProvider.notifier).clear();
       container.read(bridgeHealthProvider.notifier).clear();
       container.read(pendingSessionJumpProvider.notifier).clear();
       container.read(warmupMemoryProvider.notifier).clearAll();
+      container.read(deviceConnectivityProvider.notifier).clear();
+      // 设备库完整性计数同生命周期（iter12 复核 P3）：擦除后不带上一轮的
+      // repaired/隔离计数。
+      container.read(deviceStoreIntegrityProvider.notifier).clear();
       container.read(activeTabProvider.notifier).reset();
       providersOk = true;
     } catch (_) {

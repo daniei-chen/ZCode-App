@@ -68,7 +68,9 @@ class NotificationSpec {
     AppLocalizations l10n,
   ) {
     final title = _clean(sessionTitle);
-    return title.isNotEmpty ? title : device.displayName(l10n);
+    // 标题与正文（180）同上限：会话标题来自页面数据，无界标题会原样走进
+    // 系统通知通道、DeviceFeed 与 UI（安全审计 S-7）。
+    return title.isNotEmpty ? _clip(title, 120) : device.displayName(l10n);
   }
 
   /// 正文优先使用事件/会话恢复出来的内容；老版本桌面端没有附带摘要时，
@@ -275,7 +277,21 @@ class NotifierService {
   }) async {
     // Both in-app and outside-app alerts intentionally use the Android system
     // default notification sound. Custom sound choices are not stored.
-    final spec = NotificationSpec.from(device, event, l10n);
+    NotificationSpec? spec;
+    try {
+      // NotificationSpec.from 会在兜底路径取本地化文案（l10nZh）——本地化未
+      // 就绪或脏 summary 都可能抛错。notifyFrom 走 unawaited 调用链，抛出去
+      // 就是 unhandled zone error，必须受捕（D-20260916-15）。构造与 show
+      // 分开留痕：reason=spec / reason=show，triage 不被带偏（iter1 复审 F-2）。
+      spec = NotificationSpec.from(device, event, l10n);
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.notificationShowFailed,
+        e,
+        fields: {LogField.reason: 'spec'},
+      );
+      return;
+    }
     if (spec == null) return;
     try {
       await ensurePermission();

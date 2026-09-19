@@ -1,0 +1,22 @@
+[
+  {"id": "audit-v2-c2a-category-count-swap", "file": "lib/state/subframe_stats.dart",
+   "find": "cancelled: prev.cancelled + (trusted ? 0 : 1),",
+   "replace": "cancelled: prev.cancelled + (trusted ? 1 : 0),",
+   "test_file": "test/subframe_stats_test.dart",
+   "expect_fail": ["按类别累加"], "only": false},
+  {"id": "audit-v2-c2a-merge-total-zeroed", "file": "lib/state/subframe_stats.dart",
+   "find": "'subFrameTotal': subFrames[key]!.total,",
+   "replace": "'subFrameTotal': 0,",
+   "test_file": "test/subframe_stats_test.dart",
+   "expect_fail": ["subFrame 三键叠加"], "only": false},
+  {"id": "audit-v2-b1-add-serialization-bypass", "file": "lib/services/device_store.dart",
+   "find": "Future<void> add(RemoteDevice device) => _serialized(() async {",
+   "replace": "Future<void> add(RemoteDevice device) => Future<void>(() async {",
+   "test_file": "test/device_store_chaos_test.dart",
+   "expect_fail": ["并发 add 全部保留"], "only": false},
+  {"id": "audit-v2-c3-rejection-scheme-dropped", "file": "lib/services/outbound_url_policy.dart",
+   "find": "if (uri.scheme.toLowerCase() != 'https') return 'scheme_not_https';",
+   "replace": "if (uri.scheme.isEmpty) return 'scheme_not_https';",
+   "test_file": "test/outbound_url_policy_test.dart",
+   "expect_fail": ["非 https"], "only": false}
+]

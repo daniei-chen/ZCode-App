@@ -14,6 +14,7 @@ import 'package:zremote/state/protected_wipe.dart';
 import 'package:zremote/state/session_index.dart';
 import 'package:zremote/state/session_pool.dart';
 import 'package:zremote/state/session_status.dart';
+import 'package:zremote/state/subframe_stats.dart';
 
 /// R-04 擦除事务：审计复现是"clearAll 只清磁盘，Provider 仍持 CANARY 凭证"。
 /// 这里把修复后的行为固化成回归：擦除完成后，内存与磁盘都不得再出现该凭证。
@@ -88,6 +89,8 @@ void main() {
         {'u': '/api/panel/list', 'm': 'GET'},
       ]),
     );
+    // 预置子 frame 取证计数（iter1 复审 F-4）：擦除后必须一并清零。
+    container.read(subFrameStatsProvider.notifier).record('audit-device', trusted: true);
 
     expect(container.read(deviceListProvider), hasLength(1));
 
@@ -100,6 +103,7 @@ void main() {
     expect(container.read(sessionIndexProvider), isEmpty);
     expect(container.read(eventFeedProvider), isEmpty);
     expect(container.read(warmupMemoryProvider), isEmpty);
+    expect(container.read(subFrameStatsProvider), isEmpty);
 
     // 磁盘：设备记录、索引、warmup 脚本都不在了。
     expect(backing.containsKey('zremote.device.audit-device'), isFalse);
@@ -128,7 +132,13 @@ void main() {
         'sessionStatusProvider',
         'eventFeedProvider',
         'warmupMemoryProvider',
+        'subFrameStatsProvider',
       ]),
     );
+    // 键格式兜底检查；"清单 ⊆ 实际 clear()"由上方主用例的
+    // 预置→擦除→断言空路径保证（iter1 复审 N-2）。
+    for (final name in ProtectedStateWipe.coveredProviders) {
+      expect(name, isNot(contains(' ')));
+    }
   });
 }

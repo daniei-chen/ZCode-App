@@ -29,12 +29,9 @@ class BridgeHealthNotifier extends Notifier<Map<String, BridgeHealth>> {
   void report(String deviceId, int generation, {required bool ready}) {
     if (deviceId.isEmpty) return;
     final current = state[deviceId];
-    // 旧 generation 的迟到状态不得覆盖新代。
-    if (current != null &&
-        current.generation > generation &&
-        current.ready == ready) {
-      return;
-    }
+    // 旧 generation 的迟到状态不得覆盖新代（iter12 W-021：原先这里有两个
+    // 相邻 if，第一个被第二个完全包含——任何 generation 更旧的状态一律
+    // 丢弃，与 ready 是否一致无关）。
     if (current != null && current.generation > generation) return;
     state = {
       ...state,

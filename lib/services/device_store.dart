@@ -45,6 +45,19 @@ class DeviceStoreUnavailableException implements Exception {
   String toString() => 'DeviceStoreUnavailableException($cause)';
 }
 
+/// 写入命令被擦除事务作废时抛出（iter7 R-5/W-020）：作废的命令**不得**以
+/// "成功"完成——调用方若把未持久化的状态发布给 UI，重启后会消失。
+/// 调用方均已兜底（iter10 N-3 修订为如实清单）：manage_page 五处写操作
+/// try/catch + reorder catchError；setWarmupScript 走 warmup 定时器与
+/// forget 的 try（superseded 降级为 info）；clearAll 走豁免通道
+/// （supersedeable: false）。
+class DeviceStoreSuperseded implements Exception {
+  const DeviceStoreSuperseded();
+
+  @override
+  String toString() => 'DeviceStoreSupersedException';
+}
+
 class DeviceStore {
   DeviceStore._();
 
@@ -113,12 +126,23 @@ class DeviceStore {
         );
         if (device.id != id) {
           skipped++;
+          // 键≠内容 id 是比解析失败更强的损坏/篡改信号，同样留痕（iter7 N-4）。
+          AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {
+            LogField.reason: 'id_mismatch',
+            LogField.device: LogRedactor.shortId(id),
+          });
           continue;
         }
         records[id] = device;
         ordered.add(id);
       } catch (_) {
         skipped++;
+        // 隔离留痕（iter7 R-3）：损坏记录被隔离时用户视角是"设备消失"，
+        // 必须在日志有迹可循。只记事件与计数，绝不记记录内容。
+        AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {
+          LogField.reason: 'record_quarantined',
+          LogField.device: LogRedactor.shortId(id),
+        });
       }
     }
     if (ordered.length != indexIds.length) repaired = true;
@@ -166,12 +190,20 @@ class DeviceStore {
           );
           if (device.id != id) {
             skipped++;
+            AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {
+              LogField.reason: 'id_mismatch',
+              LogField.device: LogRedactor.shortId(id),
+            });
             continue;
           }
           orphans.add(device);
           seen.add(id);
         } catch (_) {
           skipped++;
+          AppLog.event(LogEvent.deviceRecordSkipped, level: LogLevel.warn, fields: {
+            LogField.reason: 'orphan_quarantined',
+            LogField.device: LogRedactor.shortId(id),
+          });
         }
       }
       if (orphans.isNotEmpty) {
@@ -184,6 +216,21 @@ class DeviceStore {
           ordered.add(device.id);
         }
         repaired = true;
+      }
+    }
+
+    // 孤儿 warmup 清扫（iter7 R-4/W-019）：remove 不作废 3 秒防抖写入，
+    // 已删设备的请求签名可能残留安全存储——加载时按索引收敛删除。
+    if (snapshot != null) {
+      final liveWarmupKeys = {
+        for (final id in records.keys) _warmupKeyPrefix + id,
+      };
+      for (final key in snapshot.keys) {
+        if (!key.startsWith(_warmupKeyPrefix)) continue;
+        if (liveWarmupKeys.contains(key)) continue;
+        try {
+          await _secure.delete(key: key);
+        } catch (_) {}
       }
     }
 
@@ -220,10 +267,17 @@ class DeviceStore {
   /// 不受影响。
   int _epoch = 0;
 
-  Future<void> _serialized(Future<void> Function() action) {
+  Future<void> _serialized(
+    Future<void> Function() action, {
+    bool supersedeable = true,
+  }) {
     final epochAtEnqueue = _epoch;
     final result = _writeQueue.then((_) async {
-      if (epochAtEnqueue != _epoch) return; // 已被擦除事务作废
+      // supersedeable=false 供 clearAll 自身使用：它的作废语义由 action 内层
+      // 代际检查表达；否则双 clearAll 并发时先到的一枚会被误报为失败（iter10 F-3）。
+      if (supersedeable && epochAtEnqueue != _epoch) {
+        throw const DeviceStoreSuperseded();
+      }
       await action();
     });
     _writeQueue = result.then<void>((_) {}, onError: (_) {});
@@ -362,8 +416,9 @@ class DeviceStore {
       approval: prefs.getBool(_notifApprovalKey) ?? true,
       complete: prefs.getBool(_notifCompleteKey) ?? true,
       fail: prefs.getBool(_notifFailKey) ?? true,
-      alertMode:
-          prefs.getString(_notifAlertKey) ?? NotificationPrefs.kAlertSound,
+      alertMode: NotificationPrefs.normalizeAlertMode(
+        prefs.getString(_notifAlertKey),
+      ),
     );
   }
 
@@ -380,7 +435,8 @@ class DeviceStore {
   /// 启动进入页：'lastDevice'（默认，恢复最近设备）或 'launcher'（设备中心）。
   Future<String> startupTarget() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_startupTargetKey) ?? 'lastDevice';
+    final value = prefs.getString(_startupTargetKey);
+    return value == 'launcher' ? 'launcher' : 'lastDevice';
   }
 
   Future<void> setStartupTarget(String value) async {
@@ -438,7 +494,7 @@ class DeviceStore {
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_lastDeviceKey);
-    });
+    }, supersedeable: false);
     return cleared;
   }
 }

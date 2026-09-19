@@ -106,7 +106,10 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
 
   /// 接收页面钩子录到的请求签名（zrSeen 通道）。
   void ingestSeen(String deviceId, String body) {
-    if (body.isEmpty || body.length > 256 * 1024) return;
+    if (body.isEmpty) return;
+    // 按 UTF-8 字节计（iter7 R-9）：UTF-16 length 会放行 CJK 密集载荷 2-3 倍，
+    // 与 "256 KiB" 契约不符（与 BridgeSchema.acceptString 同口径）。
+    if (utf8.encode(body).length > 256 * 1024) return;
     List<dynamic> raw;
     try {
       raw = jsonDecode(body) as List<dynamic>;
@@ -142,6 +145,14 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
     try {
       await DeviceStore.instance.setWarmupScript(deviceId, null);
     } catch (e) {
+      if (e is DeviceStoreSuperseded) {
+        // 被擦除作废是预期行为（iter10 F-4）：记 info 留痕即可，不是失败。
+        AppLog.event(
+          LogEvent.warmupPersistFailed,
+          fields: {LogField.reason: 'superseded_by_wipe'},
+        );
+        return;
+      }
       // 内存态已清除；安全存储删除失败只影响持久化残留，不阻塞调用方。
       AppLog.failure(
         LogEvent.warmupPersistFailed,
@@ -182,6 +193,11 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
         uri.path.startsWith('//')) {
       return false;
     }
+    // query/fragment 不收录（iter12 N-P3-2）：query 会随 URL 原样进安全
+    // 存储并被重放，语义上超出"只读资源路径"的建档范围（搜索词、分页
+    // 参数等用户输入都在这里）。损失部分面板资源的预热覆盖，换取建档
+    // 面与项目"只存路径不存内容"的红线一致。
+    if (uri.query.isNotEmpty || uri.fragment.isNotEmpty) return false;
 
     // 只收录路径中包含明确面板资源段的只读资源；settings/config 以及
     // 其他模糊命中故意不在名单内，避免把配置接口误认为读取接口。
@@ -200,6 +216,15 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
         final json = jsonEncode([for (final r in list) r.toJson()]);
         await DeviceStore.instance.setWarmupScript(deviceId, json);
       } catch (e) {
+        if (e is DeviceStoreSuperseded) {
+          // 被擦除作废是预期行为（iter10 N-1，与 forget 的 catch 同口径）：
+          // 记 info 留痕即可，不是持久化失败。
+          AppLog.event(
+            LogEvent.warmupPersistFailed,
+            fields: {LogField.reason: 'superseded_by_wipe'},
+          );
+          return;
+        }
         AppLog.failure(
           LogEvent.warmupPersistFailed,
           e,

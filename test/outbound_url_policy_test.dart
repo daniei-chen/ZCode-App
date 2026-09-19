@@ -26,6 +26,16 @@ void main() {
         'scheme_not_https',
       );
       expect(OutboundUrlPolicy.isAllowed(Uri.parse('ftp://github.com/x')), isFalse);
+      // 显式 :443 的明文 scheme 不得因端口检查通过而蒙混（iter7 独立验收：
+      // 删掉 scheme 检查时既有用例全绿——端口恰好掩盖了协议）。
+      expect(
+        OutboundUrlPolicy.isAllowed(Uri.parse('http://github.com:443/x')),
+        isFalse,
+      );
+      expect(
+        OutboundUrlPolicy.rejectionReason(Uri.parse('http://github.com:443/x')),
+        'scheme_not_https',
+      );
     });
 
     test('白名单之外的 host（含相似域与子域）', () {

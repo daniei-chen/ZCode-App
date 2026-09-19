@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,9 +12,11 @@ import '../state/notification_prefs.dart';
 import '../state/session_index.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
+import 'app_log.dart';
 import 'bridge_message_pipeline.dart';
 import 'event_observer.dart';
 import 'notifier.dart';
+import 'structured_log.dart';
 import 'warmup.dart';
 
 /// Keeps the official WebView as the source of truth while feeding the
@@ -43,6 +44,32 @@ class WebViewSyncController {
     final root = BridgeMessagePipeline.decode(body);
     if (root == null) return;
 
+    try {
+      _ingestRoot(root, context);
+    } catch (e) {
+      // 观察面数据来自页面内容。提取层已对数值做有限性/值域过滤，这里是
+      // 最后一道兜底：任何未预见的解析/差分异常只丢本帧并留痕，不让一帧
+      // 脏数据中断此后所有帧的观察（安全复审 P2）。
+      // 节流：持续性故障下每帧都抛会刷穿日志环形缓冲，只记首次与每 50 次
+      // 并附累计数，诊断页仍能定位首因与规模。
+      _ingestDrops++;
+      if (_ingestDrops == 1 || _ingestDrops % 50 == 0) {
+        AppLog.failure(
+          LogEvent.bridgeMessageDropped,
+          e,
+          fields: {
+            LogField.reason: 'ingest_exception',
+            LogField.count: _ingestDrops,
+          },
+        );
+      }
+    }
+  }
+
+  /// 兜底丢帧累计（见 [ingestMessage] 的节流说明）。
+  int _ingestDrops = 0;
+
+  void _ingestRoot(dynamic root, BuildContext context) {
     final frameStatus = RelayLedPolicy.onFrameRoot(root);
     if (frameStatus != null) {
       ref.read(sessionStatusProvider.notifier).report(device.id, frameStatus);
@@ -117,7 +144,10 @@ class WebViewSyncController {
       );
       if (enriched.type == 'resolved') {
         final taskId = enriched.taskId;
-        if (taskId != null) {
+        // R-19：resolved 只证明"有一项解决了"。该任务还有剩余交互
+        // （计数>0）时保留系统通知——撤掉可能撤的是没解决那条的提醒。
+        // 缺计数按未知处理，维持旧行为（撤回）。
+        if (taskId != null && (enriched.pendingTotal ?? 0) <= 0) {
           NotifierService.instance.cancelPending(device, taskId);
         }
         feed.ingest(device.id, enriched);
@@ -158,7 +188,9 @@ class WebViewSyncController {
 
   void ingestWebSocketEvent(String body) {
     try {
-      final event = jsonDecode(body);
+      // 共享管线 decode（安全审计 S-2/N-1）：zrWs 与 zrEvents 同为 4 MiB
+      // 预算，深度炸弹必须走同一道预扫，不能留下裸 jsonDecode 通道。
+      final event = BridgeMessagePipeline.decode(body);
       if (event is Map<String, dynamic>) {
         final status = RelayLedPolicy.onWsEvent(event);
         if (status != null) {

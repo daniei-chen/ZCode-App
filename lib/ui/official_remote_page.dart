@@ -13,15 +13,18 @@ import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../services/in_page_back.dart';
 import '../services/link_builder.dart';
+import '../services/page_refresh_policy.dart';
 import '../services/session_jump.dart';
 import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
 import '../state/bridge_health.dart';
 import '../state/observer_stats.dart';
-import '../state/root_tabs.dart';
+import '../state/pending_session_jump.dart';
 import '../state/session_index.dart';
+import '../state/session_pool.dart';
 import '../state/session_status.dart';
+import '../state/subframe_stats.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
 import '../services/app_log.dart';
@@ -65,6 +68,7 @@ bool shouldCoverOfficialPage({
 class OfficialRemotePageController {
   Future<bool> Function()? _backHandler;
   Future<bool> Function()? _layoutProbe;
+  void Function(bool covered)? _coverObserver;
   bool _covered = false;
 
   void attach(Future<bool> Function() handler) {
@@ -77,9 +81,19 @@ class OfficialRemotePageController {
     _layoutProbe = probe;
   }
 
-  /// 外壳告知当前是否被设备页/启动器遮盖（主题变更的整页重载据此选择时机）。
+  /// 由页面挂上"遮盖状态变化"回调（重新可见且过期时静默刷新，见
+  /// `PageRefreshPolicy`）。只在**变化**时回调：外壳 build 里的幂等
+  /// `setCovered(同值)` 不触发。
+  void attachCoverObserver(void Function(bool covered) observer) {
+    _coverObserver = observer;
+  }
+
+  /// 外壳告知当前是否被设备页/启动器遮盖（主题变更的整页重载据此选择时机；
+  /// 页面据此记录"不可见起点"）。
   void setCovered(bool covered) {
+    if (_covered == covered) return;
     _covered = covered;
+    _coverObserver?.call(covered);
   }
 
   bool get covered => _covered;
@@ -87,6 +101,7 @@ class OfficialRemotePageController {
   void detach() {
     _backHandler = null;
     _layoutProbe = null;
+    _coverObserver = null;
   }
 
   Future<bool> handleBack() async {
@@ -637,12 +652,21 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   InAppWebViewController? _controller;
   bool _failed = false;
   bool _loading = true;
+  // 静默刷新（用户反馈"打开页面半天都是缓存"）：页面常驻 IndexedStack，
+  // 记录"不可见起点"，重新可见时由 [PageRefreshPolicy] 判定是否重载。
+  DateTime? _hiddenSince;
   // 品牌启动覆盖层（用户口径：首次加载用应用图标页盖住官方页的
   // "正在配对工作区 / 加载工作区中"，不露出 web 的启动过程）。
   // onLoadStop 只代表文档就绪，工作区 UI 还在挂载——用探针确认真实内容
   // （任务列表/输入区出现）才揭盖；超时兜底防止离线时永久遮盖。
   bool _bootCover = true;
   Timer? _pageStateTimer;
+
+  /// 盖板纪元：每次揭盖（[_disarmCoverWatch]）或重挂（[_armBootCover]）都
+  /// 递增（iter12 复核 P2）。在途探针按发起时的纪元作废——否则 deadline
+  /// 揭盖后返回的陈旧探针可以把盖板重新盖上，而计时器已停，无人再揭
+  /// （弱网/离线场景下的永久品牌盖）；同理堵住同 generation 重挂后被
+  /// 陈旧探针立即揭盖的窗口。
   // R-16：盖板 deadline 使用独立 wall-clock 计时器（不依赖 DOM 探针成功），
   // 到点必揭盖并只记一次事件；探针在途锁防止 800ms 节拍叠加调用。
   Timer? _coverDeadlineTimer;
@@ -650,6 +674,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   bool _coverTimeoutLogged = false;
   // 被顶号日志只报一次（800ms 节拍会反复命中同一状态）。
   bool _takeoverLogged = false;
+
+  int _coverEpoch = 0;
   // 黑屏守卫（用户上报：升级后首启 WebView 可能长时间黑屏，滑返回才恢复）。
   // 首次加载 20s 内没有 onLoadStop，或 stop 后页面持续空白，就静默 reload
   // 一次；只自动重试一次，之后交给错误卡与手动重试。
@@ -705,6 +731,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   Future<bool> _injectBridgeToken({bool log = true}) async {
     final token = _bridgeToken;
     if (token.isEmpty) return false;
+    // 单点守卫（安全审计 S-5/N-2）：无论调用方是 load 事件、返回手势退避
+    // 循环还是初始化路径，都不向非受信主文档注入 frame-origin 证明。POST
+    // 主框架导航不经 shouldOverrideUrlLoading，敌对文档可能正在驻留。
+    if (!LinkBuilder.isTrustedRemotePage(await _controller?.getUrl())) {
+      return false;
+    }
     for (var attempt = 0; BridgeTokenPolicy.shouldRetry(attempt); attempt++) {
       if (attempt > 0) {
         await Future<void>.delayed(BridgeTokenPolicy.delayFor(attempt));
@@ -781,6 +813,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     WidgetsBinding.instance.addObserver(this);
     widget.backController?.attach(_handleBack);
     widget.backController?.attachLayoutProbe(_probeCombinedLayout);
+    widget.backController?.attachCoverObserver(_onCoverChanged);
+    // 回放当前遮盖状态：控制器可能在页面挂载前就已 setCovered（冷启动
+    // 落在启动器，iter6 F-2），那次变化没有观察者接收。
+    if (widget.backController?.covered ?? false) _onCoverChanged(true);
     _rotateBridgeToken();
     _armFirstLoadWatchdog();
   }
@@ -828,9 +864,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _coverDeadlineTimer?.cancel();
     _coverDeadlineTimer = null;
     _coverTimeoutLogged = false;
+    // 顶号日志节流同样按"新一轮加载"重置（iter12 N-P1-1）：它此前只在置位
+    // 处出现，跨 generation/换凭证不重置——同一台设备第二次被顶号时
+    // webviewTakeoverDetected 不再落日志，排障第一现场凭空消失。
+    _takeoverLogged = false;
     // initState 路径下字段初始就是 true，避免"构造期 setState"；只有
     // reload/重建路径（盖板已被揭开过）才需要重新挂上。
     if (!_bootCover) setState(() => _bootCover = true);
+    _coverEpoch++;
     _startPageStateWatch();
   }
 
@@ -866,15 +907,30 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         );
       }
       setState(() => _bootCover = false);
+      _disarmCoverWatch();
     });
     unawaited(_syncCoverWithPage());
+  }
+
+  /// 揭盖后停掉跟随与 deadline 计时器（iter12 N-P2-1）：页面在 IndexedStack
+  /// 里永不销毁，800ms 周期探针若一直空转，N 台设备 = N 个后台定时器，App
+  /// 退后台也不停。揭盖即停，重新挂盖时由 [_armBootCover] 经 `??=` 重建。
+  void _disarmCoverWatch() {
+    _coverEpoch++;
+    _pageStateTimer?.cancel();
+    _pageStateTimer = null;
+    _coverDeadlineTimer?.cancel();
+    _coverDeadlineTimer = null;
   }
 
   Future<void> _syncCoverWithPage() async {
     if (!mounted) return;
     final controller = _controller;
     if (controller == null || _failed) {
-      if (_bootCover && _failed) setState(() => _bootCover = false);
+      if (_bootCover && _failed) {
+        setState(() => _bootCover = false);
+        _disarmCoverWatch();
+      }
       return;
     }
     if (!_bootCover) return;
@@ -882,6 +938,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (_coverProbeInFlight) return;
     _coverProbeInFlight = true;
     final generationAtProbe = _webviewGeneration;
+    final epochAtProbe = _coverEpoch;
     late bool showCover;
     try {
       final result = await controller.evaluateJavascript(
@@ -929,8 +986,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     if (!mounted) return;
     // R-16：探针期间页面已换代 → 丢弃这次陈旧结果。
     if (generationAtProbe != _webviewGeneration) return;
+    // iter12 复核 P2：探针期间盖板已揭/重挂（纪元变化）→ 同样丢弃，
+    // 陈旧探针不得逆转揭盖决定，也不得抢在重挂前揭盖。
+    if (epochAtProbe != _coverEpoch) return;
     if (showCover != _bootCover) {
       setState(() => _bootCover = showCover);
+      if (!showCover) _disarmCoverWatch();
     }
   }
 
@@ -964,6 +1025,68 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _firstLoadSettled = false;
     _armFirstLoadWatchdog();
     await _controller?.reload();
+  }
+
+  /// 页面重新可见（解除盖板 / App 回前台 / 切到本设备）时的静默刷新：
+  /// 不可见超过 `PageRefreshPolicy.staleAfter` 且本页是当前设备页、没有
+  /// 加载/错误在途，就走既有 `_reload()` 全新加载——用户看到的是既有的
+  /// 加载盖板，而不是几小时前的缓存画面。
+  void _onCoverChanged(bool covered) {
+    if (covered) {
+      _hiddenSince ??= DateTime.now();
+      return;
+    }
+    // 外壳可能在 build 里幂等回调：刷新动作推到帧后，避免 build 期间 setState。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeSilentRefresh();
+    });
+  }
+
+  void _maybeSilentRefresh() {
+    if (!mounted) return;
+    // 仍被盖住：还不是"可见"（iter6 复核 F-8）。launcher 覆盖下的 resume
+    // 在这里早退，保留不可见起点，等真正揭开时再判定——否则用户停在设备
+    // 中心时每次解锁都会后台整页重载当前设备。
+    if (widget.backController?.covered ?? false) return;
+    final devices = ref.read(deviceListProvider);
+    final myIndex = devices.indexWhere((d) => d.id == widget.device.id);
+    final isCurrent = myIndex >= 0 && ref.read(activeTabProvider) == myIndex;
+    final hiddenSince = _hiddenSince;
+    final hiddenFor = hiddenSince == null
+        ? null
+        : DateTime.now().difference(hiddenSince);
+    final shouldRefresh = PageRefreshPolicy.shouldRefreshOnVisible(
+      hiddenFor: hiddenFor,
+      isCurrentDevice: isCurrent,
+      loadInFlight: _loading || _rendererGone,
+      failed: _failed,
+    );
+    // 非当前设备页：**有意保留**不可见起点（不清空），等真正切到它再判定；
+    // 其余不满足时清空——在途加载完成后没有再触发点，保旧时间戳反而会让
+    // 下次揭盖算出虚假的"长时间不可见"而刚加载完又被无谓重载。
+    if (!isCurrent) return;
+    _hiddenSince = null;
+    if (!shouldRefresh) return;
+    // release 可见：静默刷新代表"用户回来看到的是重载"，field 排查需要它。
+    AppLog.event(LogEvent.webviewSilentReload, level: LogLevel.warn, fields: {
+      LogField.device: widget.device.id,
+      LogField.generation: _webviewGeneration,
+      LogField.reason: 'stale_on_visible',
+    });
+    unawaited(_reload());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 页面常驻 IndexedStack：切后台不销毁，回来就是旧画面。记录不可见起点，
+    // resumed 时统一交给 [PageRefreshPolicy] 判定（仍被盖住时不抢跑）。
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _hiddenSince ??= DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _maybeSilentRefresh();
+      });
+    }
   }
 
   /// onLoadStop 后复核首帧：Chromium 可能已 stop 但页面持续空白。静默刷新
@@ -1039,6 +1162,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       oldWidget.backController?.detach();
       widget.backController?.attach(_handleBack);
       widget.backController?.attachLayoutProbe(_probeCombinedLayout);
+      widget.backController?.attachCoverObserver(_onCoverChanged);
+      if (widget.backController?.covered ?? false) _onCoverChanged(true);
     }
     if (oldWidget.device.id != widget.device.id ||
         oldWidget.device.baseUrl != widget.device.baseUrl ||
@@ -1064,6 +1189,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         ),
       );
       ref.read(observerStatsProvider.notifier).forget(oldWidget.device.id);
+      ref.read(subFrameStatsProvider.notifier).forget(oldWidget.device.id);
       setState(() {
         _webviewGeneration++;
         _failed = false;
@@ -1307,6 +1433,20 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _pendingSessionId = sessionId;
       return;
     }
+    // taskId 格式白名单（安全审计 S-8/W-016）：畸形 id 不进跳转脚本，
+    // 按既有 invalid 语义短路（直接回执，不设看门狗——看门狗只产生
+    // undelivered；UI 落入默认支显示 sessionJumpNotFound）。
+    if (!SessionJump.taskIdWellFormed(sessionId)) {
+      _onJumpOutcome(
+        JumpOutcome(
+          attemptId: ++_jumpAttempt,
+          ok: false,
+          reason: JumpOutcome.reasonInvalid,
+          taskId: sessionId,
+        ),
+      );
+      return;
+    }
     // Collapsed workspace groups expand only when the jump script knows the
     // workspace label; without it the probe never finds the target session.
     final workspace =
@@ -1417,6 +1557,17 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(themeModeProvider);
+    // 应用内切换设备（通知深链/浮动卡：启动器已隐藏时 covered 不发生变化）：
+    // 切到本设备也算"打开页面"，同样按策略判定静默刷新（iter6 F-3）。
+    ref.listen<int>(activeTabProvider, (_, next) {
+      if (!mounted) return;
+      final devices = ref.read(deviceListProvider);
+      if (devices.indexWhere((d) => d.id == widget.device.id) == next) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _maybeSilentRefresh();
+        });
+      }
+    });
     final dark = themeModeIsDark(
       mode,
       MediaQuery.platformBrightnessOf(context),
@@ -1699,8 +1850,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         ref
                             .read(sessionStatusProvider.notifier)
                             .report(widget.device.id, SessionStatus.loading);
-                        unawaited(_injectBridgeToken());
-                        unawaited(_applyWebTheme(_currentDark(context)));
+                        // 令牌只注入受信主文档（安全审计 S-5）：Android 下
+                        // POST 主框架导航不经过 shouldOverrideUrlLoading，
+                        // 非官方文档可能短暂驻留高权限容器——无条件注入会把
+                        // frame-origin 证明送给它。主题同理只对官方页下发。
+                        if (LinkBuilder.isTrustedRemotePage(uri)) {
+                          unawaited(_injectBridgeToken());
+                          unawaited(_applyWebTheme(_currentDark(context)));
+                        }
                       },
                       onLoadStop: (_, uri) {
                         AppLog.event(LogEvent.webviewLoadStop, level: LogLevel.debug, fields: {
@@ -1719,8 +1876,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _firstLoadWatchdog?.cancel();
                         unawaited(_hideHandshakeOverlay());
                         unawaited(_syncCoverWithPage());
-                        unawaited(_injectBridgeToken());
-                        unawaited(_applyWebTheme(_currentDark(context)));
+                        // 与 onLoadStart 同口径：只对受信主文档注入令牌/主题
+                        //（安全审计 S-5）。
+                        if (LinkBuilder.isTrustedRemotePage(uri)) {
+                          unawaited(_injectBridgeToken());
+                          unawaited(_applyWebTheme(_currentDark(context)));
+                        }
                         if (!_failed) {
                           // 文档加载完成 ≠ 远控可用（F06）：桌面离线、凭证失效
                           // 时页面照样 loadStop。这里先记"连接中"，只有 relay
@@ -1738,7 +1899,22 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         final isMainFrame = action.isForMainFrame;
                         if (!isMainFrame) {
                           // 子 frame 只需官方 origin，不要求远控路径。
-                          return LinkBuilder.isTrustedOrigin(uri)
+                          final subFrameTrusted =
+                              LinkBuilder.isTrustedOrigin(uri);
+                          // ADR-002 步骤 1：取证只记类别计数，不记 URL/host
+                          // ——"官方页是否真用 iframe"只能靠真机数据回答。
+                          // 换凭证/页面重建后，残余子 frame 回调仍会到达
+                          // （iter1 复审 F-1）：决策无条件返回，W1 白名单语义
+                          // 不依赖 State 存活；计数只在挂载时记。
+                          if (mounted) {
+                            ref
+                                .read(subFrameStatsProvider.notifier)
+                                .record(
+                                  widget.device.id,
+                                  trusted: subFrameTrusted,
+                                );
+                          }
+                          return subFrameTrusted
                               ? NavigationActionPolicy.ALLOW
                               : NavigationActionPolicy.CANCEL;
                         }
@@ -1749,11 +1925,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         if (!trusted) {
                           // release 可见（AppLog.warn）：真机 smoke 需要靠这条
                           // 日志发现被误拦的合法导航，再把路由加进策略。
-                          // 只记 scheme/host/path——凭证都在 query 里。
+                          // 源头只给 path（D-20260917-01），不依赖
+                          // LogRedactor.route 对全 URL 做去 query 兜底。
                           AppLog.event(LogEvent.webviewNavBlocked, level: LogLevel.warn, fields: {
                             LogField.device: widget.device.id,
                             LogField.generation: _webviewGeneration,
-                            LogField.route: uri?.toString(),
+                            LogField.route: uri?.path,
                           });
                         }
                         return trusted
@@ -1801,10 +1978,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                         _handleRendererGone(detail.toString());
                       },
                       onRenderProcessUnresponsive: (_, uri) async {
+                        // release 可见的 warn：与 webviewNavBlocked 同口径，
+                        // 源头只给 path（D-20260918-01，D-20260917-01 同类）。
                         AppLog.event(LogEvent.webviewRendererUnresponsive, level: LogLevel.warn, fields: {
                           LogField.device: widget.device.id,
                           LogField.generation: _webviewGeneration,
-                          LogField.route: uri?.toString(),
+                          LogField.route: uri?.path,
                         });
                         return null;
                       },

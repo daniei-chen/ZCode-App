@@ -759,9 +759,14 @@ class UpdateService {
   }
 
   /// Removes a leading `v` and normalizes a GitHub tag to `major.minor.patch`.
+  ///
+  /// iter12 N-P2-6：匹配**必须吃掉整个 tag**（结尾锚定）。此前 `v1.2.3-rc.1`
+  /// 会归一成 `1.2.3`（预发布与正式版同值）、`v1.2.3-malicious` 会被当成
+  /// 正常版本号参与比较——tag 契约是 `vMAJOR.MINOR.PATCH`，任何带后缀的
+  /// 形态一律按"非法 tag"处理（fail-closed：更新检查直接跳过它）。
   static String? normalizeVersion(String raw) {
     final match = RegExp(
-      r'^\s*[vV]?(\d+)(?:\.(\d+))?(?:\.(\d+))?',
+      r'^\s*[vV]?(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*$',
     ).firstMatch(raw);
     if (match == null) return null;
     return '${match.group(1)}.${match.group(2) ?? '0'}.${match.group(3) ?? '0'}';

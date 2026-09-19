@@ -216,8 +216,8 @@ class _SecurityLockCardState extends ConsumerState<_SecurityLockCard> {
     final l10n = AppLocalizations.of(context)!;
     final enabled = ref.watch(biometricProvider);
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           secondary: const _SettingsIcon(Icons.fingerprint),
@@ -248,8 +248,8 @@ class _StartupTargetTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final target = ref.watch(startupTargetProvider);
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: const _SettingsIcon(Icons.rocket_launch_outlined),
@@ -298,6 +298,7 @@ class _StartupTargetTile extends ConsumerWidget {
                 ],
               ),
             );
+            if (!context.mounted) return;
             if (choice == null || choice == target) return;
             await ref.read(startupTargetProvider.notifier).set(choice);
           },
@@ -318,8 +319,8 @@ class _FeedbackTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: const _SettingsIcon(Icons.feedback_outlined),
@@ -362,8 +363,8 @@ class _AuthorTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: const _SettingsIcon(Icons.person_outline),
@@ -387,8 +388,8 @@ class ThemeSettingTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final mode = ref.watch(themeModeProvider);
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: _DeviceStyleSettingIcon(
@@ -449,6 +450,7 @@ class ThemeSettingTile extends ConsumerWidget {
         ],
       ),
     );
+    if (!context.mounted) return;
     if (choice == null || choice == mode) return;
     await ref.read(themeModeProvider.notifier).set(choice);
   }
@@ -469,8 +471,8 @@ class _DiagnosticsTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: const _DeviceStyleSettingIcon(Icons.monitor_heart_outlined),
@@ -526,8 +528,8 @@ class _BatteryTileState extends ConsumerState<_BatteryTile> {
     });
     final l10n = AppLocalizations.of(context)!;
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: _SettingsIcon(
@@ -552,7 +554,9 @@ class _BatteryTileState extends ConsumerState<_BatteryTile> {
             ),
             (_, false) => Icon(Icons.chevron_right, color: context.zt.textLo),
           },
-          onTap: _blocked || _ignored != true ? _request : null,
+          onTap: _ignored == null
+              ? null
+              : (_blocked || _ignored != true ? _request : null),
         ),
       ),
     );
@@ -639,6 +643,7 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
         ],
       ),
     );
+    if (!context.mounted) return;
     if (choice == null || choice == prefs.alertMode) return;
     await ref.read(notificationPrefsProvider.notifier).set(
       prefs.copyWith(alertMode: choice),
@@ -659,8 +664,8 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
       bool value,
       ValueChanged<bool> onChanged,
       IconData icon,
-    ) => SizedBox(
-      height: _settingsRowHeight,
+    ) => ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _settingsRowHeight),
       child: SwitchListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14),
         secondary: _SettingsIcon(icon),
@@ -677,8 +682,8 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
     return Card(
       child: Column(
         children: [
-          SizedBox(
-            height: _settingsRowHeight,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _settingsRowHeight),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 14),
               leading: const _SettingsIcon(Icons.volume_up_outlined),
@@ -704,8 +709,8 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
           ),
           const Divider(indent: 66, endIndent: 14, height: 1),
           if (_systemEnabled == false)
-            SizedBox(
-              height: _settingsRowHeight,
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _settingsRowHeight),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                 leading: _SettingsIcon(
@@ -748,8 +753,8 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
             Icons.error_outline,
           ),
           const Divider(indent: 66, endIndent: 14, height: 1),
-          SizedBox(
-            height: _settingsRowHeight,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _settingsRowHeight),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 14),
               leading: const _SettingsIcon(Icons.notifications_active_outlined),
@@ -845,8 +850,8 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Card(
-      child: SizedBox(
-        height: _settingsRowHeight,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: _settingsRowHeight),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14),
           leading: const _DeviceStyleSettingIcon(

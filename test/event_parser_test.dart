@@ -431,6 +431,13 @@ void main() {
   const frameUserInputResolved =
       '{"wireVersion":3,"kind":"complete","deliveryKind":"online","frame":{"topic":"sessions-index/x","payload":{"kind":"deltas","deltas":[{"op":"session.upserted","session":{"sessionId":"sess_c","title":"部署","phase":"running","sessionEnded":false,"pendingInteractionSummary":{"permissionCount":0,"userInputCount":0},"lastActivityAt":7}}]}}}';
 
+  // R-19 夹具：同任务审批 + 输入并存（总 2），随后审批解决只剩输入（总 1）。
+  const framePermAndInput =
+      '{"wireVersion":3,"kind":"complete","deliveryKind":"online","frame":{"topic":"sessions-index/x","payload":{"kind":"deltas","deltas":[{"op":"session.upserted","session":{"sessionId":"sess_b","title":"hi","phase":"running","sessionEnded":false,"pendingInteraction":{"interactionId":"perm_00000001","kind":"permission","toolName":"Bash"},"pendingInteractionSummary":{"permissionCount":1,"userInputCount":1},"lastActivityAt":9}}]}}}';
+
+  const frameInputOnlyLeft =
+      '{"wireVersion":3,"kind":"complete","deliveryKind":"online","frame":{"topic":"sessions-index/x","payload":{"kind":"deltas","deltas":[{"op":"session.upserted","session":{"sessionId":"sess_b","title":"hi","phase":"running","sessionEnded":false,"pendingInteraction":{"kind":"elicitation"},"pendingInteractionSummary":{"permissionCount":0,"userInputCount":1},"lastActivityAt":10}}]}}}';
+
   group('SessionStateExtractor + StateDiffer（快照差分）', () {
     test('提取会话时保留完整 workspacePath，列表分组与正文请求共用它', () {
       final states = SessionStateExtractor.parseRoot({
@@ -532,6 +539,402 @@ void main() {
       expect(events, hasLength(1));
       expect(events.first.type, 'resolved');
       expect(events.first.taskId, 'sess_c');
+    });
+
+    // R-19：观察面只有按任务聚合的计数（pendingInteraction.interactionId 仅
+    // 标识当前浮出的那一条，其余挂起项无 id），事件必须携带权威剩余量。
+    group('R-19 事件携带剩余交互计数', () {
+      test('请求事件带 pendingTotal = permission + userInput', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(frameBaseline));
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermAndInput),
+        );
+        expect(events.map((e) => e.type), containsAll([
+          'permission_request',
+          'elicitation_request',
+        ]));
+        for (final event in events) {
+          expect(event.pendingTotal, 2, reason: '${event.type} 应带总计数 2');
+        }
+      });
+
+      test('审批解决但输入仍在：resolved 带 pendingTotal=1（红点不该落）', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(frameBaseline));
+        differ.apply(SessionStateExtractor.parse(framePermAndInput));
+        final events = differ.apply(
+          SessionStateExtractor.parse(frameInputOnlyLeft),
+        );
+        expect(events, hasLength(1));
+        expect(events.first.type, 'resolved');
+        expect(events.first.pendingTotal, 1);
+      });
+
+      test('全部解决：resolved 带 pendingTotal=0', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(frameBaseline));
+        differ.apply(SessionStateExtractor.parse(framePermAndInput));
+        differ.apply(SessionStateExtractor.parse(frameInputOnlyLeft));
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermResolved),
+        );
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, 0);
+      });
+
+      test('任务整行消失的 resolved 不带计数（观察面给不出剩余量）', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final events = differ.apply(const [], removed: ['sess_b']);
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, isNull);
+      });
+
+      test('提取：hasPendingSummary 区分"没带 summary"与"确认无待处理"', () {
+        final withSummary = SessionStateExtractor.parse(frameBaseline).single;
+        expect(withSummary.hasPendingSummary, isTrue);
+        final flatRow = SessionStateExtractor.parseRoot({
+          'sessionId': 'sess_b',
+          'phase': 'running',
+        }).single;
+        expect(flatRow.hasPendingSummary, isFalse);
+        expect(flatRow.permissionCount, 0);
+      });
+    });
+
+    group('R-19 同一投递内重复副本合并', () {
+      // 同一投递里的两个副本描述同一时刻，缺 summary 的扁平行只是形状差异，
+      // 不能把带 summary 副本的计数覆盖成 0，否则立刻产生假 resolved。
+      final mirror = SessionStateExtractor.parse(framePermAppears).single;
+      final flatRow = SessionStateExtractor.parseRoot({
+        'sessionId': 'sess_b',
+        'title': 'hi',
+        'phase': 'running',
+      }).single;
+
+      test('镜像在前、扁平行在后：保留带 summary 的镜像，不发假 resolved', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final events = differ.apply([mirror, flatRow]);
+        expect(events, isEmpty, reason: '审批仍在等待，不能被扁平行清零');
+      });
+
+      test('扁平行在前、镜像在后：同样保留镜像', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final events = differ.apply([flatRow, mirror]);
+        expect(events, isEmpty);
+      });
+
+      test('两个副本都带 summary：仍按后到覆盖（计数真变化照常发 resolved）', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final resolvedCopy = SessionStateExtractor.parse(
+          framePermResolved,
+        ).single;
+        final events = differ.apply([mirror, resolvedCopy]);
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, 0);
+      });
+
+      test('只有扁平行（无镜像）：沿用基线 0，不发事件；后续镜像 0→1 正常发请求', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(frameBaseline));
+        // 基线 0（带 summary）→ 扁平行（无 summary）：沿用 0，没有转移。
+        expect(differ.apply([flatRow]), isEmpty);
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermAppears),
+        );
+        expect(events.single.type, 'permission_request');
+      });
+    });
+
+    group('R-19 跨投递：缺 summary 的行沿用基线计数', () {
+      // controller/tasks-index 的任务行天然不带 pendingInteractionSummary
+      // （见 frameTaskIndex 夹具），且与会话镜像一起进 differ。
+      Map<String, Object?> taskRow({Map<String, Object?>? activityExtra}) => {
+        'op': 'task.upserted',
+        'task': {
+          'address': {'workspacePath': r'W:\ws\demo', 'taskId': 'sess_b'},
+          'meta': {
+            'taskId': 'sess_b',
+            'title': 'hi',
+            'workspacePath': r'W:\ws\demo',
+            'status': 'running',
+          },
+          'membership': {'pinned': false, 'archived': false, 'active': true},
+          'activity': {
+            'phase': 'running',
+            'lastActivityAt': 11,
+            ...?activityExtra,
+          },
+        },
+      };
+
+      test('TaskIndexExtractor：无 summary 的任务行不算权威；activity 带 summary 才算', () {
+        final plain = TaskIndexExtractor.parseRoot(taskRow()).single;
+        expect(plain.hasPendingSummary, isFalse);
+        expect(plain.permissionCount, 0);
+
+        final withSummary = TaskIndexExtractor.parseRoot(
+          taskRow(
+            activityExtra: {
+              'pendingInteractionSummary': {
+                'permissionCount': 2,
+                'userInputCount': 0,
+              },
+            },
+          ),
+        ).single;
+        expect(withSummary.hasPendingSummary, isTrue);
+        expect(withSummary.permissionCount, 2);
+      });
+
+      test('待审基线后只来任务索引行：不发假 resolved；再来同计数镜像不重复发请求；权威归零才 resolved', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+
+        expect(
+          differ.apply(TaskIndexExtractor.parseRoot(taskRow())),
+          isEmpty,
+          reason: '任务索引刷新不能把 1 覆盖成 0',
+        );
+        expect(
+          differ.apply(SessionStateExtractor.parse(framePermRepeat)),
+          isEmpty,
+          reason: '沿用后基线仍是 1，同计数镜像不是新转移',
+        );
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermResolved),
+        );
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, 0);
+      });
+
+      test('同一投递内镜像 + 任务索引行（webview_sync 的拼接顺序）：不发假 resolved', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final events = differ.apply([
+          ...SessionStateExtractor.parse(framePermRepeat),
+          ...TaskIndexExtractor.parseRoot(taskRow()),
+        ]);
+        expect(events, isEmpty);
+      });
+
+      test('首见即任务索引行：按 0 记基线；随后镜像 0→1 正常发请求（沿用只在基线权威时发生）', () {
+        final differ = StateDiffer();
+        expect(differ.apply(TaskIndexExtractor.parseRoot(taskRow())), isEmpty);
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermAppears),
+        );
+        expect(events.single.type, 'permission_request');
+        expect(events.single.pendingTotal, 1);
+      });
+
+      test('带 summary 的任务索引行是权威：能把基线 1 归零并发 resolved', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        final events = differ.apply(
+          TaskIndexExtractor.parseRoot(
+            taskRow(
+              activityExtra: {
+                'pendingInteractionSummary': {
+                  'permissionCount': 0,
+                  'userInputCount': 0,
+                },
+              },
+            ),
+          ),
+        );
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, 0);
+      });
+
+      test('权威基线 1 后连续只来扁平行：不发事件（粘滞窗口，ADR-001 成文）；removed 对账兜底清理', () {
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(framePermAppears));
+        for (var i = 0; i < 5; i++) {
+          expect(differ.apply(TaskIndexExtractor.parseRoot(taskRow())), isEmpty);
+        }
+        final events = differ.apply(const [], removed: ['sess_b']);
+        expect(events.single.type, 'resolved');
+        expect(events.single.pendingTotal, isNull, reason: '任务整行消失，观察面给不出剩余量');
+      });
+    });
+
+    // 复审返修：观察面数值来自页面内容，提取层必须做值域与有限性过滤。
+    group('R-19 复审：计数值域、有限性与 dedupe 合并', () {
+      test('负数计数按 0 处理且仍算权威；随后 0→1 照常发请求（不被负基线吞掉）', () {
+        final negative = SessionStateExtractor.parseRoot({
+          'sessionId': 'sess_b',
+          'phase': 'running',
+          'pendingInteractionSummary': {
+            'permissionCount': -5,
+            'userInputCount': 0,
+          },
+        }).single;
+        expect(negative.permissionCount, 0);
+        expect(negative.hasPendingSummary, isTrue);
+
+        final differ = StateDiffer();
+        expect(differ.apply([negative]), isEmpty);
+        final events = differ.apply(
+          SessionStateExtractor.parse(framePermAppears),
+        );
+        expect(events.single.type, 'permission_request');
+        expect(events.single.pendingTotal, 1);
+      });
+
+      test('1e999（Infinity）/ 小数 / 字符串计数都不采信且不抛异常；时间戳同样只认有限值', () {
+        final states = SessionStateExtractor.parse(
+          '{"sessionId":"sess_x","phase":"running",'
+          '"pendingInteractionSummary":{"permissionCount":1e999,"userInputCount":1.5},'
+          '"lastActivityAt":1e999,"createdAt":-1e999}',
+        );
+        final s = states.single;
+        expect(s.permissionCount, 0);
+        expect(s.userInputCount, 0);
+        expect(s.lastActivityAt, isNull);
+        expect(s.createdAt, isNull);
+
+        final text = SessionStateExtractor.parseRoot({
+          'sessionId': 'sess_y',
+          'phase': 'running',
+          'pendingInteractionSummary': {'permissionCount': '2'},
+        }).single;
+        expect(text.permissionCount, 0);
+
+        final row = TaskIndexExtractor.parseRoot({
+          'op': 'task.upserted',
+          'task': {
+            'address': {'taskId': 'sess_z'},
+            'meta': {
+              'taskId': 'sess_z',
+              'updatedAt': double.infinity,
+              'createdAt': double.negativeInfinity,
+            },
+            'activity': {
+              'phase': 'running',
+              'lastActivityAt': double.infinity,
+              'pendingInteractionSummary': {'permissionCount': double.infinity},
+            },
+          },
+        }).single;
+        expect(row.permissionCount, 0);
+        expect(row.lastActivityAt, isNull);
+        expect(row.createdAt, isNull);
+      });
+
+      test('超大计数封顶 kMaxPendingCount：pendingTotal 求和不回绕为负', () {
+        final huge = SessionStateExtractor.parseRoot({
+          'sessionId': 'sess_b',
+          'phase': 'running',
+          'pendingInteractionSummary': {
+            'permissionCount': 9223372036854775807,
+            'userInputCount': 9223372036854775807,
+          },
+        }).single;
+        expect(huge.permissionCount, kMaxPendingCount);
+        expect(huge.userInputCount, kMaxPendingCount);
+
+        final differ = StateDiffer();
+        differ.apply(SessionStateExtractor.parse(frameBaseline));
+        final events = differ.apply([huge]);
+        expect(events, isNotEmpty);
+        for (final event in events) {
+          expect(event.pendingTotal, 2 * kMaxPendingCount);
+        }
+      });
+
+      test('任务索引扁平计数字段：负数/非 int 不算权威，合法 int 才算', () {
+        Map<String, Object?> rowWith(Object? count) => {
+          'op': 'task.upserted',
+          'task': {
+            'address': {'taskId': 'sess_b'},
+            'meta': {'taskId': 'sess_b'},
+            'activity': {'phase': 'running', 'permissionCount': count},
+          },
+        };
+        final negative = TaskIndexExtractor.parseRoot(rowWith(-1)).single;
+        expect(negative.hasPendingSummary, isFalse);
+        expect(negative.permissionCount, 0);
+        final fractional = TaskIndexExtractor.parseRoot(rowWith(1.5)).single;
+        expect(fractional.hasPendingSummary, isFalse);
+        final valid = TaskIndexExtractor.parseRoot(rowWith(1)).single;
+        expect(valid.hasPendingSummary, isTrue);
+        expect(valid.permissionCount, 1);
+      });
+
+      test('dedupe：显式事件在前无计数、differ 副本带计数 → 合并计数与缺失标题，文案保留显式版', () {
+        final merged = EventParser.dedupe(const [
+          ObservedEvent(
+            type: 'permission_request',
+            taskId: 'T',
+            summary: '显式文案',
+          ),
+          ObservedEvent(
+            type: 'permission_request',
+            taskId: 'T',
+            summary: 'differ 文案',
+            sessionTitle: '标题',
+            pendingTotal: 2,
+          ),
+        ]);
+        expect(merged, hasLength(1));
+        expect(merged.single.summary, '显式文案');
+        expect(merged.single.sessionTitle, '标题');
+        expect(merged.single.pendingTotal, 2);
+      });
+
+      test('dedupe：保留副本已带计数时后到副本不覆盖；不同 taskId 互不影响', () {
+        final merged = EventParser.dedupe(const [
+          ObservedEvent(type: 'permission_request', taskId: 'T', pendingTotal: 3),
+          ObservedEvent(type: 'permission_request', taskId: 'T', pendingTotal: 1),
+          ObservedEvent(type: 'permission_request', taskId: 'U', pendingTotal: 1),
+        ]);
+        expect(merged, hasLength(2));
+        expect(merged.first.pendingTotal, 3);
+        expect(merged.last.taskId, 'U');
+      });
+
+      test('dedupe：保留副本已有标题时不被后到副本覆盖（合并方向 = 保留副本优先）', () {
+        final merged = EventParser.dedupe(const [
+          ObservedEvent(
+            type: 'permission_request',
+            taskId: 'T',
+            sessionTitle: '原标题',
+          ),
+          ObservedEvent(
+            type: 'permission_request',
+            taskId: 'T',
+            sessionTitle: '新标题',
+            pendingTotal: 2,
+          ),
+        ]);
+        expect(merged.single.sessionTitle, '原标题');
+        expect(merged.single.pendingTotal, 2);
+      });
+
+      test('inheritPendingFrom：preview 与交互描述都回退基线，计数与权威标记来自基线', () {
+        const baseline = SessionState(
+          sessionId: 'sess_b',
+          permissionCount: 1,
+          hasPendingSummary: true,
+          preview: '基线正文',
+          description: '基线描述',
+        );
+        final flat = SessionStateExtractor.parseRoot({
+          'sessionId': 'sess_b',
+          'phase': 'running',
+        }).single;
+        final inherited = flat.inheritPendingFrom(baseline);
+        expect(inherited.preview, '基线正文');
+        expect(inherited.description, '基线描述');
+        expect(inherited.permissionCount, 1);
+        expect(inherited.hasPendingSummary, isTrue);
+        expect(inherited.phase, 'running', reason: '自身字段不被基线覆盖');
+      });
     });
 
     test('resolved 不在通知白名单（家务信号不发系统通知不计未读）', () {
@@ -1144,6 +1547,31 @@ void main() {
       expect(gate.allow(event), isFalse, reason: '重连重放不得重复提醒');
     });
 
+    test('轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10）', () {
+      final gate = EventDedupeGate();
+      expect(
+        gate.allow(ev('permission_request', taskId: 't1', summary: '命令 A')),
+        isTrue,
+      );
+      expect(
+        gate.allow(ev('permission_request', taskId: 't1', summary: '命令 B')),
+        isFalse,
+        reason: '敌对页面轮换摘要不得绕过窗口抑制（D-20260916-10）',
+      );
+    });
+
+    test('缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要）', () {
+      final gate = EventDedupeGate();
+      expect(gate.allow(ev('elicitation_request', summary: 'x')), isTrue);
+      expect(
+        gate.allow(ev('elicitation_request', summary: 'y')),
+        isFalse,
+        reason: '无 id 时键退化为类型级，同样不给轮换摘要留振荡面',
+      );
+      expect(gate.allow(ev('permission_request', summary: 'x')), isTrue,
+          reason: '不同类型不得互相抑制');
+    });
+
     test('窗口过期后允许再次提醒，且不同事件不互相抑制', () {
       var now = DateTime(2026, 1, 1, 12);
       final gate = EventDedupeGate(window: const Duration(minutes: 2))
@@ -1179,6 +1607,18 @@ void main() {
         gate.allow(request),
         isTrue,
         reason: '用户已处理完上一轮，新请求必须提醒',
+      );
+    });
+
+    test('resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键', () {
+      final gate = EventDedupeGate();
+      final other = ev('permission_request', taskId: 't10', summary: 'x');
+      expect(gate.allow(other), isTrue);
+      expect(gate.allow(ev('resolved', taskId: 't1')), isTrue);
+      expect(
+        gate.allow(other),
+        isFalse,
+        reason: '清理标记必须以 \\0taskId\\0 整段匹配，前缀更短的任务不能越界',
       );
     });
 

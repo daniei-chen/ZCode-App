@@ -11,8 +11,43 @@ abstract final class BridgeMessagePipeline {
   /// 的 `_maxDepth = 8` 保持一致。
   static const int _maxDepth = 8;
 
+  /// 单帧 JSON 嵌套深度上限（安全审计 S-2）：`jsonDecode` 由 VM 显式栈解析，
+  /// 不会栈溢出，但每个 `[`/`{` 都分配一个容器——敌对输入可用一条 4 MiB 消息
+  /// 制造约 4e6 层嵌套，在解析途中产生数百 MB 瞬时分配（重复发送即可 OOM）。
+  /// 解析前做一遍 O(n) 深度预扫（字符串内的括号不计数），超限整帧丢弃。
+  static const int maxDecodeDepth = 64;
+
+  static bool _depthWithinLimit(String body) {
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var i = 0; i < body.length; i++) {
+      final c = body.codeUnitAt(i);
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (c == 0x5C) {
+          escaped = true;
+        } else if (c == 0x22) {
+          inString = false;
+        }
+        continue;
+      }
+      if (c == 0x22) {
+        inString = true;
+      } else if (c == 0x5B || c == 0x7B) {
+        if (++depth > maxDecodeDepth) return false;
+      } else if (c == 0x5D || c == 0x7D) {
+        if (depth > 0) depth--;
+      }
+    }
+    return true;
+  }
+
   /// 单次 decode；失败返回 null（与调用方原 catch-continue 语义一致）。
+  /// 深度超限同样返回 null——调用方按"这帧不是我们要的数据"丢弃。
   static dynamic decode(String body) {
+    if (!_depthWithinLimit(body)) return null;
     try {
       return jsonDecode(body);
     } catch (_) {

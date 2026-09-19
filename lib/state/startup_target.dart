@@ -12,8 +12,14 @@ class StartupTargetNotifier extends Notifier<String> {
   String build() => initial;
 
   Future<void> set(String value) async {
-    state = value;
-    await DeviceStore.instance.setStartupTarget(value);
+    // 持久化成功后再发布 state（iter7 R-2，与 ThemeModeNotifier 同口径），
+    // 写失败回读磁盘真实值，UI 弹回而不是显示假成功。
+    try {
+      await DeviceStore.instance.setStartupTarget(value);
+      state = value;
+    } catch (_) {
+      state = initial;
+    }
   }
 }
 

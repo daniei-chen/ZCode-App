@@ -17,12 +17,16 @@ abstract final class AppSettings {
     }
   }
 
+  /// 系统通知是否开启。**未知按 false**（iter12 W-021）：通道异常/返回空
+  /// 时无法确认通知可用，fail-open（原实现）会让设置页与诊断包把"未知"
+  /// 显示成"已开启"，用户错过配置引导，通知这个核心价值静默失效；
+  /// fail-closed 的代价只是多一次前往系统设置的引导。
   static Future<bool> notificationsEnabled() async {
     try {
       return await _channel.invokeMethod<bool>('areNotificationsEnabled') ??
-          true;
+          false;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 

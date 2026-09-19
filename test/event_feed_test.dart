@@ -11,8 +11,17 @@ void main() {
     addTearDown(container.dispose);
   });
 
-  ObservedEvent ev(String type, {String? summary, String? taskId}) =>
-      ObservedEvent(type: type, summary: summary, taskId: taskId);
+  ObservedEvent ev(
+    String type, {
+    String? summary,
+    String? taskId,
+    int? pendingTotal,
+  }) => ObservedEvent(
+    type: type,
+    summary: summary,
+    taskId: taskId,
+    pendingTotal: pendingTotal,
+  );
 
   group('EventFeedNotifier', () {
     test('白名单事件计数 +1', () {
@@ -101,10 +110,10 @@ void main() {
       final notifier = container.read(eventFeedProvider.notifier);
       notifier.ingest('d1', ev('permission_request', summary: 'A', taskId: 'a'));
       notifier.ingest('d1', ev('permission_request', summary: 'B', taskId: 'b'));
-      expect(
-        container.read(eventFeedProvider)['d1']?.pendingTasks,
-        {'a', 'b'},
-      );
+      expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+        'a': 1,
+        'b': 1,
+      });
 
       notifier.ingest('d1', ev('resolved', taskId: 'a'));
       expect(
@@ -127,6 +136,125 @@ void main() {
       expect(container.read(eventFeedProvider)['d1']?.permPending, isTrue);
       notifier.ingest('d1', ev('resolved', taskId: 't1'));
       expect(container.read(eventFeedProvider)['d1']?.permPending, isFalse);
+    });
+
+    // R-19：观察面没有请求级 id，只有按任务聚合的计数——pending 按计数降级
+    // 记账。下面几条钉住"同任务多条交互，解决一条不清红点"的口径。
+    group('R-19 同任务多条交互按计数记账', () {
+      test('同任务审批+输入并存：审批解决（剩余 1）红点保留，输入解决才落下', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 1),
+        );
+        notifier.ingest(
+          'd1',
+          ev('elicitation_request', taskId: 't', pendingTotal: 2),
+        );
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          't': 2,
+        });
+
+        // 审批那条解决：differ 发 resolved，但 userInput 仍剩 1。
+        notifier.ingest('d1', ev('resolved', taskId: 't', pendingTotal: 1));
+        final mid = container.read(eventFeedProvider)['d1'];
+        expect(mid?.permPending, isTrue, reason: '输入请求还在等，红点不能落');
+        expect(mid?.pendingByTask, {'t': 1}, reason: '刷新为权威剩余量');
+
+        notifier.ingest('d1', ev('resolved', taskId: 't', pendingTotal: 0));
+        expect(
+          container.read(eventFeedProvider)['d1']?.permPending,
+          isFalse,
+          reason: '剩余归零才落下',
+        );
+      });
+
+      test('计数直接采信：请求事件带 pendingTotal=2 记 2，不按条数累加', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 2),
+        );
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          't': 2,
+        });
+      });
+
+      test('resolved 带正计数但条目缺失（基线晚建）：补上红点而不是忽略', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest('d1', ev('completed', taskId: 'x'));
+        notifier.ingest('d1', ev('resolved', taskId: 't', pendingTotal: 1));
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          't': 1,
+        });
+      });
+
+      test('缺计数的 resolved 维持旧语义：按任务整条清除（任务整行消失）', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 3),
+        );
+        notifier.ingest('d1', ev('resolved', taskId: 't'));
+        expect(container.read(eventFeedProvider)['d1']?.permPending, isFalse);
+      });
+
+      test('显式页面事件（无计数）只保证在场，不覆盖已有权威计数', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 2),
+        );
+        notifier.ingest('d1', ev('permission_request', taskId: 't'));
+        expect(
+          container.read(eventFeedProvider)['d1']?.pendingByTask,
+          {'t': 2},
+          reason: '无计数事件不能把 2 改写成 1',
+        );
+      });
+
+      test('resolved 带正计数且与现值相同：不发状态更新（防无意义重建）', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 1),
+        );
+        final before = container.read(eventFeedProvider);
+        notifier.ingest('d1', ev('resolved', taskId: 't', pendingTotal: 1));
+        expect(identical(container.read(eventFeedProvider), before), isTrue);
+      });
+
+      test('resolved 无 taskId：只清 unknown 占位键，其他任务键保留（绝不整设备清空）', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 'a', pendingTotal: 1),
+        );
+        notifier.ingest('d1', ev('permission_request'));
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          'a': 1,
+          'unknown': 1,
+        });
+        notifier.ingest('d1', ev('resolved'));
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          'a': 1,
+        });
+      });
+
+      test('已挂起 1，新到带计数的请求事件写 2（计数上调直接采信）', () {
+        final notifier = container.read(eventFeedProvider.notifier);
+        notifier.ingest(
+          'd1',
+          ev('permission_request', taskId: 't', pendingTotal: 1),
+        );
+        notifier.ingest(
+          'd1',
+          ev('elicitation_request', taskId: 't', pendingTotal: 2),
+        );
+        expect(container.read(eventFeedProvider)['d1']?.pendingByTask, {
+          't': 2,
+        });
+      });
     });
   });
 }

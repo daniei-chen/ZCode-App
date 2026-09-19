@@ -49,6 +49,7 @@ enum LogEvent {
   notificationShowFailed('NT501'),
   notificationTestFailed('NT502'),
   notificationSuppressed('NT503'),
+  notificationPrefsPersistFailed('NT504'),
 
   // 更新
   updateCheckFailed('UP600'),
@@ -60,6 +61,7 @@ enum LogEvent {
   deviceLastUsedPersistFailed('DS701'),
   warmupLoadFailed('DS702'),
   warmupPersistFailed('DS703'),
+  deviceRecordSkipped('DS704'),
   biometricAuthFailed('LC800'),
   biometricUnlockFailed('LC801'),
   protectedDataWipeFailed('LC802'),
@@ -138,6 +140,23 @@ abstract final class LogRedactor {
   /// 带 query/fragment/userinfo 的 URL（凭证优先藏在 query 里）。
   static final RegExp _url = RegExp(r'\b([a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+)');
 
+  /// 归一后保留的最大字符数（安全审计 S-6）：页面可以把导航 path 做到
+  /// 2 MB 级，环形缓冲 500 行会被放大成 ~1 GB 堆。path 的诊断价值在前缀。
+  static const int maxRouteChars = 256;
+
+  /// UTF-16 码元级截断（iter12 W-021 / 复核 P3）：代理对不能从中间截断——
+  /// 高位代理恰好落在切点上会产出非法孤立代理，回退一位保住完整码元对。
+  /// [_clip]/[errorText] 与外部调用方（event_feed 的标题截断）共享同一保证。
+  static String clipCodeUnits(String value, int maxChars) {
+    if (value.length <= maxChars) return value;
+    var end = maxChars;
+    final last = value.codeUnitAt(end - 1);
+    if (last >= 0xD800 && last <= 0xDBFF) end -= 1;
+    return value.substring(0, end);
+  }
+
+  static String _clip(String value) => clipCodeUnits(value, maxRouteChars);
+
   /// 只保留 `scheme://host/path`，丢掉 query/fragment/userinfo。
   static String route(String? url) {
     if (url == null || url.isEmpty) return '-';
@@ -145,13 +164,13 @@ abstract final class LogRedactor {
     // 已经是相对路由：只保留 pathname。
     if (!trimmed.contains('://')) {
       final base = trimmed.split('?').first.split('#').first;
-      return base.isEmpty ? '-' : base;
+      return base.isEmpty ? '-' : _clip(base);
     }
     try {
       final uri = Uri.parse(trimmed);
       if (uri.host.isEmpty) return replacement;
       final path = uri.path.isEmpty ? '/' : uri.path;
-      return '${uri.scheme}://${uri.host}$path';
+      return _clip('${uri.scheme}://${uri.host}$path');
     } catch (_) {
       return replacement;
     }
@@ -190,7 +209,7 @@ abstract final class LogRedactor {
     if (text.isEmpty) return '-';
     // 异常类型名也在里面，保留以便聚合（`ClientException: ...`）。
     if (text.length > maxErrorChars) {
-      text = '${text.substring(0, maxErrorChars)}…';
+      text = '${clipCodeUnits(text, maxErrorChars)}…';
     }
     return text;
   }

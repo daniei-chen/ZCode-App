@@ -164,6 +164,9 @@ void main() {
 
   group('设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页）', () {
     testWidgets('从设置返回停在设备页，外壳不会收到"回到对话页"的请求', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
@@ -180,6 +183,9 @@ void main() {
     });
 
     testWidgets('从设置里进诊断页：返回只回设置，再返回回设备页', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
       await tester.tap(find.text('设置'));
@@ -291,6 +297,9 @@ void main() {
 
   group('原生页面栈：返回先弹掉推入的页面', () {
     testWidgets('设备页 → 设置 → 返回回到设备页', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
@@ -307,6 +316,9 @@ void main() {
     });
 
     testWidgets('设置 → 诊断：连续返回依次回到设置、再回到设备页', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 

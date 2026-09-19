@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'app_log.dart';
 import 'bridge_schema.dart';
+import 'observer_alerts.dart';
 import 'structured_log.dart';
 import 'webview_storage.dart';
 
@@ -69,6 +70,8 @@ abstract final class DiagnosticsBundle {
     required bool biometric,
     required bool notificationsEnabled,
     required bool batteryIgnored,
+    required int storeSkippedRecords,
+    required bool storeRepaired,
   }) {
     return DiagnosticsInputs(
       generatedAt: DateTime.now().toUtc(),
@@ -89,6 +92,9 @@ abstract final class DiagnosticsBundle {
         'notifications': notificationsEnabled ? 'on' : 'off',
         'batteryUnrestricted': batteryIgnored ? 'on' : 'off',
         'webviewStorage': WebViewStorage.policySummary,
+        // 设备库完整性（iter12 W-018b）：隔离计数与修复标记，只有数字/枚举。
+        'storeSkippedRecords': '$storeSkippedRecords',
+        'storeRepaired': storeRepaired ? 'yes' : 'no',
       },
       stats: {
         for (final entry in stats.entries) entry.key: entry.value,
@@ -135,6 +141,21 @@ abstract final class DiagnosticsBundle {
         for (final device in inputs.stats.entries)
           for (final counter in device.value.entries)
             MapEntry('${LogRedactor.shortId(device.key)}.${counter.key}', '${counter.value}'),
+      ]),
+      // 观察面告警（W-005）：从上面的计数纯派生，只输出告警码——与诊断页
+      // 同一份策略，Issue 里 grep `OB2` 即可定位协议变化信号。
+      DiagnosticsSection('alerts', [
+        MapEntry(
+          'app',
+          ObserverAlertPolicy.codesLine(
+            ObserverAlertPolicy.evaluateApp(droppedMessages: inputs.droppedMessages),
+          ),
+        ),
+        for (final device in inputs.stats.entries)
+          MapEntry(
+            LogRedactor.shortId(device.key),
+            ObserverAlertPolicy.codesLine(ObserverAlertPolicy.evaluate(device.value)),
+          ),
       ]),
       DiagnosticsSection('storage', [
         for (final entry in WebViewStorage.inventory.entries)

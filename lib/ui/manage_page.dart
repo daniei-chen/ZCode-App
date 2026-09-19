@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../services/app_log.dart';
 import '../services/app_settings.dart';
+import '../services/device_connectivity.dart';
 import '../services/device_import.dart';
 import '../services/link_builder.dart';
 import '../services/structured_log.dart';
@@ -47,7 +48,12 @@ class ManagePage extends ConsumerWidget {
     final devices = ref.watch(deviceListProvider);
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
+    // 设备列表连通性探测（用户需求：可联通绿点 / 不可联通橙点）：
+    // 每次启动器出现时对全部设备做一轮源站探测，结果驱动卡片状态点。
+    return Stack(
+      children: [
+        const _ConnectivityProbeTrigger(),
+        Scaffold(
       body: SafeArea(
         bottom: false,
         child: Center(
@@ -122,9 +128,25 @@ class ManagePage extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     buildDefaultDragHandles: false,
-                    onReorderItem: (oldIndex, newIndex) => ref
-                        .read(deviceListProvider.notifier)
-                        .reorder(oldIndex, newIndex),
+                    onReorderItem: (oldIndex, newIndex) {
+                      // ReorderCallback 是 void 型：Future 被框架丢弃，异常
+                      // 必须在这里兜住（iter10 F-1），否则排序失败静默回弹。
+                      unawaited(
+                        ref
+                            .read(deviceListProvider.notifier)
+                            .reorder(oldIndex, newIndex)
+                            .catchError((Object e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    AppLocalizations.of(context)!.operationFailed,
+                                  ),
+                                ),
+                              );
+                            }),
+                      );
+                    },
                     children: [
                       for (var i = 0; i < devices.length; i++)
                         _DeviceCard(
@@ -156,6 +178,8 @@ class ManagePage extends ConsumerWidget {
           ),
         ),
       ),
+      ),
+      ],
     );
   }
 
@@ -205,7 +229,9 @@ class ManagePage extends ConsumerWidget {
       }
       return;
     }
-    if (devices.length == 5 && context.mounted) {
+    // ≥5 台时提醒一次（iter7 R-7：原 == 5 只在第 6 台导入前触发一次，
+    // 之后再导第 7/8 台永远不提示——意图是"达到 5 台起提醒"）。
+    if (devices.length >= 5 && context.mounted) {
       final l10n = AppLocalizations.of(context)!;
       await showDialog<void>(
         context: context,
@@ -223,7 +249,18 @@ class ManagePage extends ConsumerWidget {
         ),
       );
     }
-    await ref.read(deviceListProvider.notifier).add(device);
+    try {
+      await ref.read(deviceListProvider.notifier).add(device);
+    } catch (_) {
+      // 写入失败必须有用户可见反馈（iter7 R-1）：不能对话框关了、设备没出现、
+      // 也不提示。存储不可用时底层抛 DeviceStoreUnavailableException。
+      if (!context.mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.operationFailed)),
+      );
+      return;
+    }
     ref.read(activeTabProvider.notifier).set(devices.length);
   }
 }
@@ -374,7 +411,16 @@ Future<void> _applyReplaceLink(
     );
     return;
   }
-  await ref.read(deviceListProvider.notifier).replaceLink(target.id, parsed);
+  try {
+    await ref.read(deviceListProvider.notifier).replaceLink(target.id, parsed);
+  } catch (_) {
+    // 写失败反馈（iter7 R-1）。
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.operationFailed)));
+    return;
+  }
   if (!context.mounted) return;
   ScaffoldMessenger.of(
     context,
@@ -687,6 +733,11 @@ class _DeviceCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(sessionStatusProvider)[device.id];
+    final probe = ref.watch(deviceConnectivityProvider)[device.id];
+    final linkState = DeviceConnectivityPolicy.state(
+      sessionStatus: status,
+      probe: probe,
+    );
     final feed = ref.watch(eventFeedProvider)[device.id];
     final l10n = AppLocalizations.of(context)!;
 
@@ -747,10 +798,14 @@ class _DeviceCard extends ConsumerWidget {
               ),
               UnreadBadge(feed: feed),
               Tooltip(
-                message: switch (status) {
-                  SessionStatus.live => l10n.statusLive,
-                  SessionStatus.error => l10n.statusError,
-                  SessionStatus.loading || null => l10n.statusConnecting,
+                message: switch (linkState) {
+                  // relay 实流与"仅探测可达"分开表述（iter10 F-5）：探测只
+                  // 证明源站网络可达，不证明会话活着。
+                  DeviceLinkState.reachable when status == SessionStatus.live =>
+                    l10n.statusLive,
+                  DeviceLinkState.reachable => l10n.statusReachable,
+                  DeviceLinkState.unreachable => l10n.statusUnreachable,
+                  DeviceLinkState.unknown => l10n.statusConnecting,
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -759,7 +814,11 @@ class _DeviceCard extends ConsumerWidget {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: context.zt.statusColor(status),
+                    color: switch (linkState) {
+                      DeviceLinkState.reachable => context.zt.live,
+                      DeviceLinkState.unreachable => context.zt.warn,
+                      DeviceLinkState.unknown => context.zt.statusColor(status),
+                    },
                   ),
                 ),
               ),
@@ -884,7 +943,15 @@ class _DeviceCard extends ConsumerWidget {
     );
     final ok = name != null && name.trim().isNotEmpty;
     if (ok && context.mounted) {
-      await ref.read(deviceListProvider.notifier).rename(device.id, name);
+      try {
+        await ref.read(deviceListProvider.notifier).rename(device.id, name);
+      } catch (_) {
+        // 写失败反馈（iter7 R-1）。
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.operationFailed)),
+        );
+      }
     }
   }
 
@@ -1009,7 +1076,15 @@ class _DeviceCard extends ConsumerWidget {
     );
     if (ok != true) return;
     if (!context.mounted) return;
-    await ref.read(deviceListProvider.notifier).remove(device.id);
+    try {
+      await ref.read(deviceListProvider.notifier).remove(device.id);
+    } catch (_) {
+      // 写失败反馈（iter7 R-1）：删除失败时设备必须还在列表里，不能假成功。
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.operationFailed)),
+      );
+    }
   }
 }
 
@@ -1191,15 +1266,19 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
               }
               // 非权限错误（相机被占用/不支持/初始化失败）给出可恢复界面：
               // 重试会重建控制器，与权限恢复路径同一套 generation 机制。
-              _cameraError = error.errorCode;
-              AppLog.event(
-                LogEvent.cameraFailed,
-                level: LogLevel.warn,
-                fields: {
-                  LogField.reason: error.errorCode.name,
-                  LogField.ok: false,
-                },
-              );
+              if (_cameraError != error.errorCode) {
+                // 每个错误码只记一次：持续故障 + 页面反复重建会把
+                // cameraFailed 刷进环形缓冲（iter8 U-7，build 期副作用收敛）。
+                _cameraError = error.errorCode;
+                AppLog.event(
+                  LogEvent.cameraFailed,
+                  level: LogLevel.warn,
+                  fields: {
+                    LogField.reason: error.errorCode.name,
+                    LogField.ok: false,
+                  },
+                );
+              }
               return _ScannerErrorView(
                 errorCode: error.errorCode,
                 onRetry: _retryCamera,
@@ -1279,9 +1358,19 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
         Navigator.of(context).pop();
         return;
       }
-      await ref
-          .read(deviceListProvider.notifier)
-          .replaceLink(replaceOf.id, device);
+      try {
+        await ref
+            .read(deviceListProvider.notifier)
+            .replaceLink(replaceOf.id, device);
+      } catch (_) {
+        // 同扫码新增：失败复位 _navigating（iter7 R-1）。
+        _navigating = false;
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context)!.operationFailed)),
+        );
+        return;
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -1309,7 +1398,19 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
     }
 
     _navigating = true;
-    await ref.read(deviceListProvider.notifier).add(device);
+    try {
+      await ref.read(deviceListProvider.notifier).add(device);
+    } catch (_) {
+      // 写失败必须复位 _navigating 并给出反馈（iter7 R-1）：否则扫码页此后
+      // 对所有二维码直接 return，相机取景但"死锁"直到手动退出。
+      _navigating = false;
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.operationFailed)),
+      );
+      return;
+    }
     if (!mounted) return;
     Navigator.of(context).pop();
     ref
@@ -1496,4 +1597,34 @@ class _ScannerOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 设备列表连通性探测触发器（零尺寸）：启动器每次出现（挂载）时对全部
+/// 设备做一轮源站探测，结果经 [deviceConnectivityProvider] 驱动卡片状态点。
+class _ConnectivityProbeTrigger extends ConsumerStatefulWidget {
+  const _ConnectivityProbeTrigger();
+
+  @override
+  ConsumerState<_ConnectivityProbeTrigger> createState() =>
+      _ConnectivityProbeTriggerState();
+}
+
+class _ConnectivityProbeTriggerState
+    extends ConsumerState<_ConnectivityProbeTrigger> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref.read(deviceConnectivityProvider.notifier).probeAll(
+              ref.read(deviceListProvider),
+              ref.read(sessionStatusProvider),
+            ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

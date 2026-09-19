@@ -12,7 +12,7 @@ import '../state/app_lifecycle.dart';
 import '../state/back_stack.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
-import '../state/root_tabs.dart';
+import '../state/pending_session_jump.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
 import 'manage_page.dart';

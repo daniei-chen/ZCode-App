@@ -225,7 +225,12 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   bool _authed = false;
   bool _authenticating = false;
   bool _startupPrompted = false;
-  DateTime? _leftAt;
+  /// 用户离开（inactive/hidden/paused）的单调计时 + 墙钟时刻（iter12
+  /// W-021 + 复核 P2）：resumed 时取出并清空，离开时长取双钟证据
+  /// （[BiometricService.relockEvidence]），深睡与回拨两洞同堵。
+  Stopwatch? _awayFor;
+
+  DateTime? _leftAtWall;
   bool _authCovered = false;
   bool _unavailable = false;
   bool _noDeviceCredential = false;
@@ -267,9 +272,14 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
   /// 验证当作本次会话的解锁凭据，与回前台时的判定规则一致（relockAfter 窗口）。
   void _adoptRecentAuthIfEnabled(bool enabled) {
     if (_authed || !enabled) return;
-    final lastSuccess = BiometricService.instance.lastSuccessAt;
-    if (lastSuccess == null) return;
-    if (DateTime.now().difference(lastSuccess) >= widget.relockAfter) return;
+    final svc = BiometricService.instance;
+    if (svc.sinceLastSuccess == null && svc.lastSuccessAt == null) return;
+    final evidence = BiometricService.relockEvidence(
+      monotonic: svc.sinceLastSuccess,
+      wallSince: svc.lastSuccessAt,
+      now: DateTime.now(),
+    );
+    if (evidence >= widget.relockAfter) return;
     _authed = true;
   }
 
@@ -281,27 +291,35 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
       if (_authenticating) {
         _authCovered = true;
       } else {
-        _leftAt ??= DateTime.now();
+        // 离开时长用单调时钟计量（iter12 W-021）：墙钟回拨会缩短"离开"
+        // 时长，让 relock 窗口被续期。
+        _awayFor ??= (Stopwatch()..start());
+        _leftAtWall ??= DateTime.now();
       }
     } else if (state == AppLifecycleState.resumed) {
       final covered = _authCovered;
       _authCovered = false;
-      final leftAt = _leftAt;
-      _leftAt = null;
+      final awayWatch = _awayFor;
+      final leftWall = _leftAtWall;
+      _awayFor = null;
+      _leftAtWall = null;
       if (ref.read(securityPrefUnreadableProvider)) return;
       if (!ref.read(biometricProvider)) return;
       if (!_startupPrompted) return;
       if (covered) {
         return;
       }
-      final lastSuccess = BiometricService.instance.lastSuccessAt;
-      if (lastSuccess != null &&
-          DateTime.now().difference(lastSuccess) < widget.relockAfter) {
+      final since = BiometricService.instance.sinceLastSuccess;
+      if (since != null && since < widget.relockAfter) {
         return;
       }
-      final away = leftAt == null
+      final away = (awayWatch == null && leftWall == null)
           ? widget.relockAfter
-          : DateTime.now().difference(leftAt);
+          : BiometricService.relockEvidence(
+              monotonic: awayWatch?.elapsed,
+              wallSince: leftWall,
+              now: DateTime.now(),
+            );
       if (away < widget.relockAfter && _authed) return;
       _relockAndPrompt();
     }

@@ -47,7 +47,9 @@ class InPageBackOutcome {
     }
     if (decoded is! Map) return null;
     final id = decoded['id'];
-    if (id is! num || id < 0) return null;
+    // 必须 is! int 而非 num：Infinity/NaN 能过 `num` 与 `< 0` 检查，但
+    // `toInt()` 会抛 UnsupportedError 逃出 handler（安全审计 S-4）。
+    if (id is! int || id < 0) return null;
     final ok = decoded['ok'];
     if (ok is! bool) return null;
     final reason = decoded['reason'];

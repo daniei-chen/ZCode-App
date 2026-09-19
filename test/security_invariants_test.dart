@@ -14,11 +14,38 @@ void main() {
       expect(src.contains('useShouldOverrideUrlLoading: true'), isTrue);
     });
 
-    test('三个注入 UserScript 全部限定官方 origin', () {
+    test('全部注入 UserScript 一一限定官方 origin（数量必须相等，iter5 S-9）', () {
+      final src = read('lib/ui/official_remote_page.dart');
+      final scripts = 'UserScript('.allMatches(src).length;
+      final originRules =
+          "allowedOriginRules: {'https://zcode.z.ai'}".allMatches(src).length;
+      expect(scripts, greaterThanOrEqualTo(4));
+      expect(
+        scripts,
+        originRules,
+        reason: '新增 UserScript 必须带 allowedOriginRules，否则计数失衡即红',
+      );
+    });
+
+    test('桥令牌只注入受信主文档（iter5 S-5：isTrustedRemotePage 守卫）', () {
       final src = read('lib/ui/official_remote_page.dart');
       expect(
-        "allowedOriginRules: {'https://zcode.z.ai'}".allMatches(src).length,
-        greaterThanOrEqualTo(3),
+        src.contains('isTrustedRemotePage(uri)'),
+        isTrue,
+        reason: 'onLoadStart/Stop 的令牌注入必须先校验 URL 信任',
+      );
+    });
+
+    test('子 frame 取证计数必须挂在导航判定结果上（iter7 独立验收：C2a 接线钉住）', () {
+      final src = read('lib/ui/official_remote_page.dart');
+      expect(
+        src.contains('trusted: subFrameTrusted'),
+        isTrue,
+        reason: 'record 的 trusted 必须来自真实判定——恒 true 会静默丢掉全部取证信号',
+      );
+      expect(
+        src.contains('subFrameStatsProvider.notifier'),
+        isTrue,
       );
     });
 

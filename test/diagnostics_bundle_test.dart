@@ -112,6 +112,8 @@ void main() {
           biometric: true,
           notificationsEnabled: true,
           batteryIgnored: false,
+          storeSkippedRecords: 2,
+          storeRepaired: true,
         ),
       );
       expect(text.contains('[logs]'), isTrue);

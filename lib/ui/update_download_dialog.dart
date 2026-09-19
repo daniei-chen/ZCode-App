@@ -206,7 +206,7 @@ class _UpdateDownloadDialogState extends State<UpdateDownloadDialog> {
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: palette.hairline),
         ),
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
