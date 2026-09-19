@@ -16,7 +16,7 @@
   },
   "checkpoint": {
     "id": "cp-13-iter13",
-    "git_head": "7622034e5f5e3734944066d13e555bd39d5daee1",
+    "git_head": "33b5952d56d3ed87db8e28e6c01f54deda578cdd",
     "diff_fingerprint": "sha256:62a361b3e199608bdc05bcd1f41efc257e0efc87bb86bb5f291302f9455d77b7",
     "recorded_at": "2026-09-19T23:59:00+08:00"
   },
@@ -1308,7 +1308,7 @@
     "reason": "ITERATION 13 完成：W-015/W-026/W-030 关闭（本地候选清零）；复核员一轮通过、5 注记闭环；702/702、变异 102/102+7、10 门 PASS（OSV BLOCKED）；分数 80 不变。剩余全部为用户决策/管理项：ADR-003/004/005、tag 线已收口（DEC-18）、release.yml 签名 Secrets（W-031）、真机窗口（W-025/W-027/W-028 + BL-003）。T3 置回 OPEN：复核 A-125 覆盖三件修复本体（cp-13-pre-closure），其后的闭环编辑（F-1..F-5）由门禁机器验证、独立复评留给下一轮。"
   },
   "resume": {
-    "next_action": "本地候选清零。待用户：① ADR-003 密钥处置（P0）② ADR-004/005 ③ W-031 release.yml 签名 Secrets+分支保护（新仓库管理配置）④ 真机窗口（W-025/W-027/W-028/BL-003）⑤ iter13 改动是否提交推送（DEC-06，等确认）。",
+    "next_action": "本地候选清零。待用户：① ADR-003 密钥处置（P0）② ADR-004/005 ③ W-031 release.yml 签名 Secrets+分支保护（新仓库管理配置）④ 真机窗口（W-025/W-027/W-028/BL-003）⑤ iter13 已提交推送（E-49 注记）。",
     "retry_after": null
   },
   "change_log": [
