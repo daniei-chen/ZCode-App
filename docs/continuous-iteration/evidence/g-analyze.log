@@ -1,0 +1,6 @@
+Got dependencies!
+6 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing ci_planning_20260916...                               
+No issues found! (ran in 6.9s)
+ANALYZE_EXIT=0

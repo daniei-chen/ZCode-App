@@ -1,0 +1,2 @@
+FAIL: OSV 不可达（ValueError: resolved to a non-public address: 198.18.0.150）；237 个组件未核查
+exit=1

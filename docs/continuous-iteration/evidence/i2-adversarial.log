@@ -1,0 +1,12 @@
+# adversarial 1: keyOf restored to old shape (with summary) -> new D-10 tests must fail
+00:00 +117 -1: EventDedupeGate（跨消息幂等，F12） 轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10） [E]
+00:00 +117 -2: EventDedupeGate（跨消息幂等，F12） 缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要） [E]
+00:00 +120 -2: Some tests failed.
+exit=1 (expected 1)
+
+# adversarial 2: resolved marker without trailing NUL -> prefix test must fail
+00:00 +121 -1: EventDedupeGate（跨消息幂等，F12） resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键 [E]
+00:00 +122 -1: Some tests failed.
+exit=1 (expected 1)
+
+# restore -> test/event_parser_test.dart 123/123; full suite 619/619 (i2-test.log)

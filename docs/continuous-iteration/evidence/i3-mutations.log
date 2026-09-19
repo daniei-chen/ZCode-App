@@ -1,0 +1,28 @@
+mutate.py export=D:\tmp\zr\ci_i3 specs=['tools\\iteration\\mutations\\iter1.json', 'tools\\iteration\\mutations\\iter2.json', 'tools\\iteration\\mutations\\iter3.json'] @ 2026-09-18T02:37:54
+[iter1-notifier-spec-failure-mislabelled] PASS exit=1 failing=['notifyFrom 异常围栏（D-20260916-15） spec 构造抛错 → future 正常完成且记 NT501，不外溢'] (8s)
+[iter1-notifier-spec-failure-mislabelled] restored -> green
+[iter2-dedupe-key-with-summary] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） 轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10）', 'EventDedupeGate（跨消息幂等，F12） 缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要）'] (7s)
+[iter2-dedupe-key-with-summary] restored -> green
+[iter2-resolved-marker-without-trailing-nul] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键'] (9s)
+[iter2-resolved-marker-without-trailing-nul] restored -> green
+[iter3-sse-threshold-off-by-one] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 SSE：任一 SSE 计数 ≥1 即告警，值为两键之和（OB201）', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关', '应用级告警与诊断包 codesLine：空 → none；多条按顺序逗号拼接，只含告警码', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (4s)
+[iter3-sse-threshold-off-by-one] restored -> green
+[iter3-ws-ratio-inclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 WS 未命中：样本地板 20 与 >50% 占比同时满足才告警（OB202）', 'ObserverAlertPolicy.evaluate 敌对输入 超上限值钳到 maxStatValue：乘法不溢出，仍能告警'] (3s)
+[iter3-ws-ratio-inclusive] restored -> green
+[iter3-fetch-ratio-inclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 fetch 未命中：同样的地板与占比规则（OB203）'] (4s)
+[iter3-fetch-ratio-inclusive] restored -> green
+[iter3-fragment-floor-exclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 分片异常：无效 + 过期累计 ≥5（OB204）'] (4s)
+[iter3-fragment-floor-exclusive] restored -> green
+[iter3-budget-drop-threshold] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 预算丢弃：队列或已见集合任一丢弃即告警（OB205）', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关'] (4s)
+[iter3-budget-drop-threshold] restored -> green
+[iter3-clamp-removed-overflow] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 敌对输入 超上限值钳到 maxStatValue：乘法不溢出，仍能告警'] (4s)
+[iter3-clamp-removed-overflow] restored -> green
+[iter3-subframe-wrong-key] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 子 frame：只有 cancelled 触发（OB207），total/allowed 不触发', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关', 'ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (4s)
+[iter3-subframe-wrong-key] restored -> green
+[iter3-app-bridge-drop-threshold] PASS exit=1 failing=['应用级告警与诊断包 桥丢弃计数 ≥1 → OB206；0/负数 → 无'] (3s)
+[iter3-app-bridge-drop-threshold] restored -> green
+[iter3-codesline-empty-not-none] PASS exit=1 failing=['应用级告警与诊断包 codesLine：空 → none；多条按顺序逗号拼接，只含告警码', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (3s)
+[iter3-codesline-empty-not-none] restored -> green
+[iter3-consumed-keys-guard] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交'] (3s)
+[iter3-consumed-keys-guard] restored -> green
+RESULT: 13/13 mutations caught

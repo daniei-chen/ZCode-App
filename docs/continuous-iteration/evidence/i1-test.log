@@ -1,0 +1,6 @@
+Analyzing ci_iter1_20260916...                                  
+No issues found! (ran in 3.6s)
+ANALYZE_EXIT=0
+00:34 +615: D:/tmp/zr/ci_iter1_20260916/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 检查更新：发布页重定向到私网地址 → 不跟随（走失败分支）
+00:34 +616: All tests passed!
+TEST_EXIT=0

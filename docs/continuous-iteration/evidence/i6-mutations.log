@@ -1,0 +1,18 @@
+mutate.py export=D:\tmp\zr\ci_i6 specs=['tools\\iteration\\mutations\\iter6.json'] @ 2026-09-18T23:47:18
+[iter6-refresh-boundary-exclusive] PASS exit=1 failing=['PageRefreshPolicy 不可见满 staleAfter 才刷新：59 秒不刷，60 秒整刷'] (5s)
+[iter6-refresh-boundary-exclusive] restored -> green
+[iter6-refresh-null-refreshes] PASS exit=1 failing=['PageRefreshPolicy 从未隐藏（null）不刷新'] (3s)
+[iter6-refresh-null-refreshes] restored -> green
+[iter6-stale-after-huge] PASS exit=1 failing=['PageRefreshPolicy 长时间不可见必刷'] (3s)
+[iter6-stale-after-huge] restored -> green
+[iter6-refresh-ignores-current-device] PASS exit=1 failing=['PageRefreshPolicy 非当前设备页永不刷新（揭启动器盖板是全体解盖，iter6 F-1）'] (3s)
+[iter6-refresh-ignores-current-device] restored -> green
+[iter6-refresh-ignores-inflight] PASS exit=1 failing=['PageRefreshPolicy 加载在途 / 错误卡不抢各自恢复路径'] (3s)
+[iter6-refresh-ignores-inflight] restored -> green
+[iter6-cover-observer-same-value-fires] PASS exit=1 failing=['同值 setCovered 不回调（外壳 build 幂等调用不刷屏）', '值变化回调一次并携带新值'] (5s)
+[iter6-cover-observer-same-value-fires] restored -> green
+[iter6-cover-observer-survives-detach] PASS exit=1 failing=['detach 后不再回调'] (3s)
+[iter6-cover-observer-survives-detach] restored -> green
+[iter6-cover-observer-never-fires] PASS exit=1 failing=['值变化回调一次并携带新值', 'detach 后不再回调'] (3s)
+[iter6-cover-observer-never-fires] restored -> green
+RESULT: 8/8 mutations caught; 0 exempt (declared)

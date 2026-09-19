@@ -257,7 +257,7 @@ _本计划由四份外部审计合并、逐条对照 `49abcee` 代码核实生�
 | 04 桥主 frame 令牌 | ✅ 2026-09-13 合并（#23 → `eece8f8`） | 每个 WebView generation 随机令牌，Dart 用 `evaluateJavascript`（只在主 frame 执行）注入；`_bridgeAllowed(args)` 在文档信任外新增令牌校验（6 个 handler）；钩子未拿令牌前只入队、注入后按序补发且携带令牌；就绪后复核令牌、缺失即补注 + release 告警；校验器新增 F03 断言 → **9/9**；新增 `BridgeAuthPolicy` 单测 + 安全不变量。残余风险（同源/srcdoc frame）已记录，待插件 6.2 稳定后收紧 |
 | 16 更新器异常回退 | ✅ 2026-09-13 合并（#24 → `af54584`） | API 的 DNS/超时/断流不再直接判失败：两条通道各自有界尝试（≤2×timeout），任一可用即完成检查；仅双通道不可达才 `failed`；新增两个测试（API 超时但网页可用仍能自动下载 / 双通道不可达 ⇒ failed） |
 | 09 写入串行化与生命周期守卫 | ✅ 2026-09-13 合并（#25 → `c9e2132`） | `DeviceStore` 写操作串行队列（add/update/remove/saveOrder），索引演进线性化；notifier 全部变更方法与 `BiometricNotifier` 在 await 后补 `ref.mounted`（G10-64 收口）；并发测试断言**索引本身**完整（未串行化时会失败） |
-| 13 通知跨消息幂等 | ✅ 2026-09-13 合并（#29 → `28bf429`） | 新增 `EventDedupeGate`（WebViewSyncController 长期持有）：2 分钟窗口内相同 (type, taskId, summary) 只放行一次；窗口外允许再次提醒；`resolved` 清该任务历史键（同一任务新一轮照常提醒，N06）；有界 256 条。本地 206 个测试全过（含 4 个新测试）。**跳转确认（N07/N08）仍未做** |
+| 13 通知跨消息幂等 | ✅ 2026-09-13 合并（#29 → `28bf429`） | 新增 `EventDedupeGate`（WebViewSyncController 长期持有）：2 分钟窗口内相同 (type, taskId, summary) 只放行一次；窗口外允许再次提醒；`resolved` 清该任务历史键（同一任务新一轮照常提醒，N06）；有界 256 条。本地 206 个测试全过（含 4 个新测试）。**跳转确认（N07/N08）仍未做**。**2026-09-18 iter2 修订**：键去掉 summary，改为相同 (type, taskId) 只放行一次——轮换摘要制造不出新键（D-20260916-10） |
 | 14 DOM 观察收敛 | ✅ 2026-09-13 合并（#30 → `0b6c0be`） | 握手脚本：命中即 disconnect、5 秒硬上限、150ms 去抖、候选选择器由 `'*'` 收窄为容器元素；主题 observer 收窄为仅 attributes + attributeFilter。两个注入脚本通过 JS 语法检查 |
 | 13b 跳转确认 | ✅ 2026-09-13 合并（#31 → `137811b`） | `jumpScript` 带 `attemptId`，结果经 bridge 回传 `{id, ok, reason, taskId, resolvedTaskId}`（第 3 参数为主 frame 令牌，无令牌先短促重试不裸发）；`zrJump` handler 先 `_bridgeAllowed` 再 2 KiB 门禁再 `JumpOutcome.parse`；Dart 侧 24s 看门狗兜底 `undelivered`；4 条失败文案；JS 上下文替换时作废在途尝试并在新页面 settle 后重放一次。校验器改名 `scripts/check_injected_js.mjs` 并新增 6 条跳转行为断言（16/16） |
 | 19 SBOM 与依赖门禁 | ✅ 2026-09-13 合并（#32 → `6808fa1`） | 三层清单：Dart（lock + pub 缓存内声明构成依赖图）+ Gradle release 运行时（121 构件，含 POM 许可与真实解析边）+ APK 原生库（逐个 .so 记 SHA-256）；工具链版本写入 `metadata.tools`；根组件记录 APK SHA-256；`sbom.schema.json` + 校验器 `--sbom`（三层非空/bom-ref 唯一/引用可解析/许可齐备/原生库带哈希/APK 绑定，自测 18/18）；PyYAML 固定 6.0.2 + venv；OSV 门禁（发布 fail-closed high；PR 仅 critical 阻断且网络故障软失败；例外须带 reason+expires，过期即失败；三桶输出 阻断/豁免/低于阈值）。CI 首次真实 OSV 查询：116 个随包发布组件 0 命中 |
@@ -509,7 +509,7 @@ GeneratedPluginRegistrant 里 `new X()` 的类名全部存在（11/11）。
 | 全套回归（收口） | ✅ | `flutter analyze` 0；`flutter test` **572/572**；JS 校验 40/40；脚本自测 20+22+25+9；doc-drift 通过；两个 workflow YAML 解析有效 |
 | R-13（桥全链字节预算：UTF-8/assembler/队列总额） | ⏳ 未做（本轮超出时长） | 探针证据已在 `D:/tmp/zr/audit_verify/evidence/js-budget-probes.json`，下一轮直接实施 |
 | R-17（WebView storage 清单与实现一致） | 🟡 部分完成 | IndexedDB 清理已补（`clearForCredentialChange` + `clearAllSiteData`）、清单文案与实现对齐；per-device profile 隔离与"失败不谎报成功"的进一步细化未做 |
-| R-19（pending 按 (taskId, requestId)） | ⏳ 未做 | 需先确认上游事件是否提供稳定 request id（审计已注明无 ID 时的降级必须成文） |
+| R-19（pending 按 (taskId, requestId)） | ✅ 完成（2026-09-16，未提交/未出包） | 上游无可枚举的请求 id（`pendingInteraction.interactionId` 只标识当前浮出一条），按审计要求降级为**任务权威剩余计数**并成文 `docs/adr/ADR-001`；含"缺 summary = 未知"不变量与复审加固；605/605，三道零上下文审计 + 返修复审通过，详见 `docs/releases/v1.0.0.md` R-19 节 |
 
 注：R-07（版本名）遗留——保持 1.0.0 意味着已装 1.1.x 的设备在应用内不会看到该版本为"更新"（Android 内部号仍递增，覆盖安装不受影响）——用户已确认接受。
 
@@ -556,3 +556,57 @@ b4 复审整改落地后出 build 25；交付前 code-reviewer 闸门抓到 1 �
 4. 台账已在 `6be5bd5` 入库；b5 节记录为工作区提交时同步。
 
 **b5 之后待办**：真机验收（用户侧：机型矩阵/48h/TalkBack/实体生物识别）；GitHub 账号恢复后推 `7ce0485` + 实跑 CI/发布链；**密钥处置决策**（b3 明文包 + 终端误输出两事件）；R-14（插件 6.2/最小补丁）、R-19（requestId 需上游证据）、每设备 WebView 隔离（产品决策）、资源池/DOM profile、公网 OSV；无凭据机型"显式知情确认出口"的最终产品决策。
+
+---
+
+# 成熟化规划轮（2026-09-16 · 规划并执行 · 未提交）
+
+按"通用项目成熟化规划母提示词"执行：只读接管 → 四份治理文档 → 施工 → 零上下文审计 → 返修。
+详细状态见 `docs/EXECUTION_STATE.md`，证据见 `docs/EVIDENCE.md`，缺陷见 `docs/DEFECTS.md`。
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| 基线（HEAD `16a7d8e` 干净导出） | ✅ | analyze 0；test 574/574（E-03） |
+| 治理文档 | ✅ | `PROJECT_AUDIT` / `PROJECT_MASTER_PLAN` / `ACCEPTANCE_MATRIX` / `EXECUTION_PROMPT_9H` |
+| **R-19** 计数化记账 + 复审加固 | ✅ 代码完成，未提交 | analyze 0；test **605/605**；三道零上下文审计（架构/安全/独立验收）+ 返修复审全部通过；`docs/releases/v1.0.0.md` R-19 节 |
+| 公网 OSV | ✅ | 237 组件 0 达 high；`D:\tmp\zr\osv_20260916.log`（E-08） |
+| JS 门 / doc-drift | ✅ | 49/49；6/6（E-06/07） |
+| ADR-001～005 | ✅ 落盘 | `docs/adr/`；**003/004/005 待用户拍板** |
+| 独立验收（test-engineer） | ✅ PASS | 首次因账号限流失败；重派后 605/605 + 对抗 10/10，`docs/audits/2026-09-16-acceptance-R19.md` |
+| 返修批新代理复审 | ✅ 可以合并 | A–H 全 PASS，`docs/audits/2026-09-16-re-review-R19-fixes.md` |
+
+**待办（承接 b5 之后待办，去掉已闭环项）**：真机验收（用户侧）；GitHub 账号恢复后推送 + 实跑 CI/发布链 + tag 策略；**ADR-003 密钥处置拍板**；R-14 按 ADR-002 先取子 frame 运行时证据；ADR-004/005 产品决策；资源池/DOM profile；D-03（1→2 不提醒）与 D-08（粘滞窗口）是否加硬兜底待产品确认；D-10（dedupe 键含 summary 的振荡面）可选加固。
+
+---
+
+# 持续迭代控制面接入（2026-09-16 · 规划模式 · 未提交）
+
+用户以 continuous-iteration-plan 技能接管长期推进：**仅规划模式**（DEC-10）、目标档位 release_candidate 85（DEC-11）、无预算（DEC-12）。
+控制目录 `docs/continuous-iteration/`；机器权威 `ITERATION_STATE.json`（revision 1，checkpoint `cp-0-baseline`，iteration 0，CONTINUE，score 79）。
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| 基线冻结（工作区全量导出实跑） | ✅ | analyze 0；test **605/605**；JS 49/49；doc-drift 6/6；秘密 0；OSV 237/0≥high；脚本自测 87/87（E-17/E-18） |
+| 门禁清单 G-001..G-009 | ✅ | 7 必需全 PASS@cp-0-baseline；G-008 出包链 NOT_RUN（按需）；G-009 CI 实跑 BLOCKED（BL-002） |
+| 验收矩阵计分属性冻结 | ✅ | 38 条：PASS 29 / BLOCKED 7 / OPEN 1 / PARTIAL 1（`change_log` 4 条：C2 拆分、4 条新增、冻结、D-16 登记） |
+| 候选池 | ✅ | LOCAL 5（W-001 P1 目标必需）+ BLOCKED 7（BL-001..007） |
+| 状态机校验 | ✅ | `sync`/`validate` exit 0，derived=CONTINUE，T5/T6 DONE，T1-T4/T7 OPEN |
+
+**下一动作**：W-001+W-002（子 frame 取证计数器 + D-15 挪入 try）→ 全必需门禁 → R2 独立审计。用户在本任务结束后切执行模式并设 `/goal`（文本见 `docs/continuous-iteration/EXECUTION_PROMPT.md` 与规划轮报告）。
+
+---
+
+# ITERATION 1（2026-09-17 · 执行轮 · 未提交）
+
+按 continuous-iteration 控制面（`docs/continuous-iteration/`）执行首个有界批次：**W-001（C2a 子 frame 取证计数器，ADR-002 步骤 1）+ W-002（D-15 修复）**。
+
+| 项 | 状态 | 证据 |
+| --- | --- | --- |
+| C2a 取证计数器（子 frame 导航按设备计数，诊断页+诊断包可见） | ✅ | `state/subframe_stats.dart`；`official_remote_page.dart` 接线（mounted 守卫）；诊断包 stats 合并导出 |
+| D-20260916-15 修复（NotificationSpec.from 挪入独立 try，NT501 reason=spec/show 分离） | ✅ closed | `notifier.dart`；回归测试"回退即失败"（HEAD 版对抗验证 exit 1） |
+| 门禁 | ✅ 4/5 必需 | analyze 0；test **616/616**（605→616：+7 新用例 −对抗中重复计数，终版含 N-1 交集断言）；JS 49/49；doc-drift 6/6；秘密 0。**G-006 OSV BLOCKED**（api.osv.dev 被解析到非公网地址，fail-closed 正确拒假；E-20） |
+| 零上下文审计×2 | ✅ 闭环 | 首轮（1 P2 + 4 P3 → 全修，`audits/2026-09-17-code-review-iter1.md`）→ **新代理**复审 5/5 PASS"可以合并"（`audits/2026-09-17-re-review-iter1-fixes.md`）；复审新 P3 N-1/N-2/N-3 当场修复 |
+| 检查点 | cp-1-iter1 | 代码域 diff sha256 `c53aa7a5…`（E-21） |
+| 记分 | **80/100**（+1） | C2a 转 PASS（security 17→18）；`ITERATION_STATE.json` revision 2 |
+
+**下一动作**：W-003（D-10 dedupe 振荡加固）+ W-006（webviewNavBlocked 日志取值对齐）；OSV 网络恢复后重跑 G-006 解锁 T5；C2b 待真机取证。

@@ -1,0 +1,12 @@
+[2026-09-16T11:39:33+08:00] ITERATION 0 CONTROL-PLANE BASELINE
+git_head: 16a7d8ee9d1cf084ba6df3c52fcc32633b9fb19b
+branch: release/v1.0.0
+code_diff_sha256: 286670fca06dfb706a1fd84f991bd97150854a20f271fc7e87331f26e0ad00e2
+working_tree_fp_sha256: 7aeba0dda9c5d34be416ce68b12a396f10d947d8d09098346b61dfa6df4823ad
+analyze: exit 0 / No issues found  (export /d/tmp/zr/ci_planning_20260916)
+test: exit 0 / 605 passed         (export /d/tmp/zr/ci_planning_20260916)
+js_gate: exit 0 / 49/49
+doc_drift: exit 0 / 6/6 ok
+secrets: 0 tracked secret files / 0 credential literals
+osv: exit 0 / 237 components, 0 >= high (sbom sha256 4a84be37297192d82cc21d90...)
+script_selftests: docdrift 11/11, advisories 25/25, plugin 9/9, artifacts 20/20, sbom 22/22

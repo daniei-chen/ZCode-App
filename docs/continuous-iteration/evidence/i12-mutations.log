@@ -1,0 +1,209 @@
+mutate.py export=D:\tmp\zr\ci_i12 specs=['tools\\iteration\\mutations\\iter1.json', 'tools\\iteration\\mutations\\iter2.json', 'tools\\iteration\\mutations\\iter3.json', 'tools\\iteration\\mutations\\iter4.json', 'tools\\iteration\\mutations\\iter5.json', 'tools\\iteration\\mutations\\iter6.json', 'tools\\iteration\\mutations\\iter7.json', 'tools\\iteration\\mutations\\iter8.json', 'tools\\iteration\\mutations\\iter9.json', 'tools\\iteration\\mutations\\iter10.json', 'tools\\iteration\\mutations\\iter11.json', 'tools\\iteration\\mutations\\iter12.json'] @ 2026-09-19T22:42:28
+[iter3-unknown-keys-structural] EXEMPT (test/observer_alert_test.dart): 策略按固定键名读取，“忽略未知键”是结构性质，不存在自然的回退变异（把策略改成遍历全部键才会失败，不是现实回归路径）。显式豁免。
+[iter4-stats-chars-constant-sanity] EXEMPT (test/scale_test.dart): 用例「遥测 JSON 上限常量自洽」只证明 maxStatsChars 长度的合法 JSON 可解析；生产侧 > maxStatsChars 的丢弃判断在 official_remote_page.dart 的 WebView handler（:1611），单测够不到，无有意义的回退变异。显式豁免（纲领 §3 W-008 行的 exempt 条款）。
+[iter5-token-guard-structural] EXEMPT (test/security_invariants_test.dart): S-5 的行为级验证需要真实 WebView（POST 主框架导航不经 shouldOverrideUrlLoading）；现有回归为 security_invariants_test 的源码断言（isTrustedRemotePage 守卫存在 + UserScript origin 计数相等），无单测文件内可判定的回退变异。显式豁免。
+[iter5-normal-messages-sanity] EXEMPT (test/security_hardening_test.dart): 无回归哨兵：确认深度守卫不破坏正常流量。任何会“通过”它的变异必然先破坏大量既有解析测试，不存在只让该用例失效的现实回归路径。显式豁免。
+[iter5-replace-tasks-unbounded] EXEMPT (test/security_hardening_test.dart): iter12 N-P2-3 后 replaceTasks 的超限在 _rebuild 合并视图处二次收敛（iter12-merged-evict-removed 已钉），原内部驱逐变异在 state 上不可观察——保留内部收敛作纯冗余防御，显式豁免。
+[iter7-scanner-write-failure-ux] EXEMPT (test/service_resilience_test.dart): R-1 的扫码死锁修复是 UI 反馈路径（SnackBar/Navigator），行为级验证需要 Widget 测试与相机通道 mock；本轮以代码审查 + 源码走查确认 try/catch + finally 复位在位。显式豁免，W-018 候选补 widget 测试。
+[iter9-fetch-passthrough] EXEMPT (test/device_connectivity_test.dart): 两条用例验证的是注入夹具与 probe() 的直通语义（probe 不吞结果），没有现实的回退变异路径；默认实现 defaultFetch 的真实网络行为由真机/集成覆盖。显式豁免。
+[iter1-notifier-spec-failure-mislabelled] PASS exit=1 failing=['notifyFrom 异常围栏（D-20260916-15） spec 构造抛错 → future 正常完成且记 NT501，不外溢'] (6s)
+[iter1-notifier-spec-failure-mislabelled] restored -> green
+[iter2-dedupe-key-with-summary] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） 轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10）', 'EventDedupeGate（跨消息幂等，F12） 缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要）'] (5s)
+[iter2-dedupe-key-with-summary] restored -> green
+[iter2-resolved-marker-without-trailing-nul] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键'] (5s)
+[iter2-resolved-marker-without-trailing-nul] restored -> green
+[iter3-sse-threshold-off-by-one] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 SSE：任一 SSE 计数 ≥1 即告警，值为两键之和（OB201）', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关', '应用级告警与诊断包 codesLine：空 → none；多条按顺序逗号拼接，只含告警码', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (6s)
+[iter3-sse-threshold-off-by-one] restored -> green
+[iter3-ws-ratio-inclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 WS 未命中：样本地板 20 与 >50% 占比同时满足才告警（OB202）', 'ObserverAlertPolicy.evaluate 敌对输入 超上限值钳到 maxStatValue：乘法不溢出，仍能告警'] (5s)
+[iter3-ws-ratio-inclusive] restored -> green
+[iter3-fetch-ratio-inclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 fetch 未命中：同样的地板与占比规则（OB203）'] (5s)
+[iter3-fetch-ratio-inclusive] restored -> green
+[iter3-fragment-floor-exclusive] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 分片异常：无效 + 过期累计 ≥5（OB204）'] (5s)
+[iter3-fragment-floor-exclusive] restored -> green
+[iter3-budget-drop-threshold] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 预算丢弃：队列或已见集合任一丢弃即告警（OB205）', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关'] (5s)
+[iter3-budget-drop-threshold] restored -> green
+[iter3-clamp-removed-overflow] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 敌对输入 超上限值钳到 maxStatValue：乘法不溢出，仍能告警'] (5s)
+[iter3-clamp-removed-overflow] restored -> green
+[iter3-subframe-wrong-key] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 子 frame：只有 cancelled 触发（OB207），total/allowed 不触发', 'ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关', 'ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (6s)
+[iter3-subframe-wrong-key] restored -> green
+[iter3-app-bridge-drop-threshold] PASS exit=1 failing=['应用级告警与诊断包 桥丢弃计数 ≥1 → OB206；0/负数 → 无'] (5s)
+[iter3-app-bridge-drop-threshold] restored -> green
+[iter3-codesline-empty-not-none] PASS exit=1 failing=['应用级告警与诊断包 codesLine：空 → none；多条按顺序逗号拼接，只含告警码', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (5s)
+[iter3-codesline-empty-not-none] restored -> green
+[iter3-consumed-keys-guard] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交'] (5s)
+[iter3-consumed-keys-guard] restored -> green
+[iter3-zero-counters-alert] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 全零 / 空计数 → 无告警', 'ObserverAlertPolicy.evaluate 阈值边界 WS 未命中：样本地板 20 与 >50% 占比同时满足才告警（OB202）', 'ObserverAlertPolicy.evaluate 阈值边界 fetch 未命中：同样的地板与占比规则（OB203）', 'ObserverAlertPolicy.evaluate 阈值边界 分片异常：无效 + 过期累计 ≥5（OB204）', 'ObserverAlertPolicy.evaluate 阈值边界 预算丢弃：队列或已见集合任一丢弃即告警（OB205）', 'ObserverAlertPolicy.evaluate 阈值边界 子 frame：只有 cancelled 触发（OB207），total/allowed 不触发', 'ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交', 'ObserverAlertPolicy.evaluate 敌对输入 负数按 0：不告警也不抛，且不会抵消同组的正计数', 'ObserverAlertPolicy.evaluate 敌对输入 非白名单键被忽略（页面塞不进自定义告警）', 'ObserverAlertPolicy.evaluate 敌对输入 超上限值钳到 maxStatValue：乘法不溢出，仍能告警'] (5s)
+[iter3-zero-counters-alert] restored -> green
+[iter3-negative-not-clamped] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 敌对输入 负数按 0：不告警也不抛，且不会抵消同组的正计数'] (5s)
+[iter3-negative-not-clamped] restored -> green
+[iter3-rule-order-changed] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 多条告警按固定规则顺序输出，与 Map 插入顺序无关', '应用级告警与诊断包 诊断包 alerts 分节：app 行 + 每设备短 id 行，只含告警码或 none'] (5s)
+[iter3-rule-order-changed] restored -> green
+[iter3-result-mutable] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 敌对输入 返回值不可变'] (5s)
+[iter3-result-mutable] restored -> green
+[iter4-dedupe-gate-no-eviction] PASS exit=1 failing=['EventDedupeGate 有界 2e4 个互不相同的事件：表被淘汰到上限，最早的键会被逐出'] (24s)
+[iter4-dedupe-gate-no-eviction] restored -> green
+[iter4-dedupe-gate-window-ignored] PASS exit=1 failing=['EventDedupeGate 有界 1e5 次同一事件重放：只放行一次'] (6s)
+[iter4-dedupe-gate-window-ignored] restored -> green
+[iter4-parser-dedupe-key-drops-task] PASS exit=1 failing=['EventParser.dedupe 有界与幂等 1e4 个事件、100 个键：结果恰 100 条且再次 dedupe 不变'] (7s)
+[iter4-parser-dedupe-key-drops-task] restored -> green
+[iter4-feed-first-value-wins] PASS exit=1 failing=['EventFeedNotifier 有界记账 1e4 条审批请求落到 100 个任务：pendingByTask 恰 100、末值生效、unread 逐条累加'] (7s)
+[iter4-feed-first-value-wins] restored -> green
+[iter4-feed-unread-not-incremented] PASS exit=1 failing=['EventFeedNotifier 有界记账 1e4 条审批请求落到 100 个任务：pendingByTask 恰 100、末值生效、unread 逐条累加'] (7s)
+[iter4-feed-unread-not-incremented] restored -> green
+[iter4-accept-string-length-only] PASS exit=1 failing=['BridgeSchema 边界 acceptString：按真实 UTF-8 字节判定，多字节字符不能靠 length 蒙混'] (7s)
+[iter4-accept-string-length-only] restored -> green
+[iter4-accept-stats-no-whitelist] PASS exit=1 failing=['BridgeSchema 边界 acceptStats：1e4 个垃圾键只留白名单，且不超过 maxStatsKeys'] (7s)
+[iter4-accept-stats-no-whitelist] restored -> green
+[iter4-redactor-opaque-skipped] PASS exit=1 failing=['LogRedactor 长输入 ≥1 MiB 混合凭证/长令牌/URL：无原始令牌泄漏、输出只会变短，且不发生灾难性回溯', 'LogRedactor 长输入 1e6 个连续字母：单次整体替换，长度收敛到占位符'] (7s)
+[iter4-redactor-opaque-skipped] restored -> green
+[iter4-subframe-allowed-not-counted] PASS exit=1 failing=['SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕'] (7s)
+[iter4-subframe-allowed-not-counted] restored -> green
+[iter4-bundle-alerts-not-derived] PASS exit=1 failing=['SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染'] (7s)
+[iter4-bundle-alerts-not-derived] restored -> green
+[iter5-depth-guard-removed] PASS exit=1 failing=['S-2 JSON 深度炸弹防护 深度 64 以内可解析，超过上限整帧丢弃'] (6s)
+[iter5-depth-guard-removed] restored -> green
+[iter5-depth-scanner-ignores-strings] PASS exit=1 failing=['S-2 JSON 深度炸弹防护 字符串内的括号不计入深度'] (5s)
+[iter5-depth-scanner-ignores-strings] restored -> green
+[iter5-session-index-unbounded] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 SessionIndex 6000 条唯一 id：收敛到上限，最旧的被逐出、可重新进入'] (6s)
+[iter5-session-index-unbounded] restored -> green
+[iter5-differ-cap-removed] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 StateDiffer 基线封顶：被驱逐的会话下次出现重新产生边沿事件'] (6s)
+[iter5-differ-cap-removed] restored -> green
+[iter5-jump-id-accepts-nonfinite] PASS exit=1 failing=['S-4 outcome id 有限性 Infinity / NaN 的 id 返回 null 而不是抛 UnsupportedError'] (5s)
+[iter5-jump-id-accepts-nonfinite] restored -> green
+[iter5-route-unclipped] PASS exit=1 failing=['S-6 route 长度上限 超长 path 截到 maxRouteChars，普通路由不受影响'] (6s)
+[iter5-route-unclipped] restored -> green
+[iter5-title-unclipped] PASS exit=1 failing=['S-7 通知标题与正文同上限 4 MB 会话标题被截到 120 字符'] (38s)
+[iter5-title-unclipped] restored -> green
+[iter5-proto-pollution-restored] PASS exit=1 failing=['S-3 / S-5 注入面源码不变量 hookScript 用无原型 assembler 且 logicalFrameId 受正则约束'] (6s)
+[iter5-proto-pollution-restored] restored -> green
+[iter5-zrws-bare-jsondecode] PASS exit=1 failing=['N-1/N-2 解析与注入面源码不变量（iter5 复核新增） zrWs 通道不再有裸 jsonDecode（深度炸弹统一走共享管线）'] (5s)
+[iter5-zrws-bare-jsondecode] restored -> green
+[iter5-inject-guard-removed] PASS exit=1 failing=['N-1/N-2 解析与注入面源码不变量（iter5 复核新增） _injectBridgeToken 内含 URL 信任守卫（单点收口）'] (6s)
+[iter5-inject-guard-removed] restored -> green
+[iter5-feed-title-unbounded] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 DeviceFeed.lastSessionTitle 与通知通道同上限（S-7/N-5）'] (5s)
+[iter5-feed-title-unbounded] restored -> green
+[iter6-refresh-boundary-exclusive] PASS exit=1 failing=['PageRefreshPolicy 不可见满 staleAfter 才刷新：59 秒不刷，60 秒整刷'] (5s)
+[iter6-refresh-boundary-exclusive] restored -> green
+[iter6-refresh-null-refreshes] PASS exit=1 failing=['PageRefreshPolicy 从未隐藏（null）不刷新'] (5s)
+[iter6-refresh-null-refreshes] restored -> green
+[iter6-stale-after-huge] PASS exit=1 failing=['PageRefreshPolicy 长时间不可见必刷'] (5s)
+[iter6-stale-after-huge] restored -> green
+[iter6-refresh-ignores-current-device] PASS exit=1 failing=['PageRefreshPolicy 非当前设备页永不刷新（揭启动器盖板是全体解盖，iter6 F-1）'] (5s)
+[iter6-refresh-ignores-current-device] restored -> green
+[iter6-refresh-ignores-inflight] PASS exit=1 failing=['PageRefreshPolicy 加载在途 / 错误卡不抢各自恢复路径'] (4s)
+[iter6-refresh-ignores-inflight] restored -> green
+[iter6-cover-observer-same-value-fires] PASS exit=1 failing=['同值 setCovered 不回调（外壳 build 幂等调用不刷屏）', '值变化回调一次并携带新值'] (6s)
+[iter6-cover-observer-same-value-fires] restored -> green
+[iter6-cover-observer-survives-detach] PASS exit=1 failing=['detach 后不再回调'] (5s)
+[iter6-cover-observer-survives-detach] restored -> green
+[iter6-cover-observer-never-fires] PASS exit=1 failing=['值变化回调一次并携带新值', 'detach 后不再回调'] (5s)
+[iter6-cover-observer-never-fires] restored -> green
+[iter7-prefs-optimistic-restored] PASS exit=1 failing=['R-2 设置写入失败：不显示假成功（source-pin：插件通道行为单测不可控） 通知偏好：持久化必须先于 state 发布，失败必须回读磁盘'] (5s)
+[iter7-prefs-optimistic-restored] restored -> green
+[iter7-startup-optimistic-restored] PASS exit=1 failing=['R-2 设置写入失败：不显示假成功（source-pin：插件通道行为单测不可控） 启动进入页：同样的持久化优先 + 失败回退 initial 契约'] (5s)
+[iter7-startup-optimistic-restored] restored -> green
+[iter7-quarantine-log-muted] PASS exit=1 failing=['R-3 损坏设备记录隔离留痕 损坏记录被隔离：计入 skippedRecords 且 DS704 留痕'] (5s)
+[iter7-quarantine-log-muted] restored -> green
+[iter7-evict-ignores-pinned] PASS exit=1 failing=['R-8 洪泛驱逐不挤掉 pinned 会话 6000 条（前 2000 pinned）：驱逐只落在非 pinned 上'] (4s)
+[iter7-evict-ignores-pinned] restored -> green
+[iter7-seen-codeunit-limit] PASS exit=1 failing=['R-9 ingestSeen 按 UTF-8 字节计 CJK 密集的合法 JSON：UTF-16 长度过旧检查、UTF-8 字节超限被拒'] (5s)
+[iter7-seen-codeunit-limit] restored -> green
+[iter7-bridge-health-lingers] PASS exit=1 failing=['R-6 桥健康与设备同生命周期 删除设备后 bridgeHealth 不再残留该设备（诊断包不带幽灵行）'] (5s)
+[iter7-bridge-health-lingers] restored -> green
+[iter7-outbound-scheme-check-removed] PASS exit=1 failing=['拒绝的目标 非 https'] (5s)
+[iter7-outbound-scheme-check-removed] restored -> green
+[iter7-c2a-hook-constant-true] PASS exit=1 failing=['security invariants：WebView 信任边界 子 frame 取证计数必须挂在导航判定结果上（iter7 独立验收：C2a 接线钉住）'] (4s)
+[iter7-c2a-hook-constant-true] restored -> green
+[iter8-u1-dialog-scroll-removed] PASS exit=1 failing=['U-1：更新下载对话框内容可滚动（200% 字体下主操作不得被裁切）'] (4s)
+[iter8-u1-dialog-scroll-removed] restored -> green
+[iter8-u2-minheight-reverted] PASS exit=1 failing=['U-2：设置行不再使用固定高度（200% 字体折行标题被裁）'] (5s)
+[iter8-u2-minheight-reverted] restored -> green
+[iter8-u3-load-guard-removed] PASS exit=1 failing=['U-3：通知偏好启动加载失败必须留痕（不得 unhandled zone error）'] (4s)
+[iter8-u3-load-guard-removed] restored -> green
+[iter8-u7-log-dedup-removed] PASS exit=1 failing=['U-7：扫码错误日志按错误码去重（持续故障不得刷环形缓冲）'] (5s)
+[iter8-u7-log-dedup-removed] restored -> green
+[iter8-w019-orphan-sweep-removed] PASS exit=1 failing=['R-9 ingestSeen 按 UTF-8 字节计 W-019：加载时清扫孤儿 warmup 键（remove 防抖写入残留）'] (5s)
+[iter8-w019-orphan-sweep-removed] restored -> green
+[iter9-live-shortcut-removed] PASS exit=1 failing=['DeviceConnectivityPolicy.state relay 实流（live）最强：即使探测失败也判可达'] (4s)
+[iter9-live-shortcut-removed] restored -> green
+[iter9-failed-mapped-reachable] PASS exit=1 failing=['DeviceConnectivityPolicy.state 探测成功 → 可达；探测失败 → 不可达（W-023 绿/橙语义）'] (5s)
+[iter9-failed-mapped-reachable] restored -> green
+[iter9-probe-uri-keeps-query] PASS exit=1 failing=['probeUri 探测目标跟随控制链接路径：去 query（凭证不随探测发送），保留页面路径'] (5s)
+[iter9-probe-uri-keeps-query] restored -> green
+[iter9-live-devices-probed] PASS exit=1 failing=['ConnectivityProbe + probeAll probeAll：live 设备跳过探测直接可达，其余并发探测并合并结果'] (5s)
+[iter9-live-devices-probed] restored -> green
+[iter9-unknown-impossible] PASS exit=1 failing=['DeviceConnectivityPolicy.state 都没有 → unknown（UI 保持"连接中"色）'] (5s)
+[iter9-unknown-impossible] restored -> green
+[iter9-connectivity-forget-noop] PASS exit=1 failing=['ConnectivityProbe + probeAll forget 清理单设备；clear 全清'] (5s)
+[iter9-connectivity-forget-noop] restored -> green
+[iter9-untrusted-early-return-removed] PASS exit=1 failing=['probeUri 非白名单源站 → 指向无效探测目标（默认 fetch 直接判失败）'] (5s)
+[iter9-untrusted-early-return-removed] restored -> green
+[iter10-reorder-catch-removed] PASS exit=1 failing=['iter10 F-1：reorder 的 Future 不再被丢弃（catchError 兜底）'] (5s)
+[iter10-reorder-catch-removed] restored -> green
+[iter10-wipe-connectivity-removed] PASS exit=1 failing=['iter10 F-2：擦除事务覆盖连通性探测 Provider'] (4s)
+[iter10-wipe-connectivity-removed] restored -> green
+[iter11-ws-cap-removed] PASS exit=1 failing=['W-014 未命中占比分母抗伪造 wsMessages 灌大不再稀释占比：framesDecoded 封顶后 OB202 照常触发'] (5s)
+[iter11-ws-cap-removed] restored -> green
+[iter11-fetch-cap-removed] PASS exit=1 failing=['W-014 未命中占比分母抗伪造 fetch200 虚报用 fetchCloned 封顶：OB203 同口径'] (4s)
+[iter11-fetch-cap-removed] restored -> green
+[iter11-jump-segment-relaxed] PASS exit=1 failing=['W-016 跳转 taskId 白名单与段匹配 跳转脚本包含段匹配契约：testid 精确等于 tid 或 task-item- 前缀'] (5s)
+[iter11-jump-segment-relaxed] restored -> green
+[iter11-jump-whitelist-removed] PASS exit=1 failing=['W-016 跳转 taskId 白名单与段匹配 taskIdWellFormed：合法 id 通过；空/超长/非法字符拒绝'] (5s)
+[iter11-jump-whitelist-removed] restored -> green
+[iter11-dedup-removed] PASS exit=1 failing=['W-024 探测 in-flight 去重 重叠轮跳过：第一轮在跑时第二轮不发探测、不覆盖结果'] (4s)
+[iter11-dedup-removed] restored -> green
+[iter11-cap-direction-inverted] PASS exit=1 failing=['W-014 未命中占比分母抗伪造 wsMessages 灌大不再稀释占比：framesDecoded 封顶后 OB202 照常触发', 'W-014 未命中占比分母抗伪造 fetch200 虚报用 fetchCloned 封顶：OB203 同口径'] (5s)
+[iter11-cap-direction-inverted] restored -> green
+[iter11-ws-total-dropped] PASS exit=1 failing=['W-014 未命中占比分母抗伪造 framesDecoded 正常（≥ wsMessages）时行为不变：不误报'] (5s)
+[iter11-ws-total-dropped] restored -> green
+[iter12-takeover-reset-removed] PASS exit=1 failing=['源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P1-1：_armBootCover 必须重置 _takeoverLogged（否则第二次顶号无日志）'] (10s)
+[iter12-takeover-reset-removed] restored -> green
+[iter12-cover-disarm-removed] PASS exit=1 failing=['源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P2-1：三处揭盖点都必须停掉盖板跟随计时器'] (7s)
+[iter12-cover-disarm-removed] restored -> green
+[iter12-merged-evict-removed] PASS exit=1 failing=['N-P2-3：session_index 合并视图上限 两表各 5000 个互不相同的 id：合并视图也必须 ≤ 上限'] (6s)
+[iter12-merged-evict-removed] restored -> green
+[iter12-pending-cap-removed] PASS exit=1 failing=['N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护'] (6s)
+[iter12-pending-cap-removed] restored -> green
+[iter12-bidi-strip-removed] PASS exit=1 failing=['W-021：Bidi 控制符清洗 TextSanitize：剥离 U+202A–E / U+2066–69，其余原样', 'W-021：Bidi 控制符清洗 event_feed：lastSummary/lastSessionTitle 入表前清洗', 'W-021：Bidi 控制符清洗 session_index：标题/预览/工作区入表前清洗'] (6s)
+[iter12-bidi-strip-removed] restored -> green
+[iter12-tag-suffix-unanchored] PASS exit=1 failing=['N-P2-6：update tag 归一收紧 带后缀的 tag 一律非法（fail-closed，不参与比较）'] (6s)
+[iter12-tag-suffix-unanchored] restored -> green
+[iter12-warmup-query-allowed] PASS exit=1 failing=['N-P3-2：warmup 不收录 query/fragment 带 query 的只读面板请求不再进入重放脚本'] (6s)
+[iter12-warmup-query-allowed] restored -> green
+[iter12-alertmode-unnormalized] PASS exit=1 failing=['W-021 杂项 alertMode 白名单归一：未知值回落 sound'] (6s)
+[iter12-alertmode-unnormalized] restored -> green
+[iter12-startup-target-unnormalized] PASS exit=1 failing=['W-021 杂项 startupTarget 白名单归一：未知值回落 lastDevice'] (7s)
+[iter12-startup-target-unnormalized] restored -> green
+[iter12-clip-surrogate-guard-removed] PASS exit=1 failing=['W-021 杂项 LogRedactor._clip 不产出孤立代理', '复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 标题截断：emoji 落在 120 切点上不产出孤立代理'] (7s)
+[iter12-clip-surrogate-guard-removed] restored -> green
+[iter12-bridge-health-guard-opened] PASS exit=1 failing=['W-021 杂项 bridge_health：旧 generation 迟到状态两个方向都不得覆盖新代'] (6s)
+[iter12-bridge-health-guard-opened] restored -> green
+[iter12-biometric-record-removed] PASS exit=1 failing=['W-021 杂项 biometric：sinceLastSuccess 单调时长（成功后非空，失败前为 null）'] (7s)
+[iter12-biometric-record-removed] restored -> green
+[iter12-notif-null-failopen] PASS exit=1 failing=['W-021 杂项 AppSettings.notificationsEnabled：未知一律 false（fail-closed）'] (6s)
+[iter12-notif-null-failopen] restored -> green
+[iter12-notif-catch-failopen] PASS exit=1 failing=['W-021 杂项 AppSettings.notificationsEnabled：未知一律 false（fail-closed）'] (6s)
+[iter12-notif-catch-failopen] restored -> green
+[iter12-bundle-store-rows-removed] PASS exit=1 failing=['W-021 杂项 诊断包 settings 段含设备库完整性两行（只有数字/枚举）'] (6s)
+[iter12-bundle-store-rows-removed] restored -> green
+[iter12-probe-root-only] PASS exit=1 failing=['probeUri 探测目标跟随控制链接路径：去 query（凭证不随探测发送），保留页面路径'] (5s)
+[iter12-probe-root-only] restored -> green
+[iter12-sse-key-back-to-consumed] PASS exit=1 failing=['ObserverAlertPolicy.evaluate 阈值边界 键集合护栏：消费键 ∪ 忽略键 == 白名单 ∪ 子 frame 三键，且两者不交'] (6s)
+[iter12-sse-key-back-to-consumed] restored -> green
+[iter12-evict-pin-skip-removed] PASS exit=1 failing=['N-P2-3：session_index 合并视图上限 合并视图驱逐同样保护钉住会话'] (10s)
+[iter12-evict-pin-skip-removed] restored -> green
+[iter12-tag-two-segment-dropped] PASS exit=1 failing=['N-P2-6：update tag 归一收紧 合法形态兼容：v 前缀 / 两段 / 首尾空白'] (6s)
+[iter12-tag-two-segment-dropped] restored -> green
+[iter12-integrity-report-blanked] PASS exit=1 failing=['W-021 杂项 integrity provider：加载结果上报 + 清空'] (6s)
+[iter12-integrity-report-blanked] restored -> green
+[iter12-rename-fail-snackbar-removed] PASS exit=1 failing=['改名写失败：弹"操作失败"，名字不变'] (8s)
+[iter12-rename-fail-snackbar-removed] restored -> green
+[iter12-delete-fail-snackbar-removed] PASS exit=1 failing=['删除写失败：弹"操作失败"，设备仍在列表'] (8s)
+[iter12-delete-fail-snackbar-removed] restored -> green
+[iter12-epoch-guard-removed] PASS exit=1 failing=['源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P2-1 配套：盖板纪元护栏（揭盖/重挂递增，陈旧探针作废）'] (6s)
+[iter12-epoch-guard-removed] restored -> green
+[iter12-relock-evidence-wall-ignored] PASS exit=1 failing=['复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 relockEvidence：深睡（墙钟大）与回拨（单调大）两场景都取真值'] (6s)
+[iter12-relock-evidence-wall-ignored] restored -> green
+[iter12-wipe-integrity-clear-removed] PASS exit=1 failing=['复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）'] (7s)
+[iter12-wipe-integrity-clear-removed] restored -> green
+RESULT: 100/100 mutations caught; 7 exempt (declared)

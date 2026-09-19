@@ -1,0 +1,7 @@
+00:34 +601: D:/tmp/zr/ci_planning_20260916/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到私网地址 → 拒绝下载（不请求私网）
+2026-09-16T03:14:09.207231Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:36 +602: D:/tmp/zr/ci_planning_20260916/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到发布资产 CDN（白名单内）→ 跟随并完成下载
+00:36 +603: D:/tmp/zr/ci_planning_20260916/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 下载入口拒绝非官方 host（策略 + 精确路径双重校验）
+00:36 +604: D:/tmp/zr/ci_planning_20260916/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 检查更新：发布页重定向到私网地址 → 不跟随（走失败分支）
+00:36 +605: All tests passed!
+TEST_EXIT=0

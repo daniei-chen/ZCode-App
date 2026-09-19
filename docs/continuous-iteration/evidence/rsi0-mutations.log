@@ -1,0 +1,8 @@
+mutate.py export=D:\tmp\zr\ci_rsi0 specs=['tools\\iteration\\mutations\\iter1.json', 'tools\\iteration\\mutations\\iter2.json'] @ 2026-09-18T01:22:52
+[iter1-notifier-spec-failure-mislabelled] PASS exit=1 failing=['notifyFrom 异常围栏（D-20260916-15） spec 构造抛错 → future 正常完成且记 NT501，不外溢'] (9s)
+[iter1-notifier-spec-failure-mislabelled] restored -> green
+[iter2-dedupe-key-with-summary] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） 轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10）', 'EventDedupeGate（跨消息幂等，F12） 缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要）'] (4s)
+[iter2-dedupe-key-with-summary] restored -> green
+[iter2-resolved-marker-without-trailing-nul] PASS exit=1 failing=['EventDedupeGate（跨消息幂等，F12） resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键'] (3s)
+[iter2-resolved-marker-without-trailing-nul] restored -> green
+RESULT: 3/3 mutations caught

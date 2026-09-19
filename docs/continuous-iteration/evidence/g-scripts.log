@@ -1,0 +1,22 @@
+  [ok] valid fixture passes
+  [ok] tampered sidecar fails
+  [ok] bare-digest sidecar fails（R-12 契约：必须是 sha256sum 行格式）
+  [ok] sidecar 文件名不匹配 fails（R-12）
+  [ok] tampered manifest digest fails
+  [ok] missing commit fails
+  [ok] string versionCode fails
+  [ok] missing apk fails
+  [ok] matching attestation passes
+  [ok] mismatched attestation fails
+  [ok] valid sbom passes
+  [ok] sbom bound to a different apk fails
+  [ok] sbom version mismatch fails
+  [ok] sbom without the native layer fails
+  [ok] sbom component without licenses fails
+  [ok] sbom with a dangling dependency ref fails
+  [ok] sbom native library without a hash fails
+  [ok] sbom with a non-purl reference fails
+  [ok] sbom integrated into check_dir passes
+  [ok] check_dir with a tampered sbom fails
+self-test: 20/20 passed
+exit=0

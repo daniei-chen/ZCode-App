@@ -1,0 +1,1482 @@
+{
+  "schema_version": "3.0",
+  "run_id": "zcode-app-maturation-2026-09",
+  "revision": 13,
+  "iteration": 12,
+  "phase": "RECOVER",
+  "status": "CONTINUE",
+  "target": {
+    "level": "release_candidate",
+    "score": 85
+  },
+  "budget": {
+    "kind": "none",
+    "limit": null,
+    "used": 0
+  },
+  "checkpoint": {
+    "id": "cp-12-iter12",
+    "git_head": "16a7d8ee9d1cf084ba6df3c52fcc32633b9fb19b",
+    "diff_fingerprint": "sha256:082a600a22a40cb952125b16e7475a39bc03b219c370c9480acbbc693ce59a80",
+    "recorded_at": "2026-09-19T23:25:00+08:00"
+  },
+  "source_map": {
+    "defects": "docs/DEFECTS.md",
+    "acceptance": "docs/ACCEPTANCE_MATRIX.md",
+    "evidence": "docs/EVIDENCE.md",
+    "decisions": "docs/DECISIONS.md",
+    "audits": "docs/audits/"
+  },
+  "defects": {
+    "P0": 1,
+    "P1": 0,
+    "P2": 0,
+    "P3": 0
+  },
+  "acceptance": {
+    "OPEN": 0,
+    "PARTIAL": 1,
+    "FAIL": 0,
+    "BLOCKED": 7,
+    "PASS": 30,
+    "DEFERRED": 0,
+    "NA": 0
+  },
+  "score": {
+    "dimensions": {
+      "core": {
+        "earned": 23,
+        "possible": 24
+      },
+      "security": {
+        "earned": 18,
+        "possible": 24
+      },
+      "tests": {
+        "earned": 14,
+        "possible": 14
+      },
+      "operations": {
+        "earned": 2,
+        "possible": 12
+      },
+      "docs": {
+        "earned": 9,
+        "possible": 9
+      }
+    },
+    "history": [
+      {
+        "iteration": 0,
+        "total": 79,
+        "source_hash": "sha256:ba39b3390f741b92e47249e00eccd07d59be9caa5639211dc1c98473ea6809a6"
+      },
+      {
+        "iteration": 1,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 2,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 3,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 4,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 5,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 6,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 7,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 8,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 9,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 10,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 11,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      },
+      {
+        "iteration": 12,
+        "total": 80,
+        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+      }
+    ]
+  },
+  "gates": [
+    {
+      "id": "G-001",
+      "command": "flutter analyze（tools/iteration/gates.sh 导出目录，DEC-02）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-analyze.log"
+      ]
+    },
+    {
+      "id": "G-002",
+      "command": "flutter test 全量（同上导出目录）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-test.log"
+      ]
+    },
+    {
+      "id": "G-003",
+      "command": "node scripts/check_injected_js.mjs",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-js.log"
+      ]
+    },
+    {
+      "id": "G-004",
+      "command": "python scripts/check-doc-drift.py",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-docdrift.log"
+      ]
+    },
+    {
+      "id": "G-005",
+      "command": "秘密扫描（git ls-files 扩展名过滤 + git grep 凭据字面量 + check-ignore）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-secrets.log"
+      ]
+    },
+    {
+      "id": "G-006",
+      "command": "python scripts/check-dependency-advisories.py --sbom <b5 SBOM> --exceptions scripts/security-exceptions.json --fail-on high（公网 OSV）",
+      "required": true,
+      "status": "BLOCKED",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i11-osv.log"
+      ]
+    },
+    {
+      "id": "G-007",
+      "command": "发布脚本自测：check-doc-drift / check-dependency-advisories / check-plugin-survival / verify-release-artifacts / generate-sbom（--self-test）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-script-selftests.log"
+      ]
+    },
+    {
+      "id": "G-008",
+      "command": "flutter build apk --release + check-plugin-survival --apk（11 插件存活门）+ verify-release-artifacts",
+      "required": false,
+      "status": "NOT_RUN",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": []
+    },
+    {
+      "id": "G-009",
+      "command": "GitHub Actions CI 三条工作流真实实跑（ci.yml / ci-heavy.yml / release.yml）",
+      "required": false,
+      "status": "BLOCKED",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": []
+    },
+    {
+      "id": "G-010",
+      "command": "python tools/iteration/mutate.py --export <导出> --spec tools/iteration/mutations/*.json --require-green（全语料\"回退即失败\"变异验证）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-mutations.log"
+      ]
+    },
+    {
+      "id": "G-011",
+      "command": "tools/iteration/gates.sh state + mutcov 门：iteration_state.py validate --repo-root . + gitignore canary（检查点终跑 --strict-state）；mutate.py --coverage 对 mutations/coverage-files.txt 全覆盖",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12-state.log",
+        "docs/continuous-iteration/evidence/i12-mutcov.log"
+      ]
+    },
+    {
+      "id": "G-012",
+      "command": "导出目录 flutter build apk --debug（编译可行性门；release 需密钥属 P0 治理，AI 不做）",
+      "required": false,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/b1-build.log"
+      ]
+    },
+    {
+      "id": "G-013",
+      "command": "tools/iteration/clean_start.sh <prefix>（冷启动门：fresh export → pub get → gen-l10n 漂移检查 → analyze → 全量 test；必败样验证过 DRIFT→exit 1）",
+      "required": true,
+      "status": "PASS",
+      "checkpoint_id": "cp-12-iter12",
+      "evidence": [
+        "docs/continuous-iteration/evidence/i12b-cleanstart.log"
+      ]
+    }
+  ],
+  "audits": [
+    {
+      "id": "A-101",
+      "iteration": 1,
+      "reviewer_id": "code-reviewer-iter1-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-1-iter1-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-17-code-review-iter1.md"
+    },
+    {
+      "id": "A-102",
+      "iteration": 1,
+      "reviewer_id": "code-reviewer-iter1-r2",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-1-iter1",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "RESILIENCE"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-17-re-review-iter1-fixes.md"
+    },
+    {
+      "id": "A-103",
+      "iteration": 2,
+      "reviewer_id": "code-reviewer-iter2-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-2-iter2-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-code-review-iter2.md"
+    },
+    {
+      "id": "A-104",
+      "iteration": 2,
+      "reviewer_id": "code-reviewer-iter2-r1（续会话复核返修）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-2-iter2",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-re-review-iter2-fixes.md"
+    },
+    {
+      "id": "A-105",
+      "iteration": 3,
+      "reviewer_id": "code-reviewer-iter3-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-3-iter3-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "ADVERSARIAL"
+      ],
+      "new_p0": 0,
+      "new_p1": 2,
+      "report": "docs/audits/2026-09-18-code-review-iter3.md"
+    },
+    {
+      "id": "A-106",
+      "iteration": 3,
+      "reviewer_id": "code-reviewer-iter3-r1（续会话复核返修）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-3-iter3",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "ADVERSARIAL"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-re-review-iter3-fixes.md"
+    },
+    {
+      "id": "A-107",
+      "iteration": 4,
+      "reviewer_id": "code-reviewer-iter4-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-4-iter4-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 1,
+      "report": "docs/audits/2026-09-18-code-review-iter4.md"
+    },
+    {
+      "id": "A-108",
+      "iteration": 4,
+      "reviewer_id": "code-reviewer-iter4-r1（续会话复核返修）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-4-iter4",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-re-review-iter4-fixes.md"
+    },
+    {
+      "id": "A-109",
+      "iteration": 5,
+      "reviewer_id": "security-auditor-r3",
+      "independent": true,
+      "risk": "R3",
+      "checkpoint_id": "cp-5-iter5-pre-repair",
+      "coverage": [
+        "ADVERSARIAL",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 2,
+      "report": "docs/audits/2026-09-18-security-r3.md"
+    },
+    {
+      "id": "A-110",
+      "iteration": 5,
+      "reviewer_id": "security-auditor-r3（续会话复核返修）",
+      "independent": true,
+      "risk": "R3",
+      "checkpoint_id": "cp-5-iter5",
+      "coverage": [
+        "ADVERSARIAL",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-security-r3-reverify.md"
+    },
+    {
+      "id": "A-111",
+      "iteration": 6,
+      "reviewer_id": "code-reviewer-iter6-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-6-iter6-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 1,
+      "report": "docs/audits/2026-09-18-code-review-iter6.md"
+    },
+    {
+      "id": "A-112",
+      "iteration": 6,
+      "reviewer_id": "code-reviewer-iter6-r1（续会话复核返修）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-6-iter6",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 1,
+      "report": "docs/audits/2026-09-18-re-review-iter6-fixes.md"
+    },
+    {
+      "id": "A-113",
+      "iteration": 7,
+      "reviewer_id": "code-reviewer-services-r2",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-7-iter7-pre-repair",
+      "coverage": [
+        "RESILIENCE",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 3,
+      "report": "docs/audits/2026-09-18-services-audit-and-acceptance.md"
+    },
+    {
+      "id": "A-114",
+      "iteration": 7,
+      "reviewer_id": "test-engineer-acceptance",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-7-iter7",
+      "coverage": [
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-services-audit-and-acceptance.md"
+    },
+    {
+      "id": "A-115",
+      "iteration": 7,
+      "reviewer_id": "code-reviewer-services-r2（续会话复核返修）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-7-iter7",
+      "coverage": [
+        "RESILIENCE",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-18-services-audit-and-acceptance.md"
+    },
+    {
+      "id": "A-116",
+      "iteration": 8,
+      "reviewer_id": "code-reviewer-ui-r2",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-8-iter8-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "RESILIENCE"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 2,
+      "report": "docs/audits/2026-09-19-ui-and-entry-audit.md"
+    },
+    {
+      "id": "A-117",
+      "iteration": 8,
+      "reviewer_id": "主代理（修复=审计处方原文 + source-pin/变异机器验证）",
+      "independent": false,
+      "risk": "R2",
+      "checkpoint_id": "cp-8-iter8",
+      "coverage": [
+        "DIFF_CORRECTNESS"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-ui-and-entry-audit.md"
+    },
+    {
+      "id": "A-118",
+      "iteration": 9,
+      "reviewer_id": "主代理（纯策略+注入式探测，变异 7/7 机器验证；独立复核待下轮 T3）",
+      "independent": false,
+      "risk": "R2",
+      "checkpoint_id": "cp-9-iter9",
+      "coverage": [
+        "DIFF_CORRECTNESS"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/continuous-iteration/evidence/i9-mutations.log"
+    },
+    {
+      "id": "A-119",
+      "iteration": 10,
+      "reviewer_id": "code-reviewer-iter10-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-10-iter10-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 2,
+      "report": "docs/audits/2026-09-19-iter10-combined-review.md"
+    },
+    {
+      "id": "A-120",
+      "iteration": 10,
+      "reviewer_id": "code-reviewer-iter10-r1（最终裁定）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-10-iter10",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter10-combined-review.md"
+    },
+    {
+      "id": "A-121",
+      "iteration": 11,
+      "reviewer_id": "code-reviewer-iter11-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-11-iter11",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "CLEAN_START_RELEASE"
+      ],
+      "new_p0": 0,
+      "new_p1": 2,
+      "report": "docs/audits/2026-09-19-iter11-review.md"
+    },
+    {
+      "id": "A-122",
+      "iteration": 11,
+      "reviewer_id": "code-reviewer-iter11-r1（最终裁定）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-11-iter11",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "CLEAN_START_RELEASE"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter11-review.md"
+    },
+    {
+      "id": "A-123",
+      "iteration": 12,
+      "reviewer_id": "code-reviewer-iter12-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-12-iter12-pre-repair",
+      "coverage": [
+        "RESILIENCE",
+        "BOUNDARY_CONTRACT",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 2,
+      "new_p2": 2,
+      "report": "docs/audits/2026-09-19-iter12-deep-probe.md"
+    },
+    {
+      "id": "A-124",
+      "iteration": 12,
+      "reviewer_id": "code-reviewer-iter12-r1（最终裁定）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-12-iter12",
+      "coverage": [
+        "RESILIENCE",
+        "BOUNDARY_CONTRACT",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter12-deep-probe.md"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "W-001",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-102",
+      "description": "C2a 子 frame 取证计数器：非主 frame 导航计数 + 诊断页可见 + 测试（ADR-002 步骤 1）"
+    },
+    {
+      "id": "W-002",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-102",
+      "description": "D-20260916-15：notifier.dart notifyFrom 内 NotificationSpec.from 挪入 try"
+    },
+    {
+      "id": "W-003",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-104",
+      "description": "D-20260916-10：EventDedupeGate 键含 summary 的振荡面加固（去 summary 或同 taskId 限频）"
+    },
+    {
+      "id": "W-004",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-108",
+      "description": "A-12：BENCHMARKS-RESULTS 模拟数据持续可见标注复核"
+    },
+    {
+      "id": "W-005",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-106",
+      "description": "观察面变化自动告警（sseIgnored/未命中计数阈值 → 诊断页提示），MASTER_PLAN 下一阶段"
+    },
+    {
+      "id": "W-BL1",
+      "severity": "P0",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-001",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "A4/D-20260916-16：ADR-003 密钥处置拍板并记入 DECISIONS.md"
+    },
+    {
+      "id": "W-BL2",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-007",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "C2b：子 frame 运行时证据归档 + ADR-002 路线拍板"
+    },
+    {
+      "id": "W-BL3",
+      "severity": "P2",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-004",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "C7：每设备 WebView 站点数据隔离（ADR-004 产品决策）"
+    },
+    {
+      "id": "W-BL4",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-002",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "D1：CI 三条工作流在真实 GitHub 实跑"
+    },
+    {
+      "id": "W-BL5",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-006",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "D2：tag 策略（v1.0.0 已占用）落定"
+    },
+    {
+      "id": "W-BL6",
+      "severity": "P1",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-003",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "D3：真机矩阵 / 48h soak / TalkBack / 实体生物识别"
+    },
+    {
+      "id": "W-BL7",
+      "severity": "P2",
+      "required_for_target": true,
+      "status": "BLOCKED",
+      "blocker_id": "BL-005",
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "D5：无凭据机型擦除失败出口（ADR-005 产品决策）"
+    },
+    {
+      "id": "W-006",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-104",
+      "description": "D-20260917-01：webviewNavBlocked 日志改 uri?.path 与注释一致（LogRedactor.route 已兜底，非行为缺陷）"
+    },
+    {
+      "id": "W-007",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-106",
+      "description": "纲领 RSI-0：流程工具链入仓 tools/iteration/（验证器 --repo-root 引用/哈希/缺陷号校验 + 自测、gates.sh 导出目录门禁、mutate.py 变异验证、审计提示词模板×3、LESSONS.md）"
+    },
+    {
+      "id": "W-008",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-108",
+      "description": "纲领 H2：规模测试（dedupe 闸门 1e5 事件上界、EventParser.dedupe 大数组、feed 1e4 事件、acceptStats 8 KiB 边界、LogRedactor 长输入），覆盖 SCALE_DATA"
+    },
+    {
+      "id": "W-009",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-110",
+      "description": "纲领 H3：零上下文 security-auditor R3 对输入面对抗审计（bridge_schema/event_observer 解析/link_builder/update_service/webview_storage）→ 缺陷登记 → P1/P2 当轮修"
+    },
+    {
+      "id": "W-010",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-115",
+      "description": "纲领 H4：零上下文 test-engineer 独立验收抽样 10 条 PASS 项，回退即失败复核，不成立诚实降级"
+    },
+    {
+      "id": "W-011",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-110",
+      "description": "纲领 H5：G-010 编译可行性门（导出目录 flutter build apk --debug + 插件存活脚本信息性）+ H3/H4 修复批"
+    },
+    {
+      "id": "W-012",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-121",
+      "description": "纲领 H6：clean_start.sh 冷启动门（fresh export → pub get → gen-l10n arb↔生成物漂移检查 → analyze → 全量 test；五步，无 debug build/文档扫描——后者若需要另立候选）"
+    },
+    {
+      "id": "W-013",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-115",
+      "description": "纲领 RSI-R：复盘 LESSONS 四条曲线（已记录至 iter5）、工具链 v2（模板条款：返修附机器证据 / 通道完备性已入 security-r3.md）、恢复提示词"
+    },
+    {
+      "id": "W-014",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-121",
+      "description": "iter3 审计 F-12（iter11 落地修订）：OB202/OB203 分母命中数用 framesDecoded/fetchCloned 封顶，堵\"灌大分母稀释占比\"的最廉价伪造；如实边界：页面同帧伪造 cap 键或清零 miss 计数超出计数层防御，触发本身即信号；cap 绑定时阈值语义变为 miss > 封顶值（只紧不松）"
+    },
+    {
+      "id": "W-015",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter3 审计 F-5：验证器 --repo-root 增加 --require-tracked（git ls-files --error-unmatch 校验证据/报告已跟踪）；DEC-06 阶段恒 FAIL，待用户首次提交后启用"
+    },
+    {
+      "id": "W-016",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-121",
+      "description": "iter5 审计 S-8（iter11 落地修订）：SessionJump 收紧——Dart 侧 taskIdWellFormed（^[0-9A-Za-z_-]{1,128}$，较登记的 min 6 放宽到 min 1：官方 sessionId 无最短长度契约，且子串→前缀匹配已是实质收窄）；JS find() 从任意子串命中收紧为 testid 精确等于 tid 或 task-item-+tid 前缀（官方列表项契约）"
+    },
+    {
+      "id": "W-018",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-124",
+      "description": "iter7 R-1/R-3：manage_page 写失败路径 widget 测试 + 诊断包暴露 storage 隔离计数（skippedRecords/repaired）"
+    },
+    {
+      "id": "W-019",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-120",
+      "description": "iter7 R-4：remove 作废在途 warmup 写入（bump epoch）或加载时清扫索引外 warmup 键"
+    },
+    {
+      "id": "W-020",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-120",
+      "description": "iter7 R-5：被代际作废的 DeviceStore 命令不得以成功完成（类型化异常或返回 bool），调用方不得发布未持久化状态"
+    },
+    {
+      "id": "W-021",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-124",
+      "description": "iter7 R-10+观察：bridge_health 死条件、_clip 代理对、root_tabs 命名、alertMode 白名单、BiometricGate monotonic 时钟、AppSettings fail-open、更新 tag normalize、bidi 过滤"
+    },
+    {
+      "id": "W-022",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-116",
+      "description": "iter8 U-1..U-7：更新对话框滚动、设置行 minHeight、prefs 启动加载兜底、mounted 守卫×3、电池行防误触、版本占位、扫码日志去重（U-6 重试入口余量）"
+    },
+    {
+      "id": "W-023",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-118",
+      "description": "用户需求：设备列表连通性指示（可联通绿点/不可联通橙点）——DeviceConnectivityPolicy 双信号（relay 实流优先 + 无凭证源站探测）+ 卡片状态点 + 删除清理同生命周期"
+    },
+    {
+      "id": "W-024",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-121",
+      "description": "iter10 复核 F-6（已落地：probeAll _inFlight 去重）+ F-8（定向 format 未做，随下次提交顺带）"
+    },
+    {
+      "id": "W-025",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": "BL-003",
+      "defer_reason": "降频策略需与后台通知可靠性权衡 + 真机验证",
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 深探 A-P2-2：JS 观测面 hidden/cover 降频（WS 解码转发、1Hz 握手扫描、15s 遥测在后台照跑）"
+    },
+    {
+      "id": "W-026",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 清扫：l10n 死键 189 个清理 + session_index 硬编码 '未命名工作区'（消费链 SessionGrouping 已无 lib 内调用方，一并核实）"
+    },
+    {
+      "id": "W-027",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "BLOCKED",
+      "blocker_id": "BL-003",
+      "defer_reason": "mediaPlaybackRequiresUserGesture 改 true 需真机 smoke 验证官方页视频",
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 深探 A-P2-3：WebView 媒体自动播放收紧 + tel:/mailto: 静默 CANCEL 增加用户反馈"
+    },
+    {
+      "id": "W-028",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "BLOCKED",
+      "blocker_id": "BL-003",
+      "defer_reason": "自动恢复策略需真机证据",
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 深探 A-P3-2：onRenderProcessUnresponsive 现只记日志等手动，补自动恢复策略"
+    },
+    {
+      "id": "W-029",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "BLOCKED",
+      "blocker_id": "BL-001",
+      "defer_reason": "供应链姿态需用户拍板（是否内置验签公钥）",
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 深探 A-P2-4：更新包发布源验签（minisign/cosign 公钥内置）——当前信任根是 GitHub 账户安全，SHA256 只防传输损坏"
+    },
+    {
+      "id": "W-030",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter12 复核 P3：`_hiddenSince` 墙钟改单调/双钟口径（回拨/休眠只影响静默刷新时机，UX 级）"
+    }
+  ],
+  "blockers": [
+    {
+      "id": "BL-001",
+      "type": "USER",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "采纳 ADR-003 方案 A（保留现密钥 + 流程加固：密钥只存离线备份与 CI Secrets、审计包永久禁带密钥、定期核验备份），预备 B（离线生成轮换 lineage，不发布）",
+      "unlock_condition": "用户回复 ADR-003 的三个待决点并记入 docs/DECISIONS.md；涉及密钥材料的步骤必须由用户本机/离线完成",
+      "evidence": [
+        "docs/adr/ADR-003-signing-key-disposal.md",
+        "docs/PROJECT_AUDIT.md（A-01）"
+      ],
+      "blocks": [
+        "T1",
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-002",
+      "type": "EXTERNAL",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "恢复仓库推送权限后推送 release 分支改动 + 实跑 ci.yml / ci-heavy.yml，累积模拟器 E2E 稳定性证据",
+      "unlock_condition": "GitHub 账号可用（推送与 Actions 运行权限）",
+      "evidence": [
+        "docs/PROJECT_AUDIT.md（A-04）",
+        "docs/ROADMAP.md"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-003",
+      "type": "EXTERNAL",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "用户按 docs/RELEASE-CHECKLIST.md 在自有设备执行真机矩阵 + 48h soak + TalkBack/实体生物识别，并把结果归档到 BENCHMARKS-RESULTS",
+      "unlock_condition": "用户设备与时间窗口可用",
+      "evidence": [
+        "docs/RELEASE-CHECKLIST.md",
+        "docs/SUPPORT.md"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-004",
+      "type": "USER",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "对 ADR-004 拍板：是否启用每设备独立 WebView 数据目录（隔离收益 vs 多设备常驻成本）",
+      "unlock_condition": "用户对 ADR-004 选项与代价作出决定并记入 docs/DECISIONS.md",
+      "evidence": [
+        "docs/adr/ADR-004-per-device-webview-isolation.md"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-005",
+      "type": "USER",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "对 ADR-005 拍板：无系统锁屏凭据机型是否提供显式知情确认的擦除出口",
+      "unlock_condition": "用户对 ADR-005 选项与安全语义作出决定并记入 docs/DECISIONS.md",
+      "evidence": [
+        "docs/adr/ADR-005-credential-less-wipe-exit.md"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-006",
+      "type": "USER",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "决定 tag 策略：沿用 v1.0.0（内部 versionCode 递增）或为新线启用新 tag 名（不复用被占用的 v1.0.0）",
+      "unlock_condition": "用户选择并记入 docs/DECISIONS.md；涉及发布链配置的改动由后续轮次实施",
+      "evidence": [
+        "docs/PROJECT_AUDIT.md（A-04 注）"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    },
+    {
+      "id": "BL-007",
+      "type": "USER",
+      "required_for_target": true,
+      "status": "OPEN",
+      "recommended_option": "真机/soak 期间收集子 frame 导航证据（计数器随诊断包导出），据此在 ADR-002 的 A/B/C 中拍板",
+      "unlock_condition": "计数器的运行时数据到位（依赖 BL-003 的设备窗口）",
+      "evidence": [
+        "docs/adr/ADR-002-bridge-frame-origin.md"
+      ],
+      "blocks": [
+        "T2"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "docs/ACCEPTANCE_MATRIX.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "docs/continuous-iteration/evidence/g-baseline-summary.log",
+        "E-17",
+        "E-43"
+      ]
+    },
+    {
+      "path": "docs/DEFECTS.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "E-17",
+        "E-26",
+        "E-28",
+        "E-30",
+        "E-42"
+      ]
+    },
+    {
+      "path": "docs/EVIDENCE.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "E-17",
+        "E-22",
+        "E-25",
+        "E-26",
+        "E-28",
+        "E-30",
+        "E-32",
+        "E-34",
+        "E-36",
+        "E-38",
+        "E-40",
+        "E-42"
+      ]
+    },
+    {
+      "path": "docs/DECISIONS.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "DEC-10",
+        "DEC-16"
+      ]
+    },
+    {
+      "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "docs/continuous-iteration/evidence/g-baseline-summary.log",
+        "E-25"
+      ]
+    },
+    {
+      "path": "docs/continuous-iteration/EXECUTION_STATE.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "docs/continuous-iteration/evidence/g-baseline-summary.log",
+        "E-42"
+      ]
+    },
+    {
+      "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "E-25",
+        "E-30",
+        "E-42"
+      ]
+    },
+    {
+      "path": "docs/continuous-iteration/LESSONS.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "E-25",
+        "E-28",
+        "E-30",
+        "E-42"
+      ]
+    },
+    {
+      "path": "tools/iteration/README.md",
+      "required": true,
+      "revision": 13,
+      "status": "CURRENT",
+      "evidence": [
+        "E-25",
+        "E-28"
+      ]
+    }
+  ],
+  "hygiene": {
+    "unresolved_placeholders": 0,
+    "secret_scan": "PASS",
+    "secret_scan_evidence": [
+      "docs/continuous-iteration/evidence/g-secrets.log",
+      "docs/continuous-iteration/evidence/i5-secrets.log",
+      "docs/continuous-iteration/evidence/i6-secrets.log",
+      "docs/continuous-iteration/evidence/i7-secrets.log",
+      "docs/continuous-iteration/evidence/i8-secrets.log",
+      "docs/continuous-iteration/evidence/i9-secrets.log",
+      "docs/continuous-iteration/evidence/i10-secrets.log",
+      "docs/continuous-iteration/evidence/i11-secrets.log"
+    ]
+  },
+  "termination": {
+    "claim": "CONTINUE",
+    "checks": {
+      "T1": "OPEN",
+      "T2": "OPEN",
+      "T3": "DONE",
+      "T4": "OPEN",
+      "T5": "OPEN",
+      "T6": "DONE",
+      "T7": "OPEN"
+    },
+    "reason": "ITERATION 12 完成：两路深探审计 14 项修复闭环（W-018/W-021 DONE）；独立复核两轮（A-123 需返修→A-124 可合并）；725/725、变异 100/100+7、10 门 PASS（OSV BLOCKED）；分数 80 不变（无验收翻转）。本地候选清零（W-015 待首次提交；W-026/W-030 为本轮新登记小项），下一步转 BLOCKED 等用户决策。"
+  },
+  "resume": {
+    "next_action": "本地候选清零，转 BLOCKED 等用户：① ADR-003 密钥处置（P0，W-BL1）② ADR-004/005 拍板 ③ tag 策略 ④ GitHub 账号（解锁 G-006 OSV 复跑 / G-009 CI / W-BL4）⑤ 真机窗口（BL-003，连带 W-025/W-027/W-028 验证）⑥ W-029 更新包发布源验签决策。可做的小项仅剩 W-026（l10n 死键清理）与 W-030（_hiddenSince 口径）。",
+    "retry_after": null
+  },
+  "change_log": [
+    {
+      "date": "2026-09-16",
+      "type": "split",
+      "id": "C2",
+      "superseded_by": [
+        "C2a",
+        "C2b"
+      ],
+      "reason": "本地可做的取证计数器与外部队列（运行时证据+拍板）职责不同，拆分后 C2a 保持 LOCAL 可推进，C2b 归 BL-007 阻塞；总权重 2 不变"
+    },
+    {
+      "date": "2026-09-16",
+      "type": "addition",
+      "ids": [
+        "A6",
+        "T-01",
+        "T-02",
+        "T-03"
+      ],
+      "reason": "控制面初始化补齐：ADR 状态核对（A6）与三条测试证据条目（注入脚本门/发布脚本自测/R-19 回归钉住），均有当前检查点证据"
+    },
+    {
+      "date": "2026-09-16",
+      "type": "freeze",
+      "ids": [
+        "all"
+      ],
+      "reason": "维度/权重/关键标记在 revision 1 冻结（DEC-16）；后续变更须记录本数组"
+    },
+    {
+      "date": "2026-09-16",
+      "type": "new_defect",
+      "ids": [
+        "D-20260916-16"
+      ],
+      "reason": "把 PROJECT_AUDIT A-01（密钥接触面事件处置未定，治理 P0）显式登记进 DEFECTS.md，避免状态计数与审计台账脱节"
+    },
+    {
+      "date": "2026-09-17",
+      "type": "iteration_1",
+      "ids": [
+        "W-001",
+        "W-002",
+        "W-006",
+        "D-20260917-01"
+      ],
+      "reason": "C2a 落地转 PASS（security 17→18，总分 79→80）；D-15 修复关闭；新登记 D-20260917-01（P3）与候选 W-006；治理权重未变更"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_2",
+      "ids": [
+        "W-003",
+        "W-006",
+        "D-20260916-10",
+        "D-20260917-01",
+        "D-20260918-01"
+      ],
+      "reason": "W-003 dedupe 键去 summary（D-10 关闭）+ W-006 route 取 path（D-20260917-01 关闭）+ 随批登记并关闭 D-20260918-01（onRenderProcessUnresponsive 同口径）；验收矩阵无翻转（哈希不变，总分 80 不变）；open P3 2→0；治理权重未变更"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "program",
+      "ids": [
+        "W-007",
+        "W-008",
+        "W-009",
+        "W-010",
+        "W-011",
+        "W-012",
+        "W-013"
+      ],
+      "reason": "八小时自迭代纲领（EXECUTION_PROGRAM_8H.md）登记 7 个 LOCAL 候选；流程工具链入仓；LESSONS 自迭代台账启用"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_3",
+      "ids": [
+        "W-005",
+        "W-007",
+        "D-20260918-02",
+        "D-20260918-03",
+        "D-20260918-04",
+        "W-014",
+        "W-015",
+        "G-010",
+        "G-011"
+      ],
+      "reason": "W-005 观察面告警落地（OB201–OB207）；W-007 工具链入仓（审计抓到 2×P1：验证器夹具误命中、tools/ 被 gitignore，均当轮关闭）；新增必需门 G-010 变异验证、G-011 状态机校验；候选 +W-014/W-015；验收矩阵无翻转（分数 80 不变）；检查点指纹换新配方（fingerprint.sh，L-16）"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_4",
+      "ids": [
+        "W-004",
+        "W-008",
+        "D-20260918-05",
+        "D-20260918-06"
+      ],
+      "reason": "W-004 模拟数据标注加固（A-12）；W-008 规模测试 11 条（SCALE_DATA）；审计 1×P1（变异覆盖不完整）当轮关闭：mutate.py 新增 exempt/--coverage/--timeout-s，gates.sh 新增 mutcov 必需门（G-011 扩展）；验收矩阵无翻转（分数 80 不变）"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_5",
+      "ids": [
+        "W-009",
+        "W-011",
+        "D-20260918-07",
+        "D-20260918-08",
+        "W-016",
+        "G-012"
+      ],
+      "reason": "W-009 安全 R3：0×P0/P1、2×P2（无界内存进程级击杀）+ 7×P3，全部当轮闭环（含复核阻断残留 zrWs 通道/令牌 back 路径/replaceTasks/lastSessionTitle）；W-011 debug APK 编译可行性门 PASS；新门 G-012；候选 +W-016；安全相关 open 缺陷清零；分数 80 不变"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_6",
+      "ids": [
+        "W-017"
+      ],
+      "reason": "用户反馈直修：打开页面静默刷新（PageRefreshPolicy 纯策略 + 控制器遮盖观察者 + 激活页收敛 + 生命周期/切页触发）；审计 1×P1（揭盖全体解盖）+ 复审 1×P2（covered 早退丢失）均当轮闭环；验收矩阵无翻转（分数 80 不变）"
+    },
+    {
+      "date": "2026-09-18",
+      "type": "iteration_7",
+      "ids": [
+        "W-010",
+        "D-20260918-09",
+        "D-20260918-10",
+        "D-20260918-11",
+        "W-018",
+        "W-019",
+        "W-020",
+        "W-021"
+      ],
+      "reason": "W-010 独立验收抽样 11 项（8 确认 / C2a 接线缺口补源码钉 / T-03 声明补实 / C3 盲区补用例）；服务面审计 3×P2（写失败静默+扫码死锁、设置乐观更新、隔离零留痕）+10×P3 全部当轮闭环或候选化；安全/健壮性 open 缺陷 0；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_8",
+      "ids": [
+        "W-022",
+        "D-20260919-01"
+      ],
+      "reason": "UI 层全量+入口/锁屏流审计（0×P0/P1，锁屏/擦除/深链时序核实正确）；2×P2 大字体可达性（更新对话框滚动、设置行 minHeight）+5×P3 当轮修复；W-019 落地（孤儿 warmup 清扫）；D-20260919-01 测试边界抖动按高视口修复；变异全语料 60/60 + 5 exempt；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_9",
+      "ids": [
+        "W-023"
+      ],
+      "reason": "用户需求直修：设备列表连通性绿/橙点（双信号策略 + 无凭证源站探测 + 卡片接线 + 删除清理）；mutate.py 补编译失败检测（L-23）；692/692、变异 7/7、11 道门 PASS；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_10",
+      "ids": [
+        "D-20260919-03",
+        "W-024"
+      ],
+      "reason": "iter8+iter9 合并批独立复核（新代理）：2×P2（reorder 异常无兜底、擦除漏清 connectivity）+6×P3 全部当轮闭环；supersedeable 通道修双 clearAll 误报；statusReachable 文案拆分；W-024 登记；复审最终裁定可以合并；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_11",
+      "ids": [
+        "W-012",
+        "W-014",
+        "W-016",
+        "W-024",
+        "G-013"
+      ],
+      "reason": "W-012 冷启动门（G-013，含 l10n 漂移检查与必败样验证）；W-014 告警分母封顶；W-016 跳转白名单+段匹配；W-024 探测去重；独立复核 2×P1+3×P2+5×P3 全部当轮闭环；700/700；分数 80 不变"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_12",
+      "ids": [
+        "W-018",
+        "W-021",
+        "D-20260919-04",
+        "D-20260919-05",
+        "D-20260919-06",
+        "D-20260919-07",
+        "D-20260919-08",
+        "D-20260919-09",
+        "D-20260919-10",
+        "D-20260919-11",
+        "D-20260919-12",
+        "D-20260919-13",
+        "D-20260919-14",
+        "W-025",
+        "W-026",
+        "W-027",
+        "W-028",
+        "W-029",
+        "W-030"
+      ],
+      "reason": "两路零上下文深探（WebView/网络 + 状态/持久化）：P1×1（顶号日志丢失）+P2×5（盖板定时器与竞态、sse 死键、探测语义、合并视图上限、pendingByTask 无界、tag 归一、休眠钟 relock 回退）+P3×2 全部当轮闭环；W-018（写失败 widget 测试+诊断隔离计数）/W-021（卫生批）DONE；独立复核 A-123 需返修（变异锚唯一性×3、阈值带存活、盖板竞态、Stopwatch 休眠冻结）→ 返修后 A-124 可合并；iter5/iter9 三条旧语料锚续接更新；725/725、100/100+7、10 门 PASS；分数 80 不变"
+    }
+  ]
+}

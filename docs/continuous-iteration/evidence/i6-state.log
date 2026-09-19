@@ -1,0 +1,4 @@
+valid=true
+derived_status=CONTINUE
+computed_score=80
+checks=T1:OPEN,T2:OPEN,T3:DONE,T4:OPEN,T5:OPEN,T6:DONE,T7:OPEN

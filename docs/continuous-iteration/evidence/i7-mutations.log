@@ -1,0 +1,19 @@
+mutate.py export=D:\tmp\zr\ci_i7 specs=['tools\\iteration\\mutations\\iter7.json'] @ 2026-09-19T01:15:26
+[iter7-scanner-write-failure-ux] EXEMPT (test/service_resilience_test.dart): R-1 的扫码死锁修复是 UI 反馈路径（SnackBar/Navigator），行为级验证需要 Widget 测试与相机通道 mock；本轮以代码审查 + 源码走查确认 try/catch + finally 复位在位。显式豁免，W-018 候选补 widget 测试。
+[iter7-prefs-optimistic-restored] PASS exit=1 failing=['R-2 设置写入失败：不显示假成功（source-pin：插件通道行为单测不可控） 通知偏好：持久化必须先于 state 发布，失败必须回读磁盘'] (4s)
+[iter7-prefs-optimistic-restored] restored -> green
+[iter7-startup-optimistic-restored] PASS exit=1 failing=['R-2 设置写入失败：不显示假成功（source-pin：插件通道行为单测不可控） 启动进入页：同样的持久化优先 + 失败回退 initial 契约'] (4s)
+[iter7-startup-optimistic-restored] restored -> green
+[iter7-quarantine-log-muted] PASS exit=1 failing=['R-3 损坏设备记录隔离留痕 损坏记录被隔离：计入 skippedRecords 且 DS704 留痕'] (4s)
+[iter7-quarantine-log-muted] restored -> green
+[iter7-evict-ignores-pinned] PASS exit=1 failing=['R-8 洪泛驱逐不挤掉 pinned 会话 6000 条（前 2000 pinned）：驱逐只落在非 pinned 上'] (4s)
+[iter7-evict-ignores-pinned] restored -> green
+[iter7-seen-codeunit-limit] PASS exit=1 failing=['R-9 ingestSeen 按 UTF-8 字节计 CJK 密集的合法 JSON：UTF-16 长度过旧检查、UTF-8 字节超限被拒'] (3s)
+[iter7-seen-codeunit-limit] restored -> green
+[iter7-bridge-health-lingers] PASS exit=1 failing=['R-6 桥健康与设备同生命周期 删除设备后 bridgeHealth 不再残留该设备（诊断包不带幽灵行）'] (4s)
+[iter7-bridge-health-lingers] restored -> green
+[iter7-outbound-scheme-check-removed] PASS exit=1 failing=['拒绝的目标 非 https'] (4s)
+[iter7-outbound-scheme-check-removed] restored -> green
+[iter7-c2a-hook-constant-true] PASS exit=1 failing=['security invariants：WebView 信任边界 子 frame 取证计数必须挂在导航判定结果上（iter7 独立验收：C2a 接线钉住）'] (3s)
+[iter7-c2a-hook-constant-true] restored -> green
+RESULT: 8/8 mutations caught; 1 exempt (declared)

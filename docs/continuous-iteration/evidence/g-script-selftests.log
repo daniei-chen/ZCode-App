@@ -1,0 +1,12 @@
+date: 2026-09-16T11:27:28+08:00
+## check_injected_js.mjs (gate, no self-test mode) — live run 49/49 in g-js.log
+## check-doc-drift.py self-test
+self-test: 11/11 passed
+## check-dependency-advisories.py self-test
+self-test: 25/25 passed
+## check-plugin-survival.py self-test
+self-test: 9/9 passed
+## verify-release-artifacts.py self-test
+self-test: 20/20 passed
+## generate-sbom.py self-test
+self-test: 22/22 passed

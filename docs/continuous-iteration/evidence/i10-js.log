@@ -1,0 +1,50 @@
+  [ok] official_remote_page 注入脚本全部通过 JS 语法检查
+  [ok] 提取出的钩子通过 JS 语法检查
+  [ok] 受控环境准备
+  [ok] 在受控环境安装钩子不抛错
+  [ok] F03 钩子在安装时读取 document-start 预置令牌
+  [ok] F03 钩子安装时标记 __zrHookReady（诊断用）
+  [ok] F03 令牌未注入前桥消息只入队、不裸发
+  [ok] F03 令牌注入后在途消息补发且携带令牌
+  [ok] B08 超限 WS 文本被丢弃、不产生桥消息
+  [ok] R-13 超限文本不进入 JSON.parse（解析计数不增长）
+  [ok] R-13 多字节正文按 UTF-8 字节判超限（不只看字符数）
+  [ok] R-13 队列按 UTF-8 字节收敛（多字节正文不超预算）
+  [ok] R-13 多个未完成分片受全局在途总额约束（invalidFragments 留痕）
+  [ok] R-13 非分片 base64 按实际长度判超限（messageBytes=1 不能绕过）
+  [ok] R-13 小数 fragmentIndex 被拒绝并计入 invalidFragments
+  [ok] P2-02 SSE 不挂 message 监听（观察面归零，页面行为不变）
+  [ok] R-13 队列条数淘汰后字节上限仍生效（B-1 回归）
+  [ok] R-13 重复分片不泄漏全局在途预算（H-1 回归）
+  [ok] B08 正常大小 WS 文本照常上报
+  [ok] B17 非默认端口（:8443）的 WS 不被观察
+  [ok] B17 跨域 query 子串不授予 fetch 观察权限
+  [ok] 跳转脚本通过 JS 语法检查
+  [ok] F12 命中目标：点击一次并回执 found（含 attemptId/句柄/令牌）
+  [ok] F12 不可见/已卸载的候选不点击，也不误报 found
+  [ok] F12 超时：20s 预算耗尽后回执 timeout
+  [ok] F12 令牌迟到：先不回执，令牌到位后补发同一条结果
+  [ok] F12 连点两跳：旧一代回执 superseded，且不误点
+  [ok] F12 空 taskId：回执 invalid 且不同步返回 true
+  [ok] 返回脚本通过 JS 语法检查
+  [ok] 带 aria-label 的返回控件：点一次、页面变化后回执 clicked
+  [ok] 纯图标返回键（无 aria-label）也能靠左上角几何启发式命中
+  [ok] 「返回顶部」绝不被当成返回：不点击并报告 not_found
+  [ok] 折叠/菜单/侧边类控件绝不当返回键：不点击并报告 not_found
+  [ok] 带 aria-expanded/aria-pressed 的开关类图标不算返回键
+  [ok] aria-label 含「设置」的图标键仍被负向词挡掉（负向过滤不许被放宽）
+  [ok] 「改数据」控件绝不被返回键点到：v4-feedback-like-4（含 back 子串）必须跳过
+  [ok] 禁用的返回键（desktop-top-nav-back disabled）不点，且不误报 not_found 之外的结果
+  [ok] testid 精确规则仍能命中 settings-back-button 与 desktop-top-nav-back 形态
+  [ok] web 设置页返回：官方返回键（testid 含 settings）必须被点掉并自证
+  [ok] 点到控件但页面没变：报告 no_change（不谎报成功）
+  [ok] 第一个候选无效时继续试下一个候选
+  [ok] 几何兜底只认左上角图标键：列表页的宽控件不得被点（真机实测回归）
+  [ok] 几何兜底仍然命中左上角纯图标返回键（8,10,24,24）
+  [ok] 候选迟到（刚切到对话页）时先重试再判 not_found
+  [ok] 候选始终不存在时，重试窗口用尽后如实报 not_found
+  [ok] 页面刚加载（<6s）无候选 → 仍走 1.2s 重试窗口（护住秒开秒返竞态）
+  [ok] 页面已稳定（加载超 6s）无候选 → 立即 not_found，不再白等 1.2s
+  [ok] disabled 与 pointer-events:none 的控件不点
+  [ok] 令牌未就绪不裸发，令牌到位后补发同一条结果
+injected-js checks: 49/49 passed

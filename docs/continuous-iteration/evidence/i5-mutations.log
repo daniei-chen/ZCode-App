@@ -1,0 +1,28 @@
+mutate.py export=D:\tmp\zr\ci_i5 specs=['tools\\iteration\\mutations\\iter5.json'] @ 2026-09-18T05:06:50
+[iter5-token-guard-structural] EXEMPT (test/security_invariants_test.dart): S-5 的行为级验证需要真实 WebView（POST 主框架导航不经 shouldOverrideUrlLoading）；现有回归为 security_invariants_test 的源码断言（isTrustedRemotePage 守卫存在 + UserScript origin 计数相等），无单测文件内可判定的回退变异。显式豁免。
+[iter5-normal-messages-sanity] EXEMPT (test/security_hardening_test.dart): 无回归哨兵：确认深度守卫不破坏正常流量。任何会“通过”它的变异必然先破坏大量既有解析测试，不存在只让该用例失效的现实回归路径。显式豁免。
+[iter5-depth-guard-removed] PASS exit=1 failing=['S-2 JSON 深度炸弹防护 深度 64 以内可解析，超过上限整帧丢弃'] (4s)
+[iter5-depth-guard-removed] restored -> green
+[iter5-depth-scanner-ignores-strings] PASS exit=1 failing=['S-2 JSON 深度炸弹防护 字符串内的括号不计入深度'] (4s)
+[iter5-depth-scanner-ignores-strings] restored -> green
+[iter5-session-index-unbounded] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 SessionIndex 6000 条唯一 id：收敛到上限，最旧的被逐出、可重新进入'] (4s)
+[iter5-session-index-unbounded] restored -> green
+[iter5-differ-cap-removed] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 StateDiffer 基线封顶：被驱逐的会话下次出现重新产生边沿事件'] (4s)
+[iter5-differ-cap-removed] restored -> green
+[iter5-jump-id-accepts-nonfinite] PASS exit=1 failing=['S-4 outcome id 有限性 Infinity / NaN 的 id 返回 null 而不是抛 UnsupportedError'] (3s)
+[iter5-jump-id-accepts-nonfinite] restored -> green
+[iter5-route-unclipped] PASS exit=1 failing=['S-6 route 长度上限 超长 path 截到 maxRouteChars，普通路由不受影响'] (3s)
+[iter5-route-unclipped] restored -> green
+[iter5-title-unclipped] PASS exit=1 failing=['S-7 通知标题与正文同上限 4 MB 会话标题被截到 120 字符'] (3s)
+[iter5-title-unclipped] restored -> green
+[iter5-proto-pollution-restored] PASS exit=1 failing=['S-3 / S-5 注入面源码不变量 hookScript 用无原型 assembler 且 logicalFrameId 受正则约束'] (3s)
+[iter5-proto-pollution-restored] restored -> green
+[iter5-zrws-bare-jsondecode] PASS exit=1 failing=['N-1/N-2 解析与注入面源码不变量（iter5 复核新增） zrWs 通道不再有裸 jsonDecode（深度炸弹统一走共享管线）'] (3s)
+[iter5-zrws-bare-jsondecode] restored -> green
+[iter5-inject-guard-removed] PASS exit=1 failing=['N-1/N-2 解析与注入面源码不变量（iter5 复核新增） _injectBridgeToken 内含 URL 信任守卫（单点收口）'] (3s)
+[iter5-inject-guard-removed] restored -> green
+[iter5-replace-tasks-unbounded] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 replaceTasks 快照整体替换同样收敛到上限（S-1/N-3）'] (3s)
+[iter5-replace-tasks-unbounded] restored -> green
+[iter5-feed-title-unbounded] PASS exit=1 failing=['S-1 会话索引与 differ 基线有界 DeviceFeed.lastSessionTitle 与通知通道同上限（S-7/N-5）'] (3s)
+[iter5-feed-title-unbounded] restored -> green
+RESULT: 12/12 mutations caught; 2 exempt (declared)

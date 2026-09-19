@@ -1,0 +1,30 @@
+== clean_start prefix=i11neg repo=/d/AI/zcode/ZCode App ==
+[2026-09-19T12:53:27+08:00] 1/5 fresh export (HEAD + working-tree overlay)
+[2026-09-19T12:53:53+08:00] export ok (26s)
+[2026-09-19T12:53:53+08:00] 2/5 pub get
+Resolving dependencies...
+Downloading packages...
+  code_assets 2.0.0 (2.1.0 available)
+  dbus 0.7.15 (0.8.0 available)
+  flutter_local_notifications 22.3.0 (22.3.1 available)
+  flutter_secure_storage 11.1.1 (11.2.0 available)
+  flutter_secure_storage_darwin 0.4.1 (0.4.3 available)
+  flutter_secure_storage_linux 3.0.2 (3.0.3 available)
+  flutter_secure_storage_platform_interface 2.1.0 (2.1.1 available)
+  local_auth_android 2.0.10 (2.2.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  mobile_scanner 7.4.1 (7.4.2 available)
+  test_api 0.7.12 (0.7.14 available)
+Got dependencies!
+11 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+[2026-09-19T12:53:54+08:00] 3/5 gen-l10n + drift check (arb ↔ 生成物)
+Because l10n.yaml exists, the options defined there will be used instead.
+To use the command line arguments, delete the l10n.yaml file in the Flutter project.
+
+
+Files /d/tmp/zr/clean_i11neg/lib/l10n/app_localizations.dart and '/d/AI/zcode/ZCode App/lib/l10n/app_localizations.dart' differ
+l10n DRIFT: lib/l10n/app_localizations.dart differs (arb changed without regenerating, or stale copy)
+Files /d/tmp/zr/clean_i11neg/lib/l10n/app_localizations_zh.dart and '/d/AI/zcode/ZCode App/lib/l10n/app_localizations_zh.dart' differ
+l10n DRIFT: lib/l10n/app_localizations_zh.dart differs (arb changed without regenerating, or stale copy)
+[2026-09-19T12:53:56+08:00] clean_start exit=1 (wall 29s)

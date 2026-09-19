@@ -1,0 +1,6 @@
+mutate.py export=D:\tmp\zr\ci_i10 specs=['tools\\iteration\\mutations\\iter10.json'] @ 2026-09-19T11:15:38
+[iter10-reorder-catch-removed] PASS exit=1 failing=['iter10 F-1：reorder 的 Future 不再被丢弃（catchError 兜底）'] (3s)
+[iter10-reorder-catch-removed] restored -> green
+[iter10-wipe-connectivity-removed] PASS exit=1 failing=['iter10 F-2：擦除事务覆盖连通性探测 Provider'] (3s)
+[iter10-wipe-connectivity-removed] restored -> green
+RESULT: 2/2 mutations caught; 0 exempt (declared)

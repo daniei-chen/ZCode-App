@@ -1,0 +1,81 @@
+注册插件 11 个；mapping.txt 里存活 11 个
+  [kept] com.example.Plugin0 -> com.example.Plugin0
+  [kept] com.example.Plugin1 -> com.example.Plugin1
+  [kept] com.example.Plugin2 -> com.example.Plugin2
+  [kept] com.example.Plugin3 -> com.example.Plugin3
+  [kept] com.example.Plugin4 -> com.example.Plugin4
+  [kept] com.example.Plugin5 -> com.example.Plugin5
+  [kept] com.example.Plugin6 -> com.example.Plugin6
+  [kept] com.example.Plugin7 -> com.example.Plugin7
+  [kept] com.example.Plugin8 -> com.example.Plugin8
+  [kept] com.example.Plugin9 -> com.example.Plugin9
+  [kept] com.example.Plugin10 -> com.example.Plugin10
+注册表类：io.flutter.plugins.GeneratedPluginRegistrant -> io.flutter.plugins.GeneratedPluginRegistrant
+APK good.apk: dex 合计 1024 字节（被剥光的包 ≈ 无 dex）
+  [ok] valid APK + full mapping passes
+  [ok] empty-ZIP APK fails（旧实现在此 PASS）
+  [ok] empty mapping fails
+注册插件 11 个；mapping.txt 里存活 10 个
+  [kept] com.example.Plugin0 -> com.example.Plugin0
+  [kept] com.example.Plugin1 -> com.example.Plugin1
+  [kept] com.example.Plugin2 -> com.example.Plugin2
+  [kept] com.example.Plugin3 -> com.example.Plugin3
+  [kept] com.example.Plugin4 -> com.example.Plugin4
+  [kept] com.example.Plugin5 -> com.example.Plugin5
+  [kept] com.example.Plugin6 -> com.example.Plugin6
+  [kept] com.example.Plugin7 -> com.example.Plugin7
+  [kept] com.example.Plugin8 -> com.example.Plugin8
+  [kept] com.example.Plugin9 -> com.example.Plugin9
+  [MISSING] com.example.Plugin10 -> —
+注册表类：io.flutter.plugins.GeneratedPluginRegistrant -> io.flutter.plugins.GeneratedPluginRegistrant
+APK good.apk: dex 合计 1024 字节（被剥光的包 ≈ 无 dex）
+  [ok] missing plugin class fails
+注册插件 11 个；mapping.txt 里存活 11 个
+  [kept] com.example.Plugin0 -> com.example.Plugin0
+  [kept] com.example.Plugin1 -> com.example.Plugin1
+  [kept] com.example.Plugin2 -> com.example.Plugin2
+  [kept] com.example.Plugin3 -> com.example.Plugin3
+  [kept] com.example.Plugin4 -> com.example.Plugin4
+  [kept] com.example.Plugin5 -> com.example.Plugin5
+  [kept] com.example.Plugin6 -> com.example.Plugin6
+  [kept] com.example.Plugin7 -> com.example.Plugin7
+  [kept] com.example.Plugin8 -> com.example.Plugin8
+  [kept] com.example.Plugin9 -> com.example.Plugin9
+  [kept] com.example.Plugin10 -> com.example.Plugin10
+注册表类：io.flutter.plugins.GeneratedPluginRegistrant -> x2.g
+APK good.apk: dex 合计 1024 字节（被剥光的包 ≈ 无 dex）
+  [ok] renamed registrant class fails
+注册插件 11 个；mapping.txt 里存活 11 个
+  [kept] com.example.Plugin0 -> com.example.Plugin0
+  [kept] com.example.Plugin1 -> com.example.Plugin1
+  [kept] com.example.Plugin2 -> com.example.Plugin2
+  [kept] com.example.Plugin3 -> com.example.Plugin3
+  [kept] com.example.Plugin4 -> com.example.Plugin4
+  [kept] com.example.Plugin5 -> com.example.Plugin5
+  [kept] com.example.Plugin6 -> com.example.Plugin6
+  [kept] com.example.Plugin7 -> com.example.Plugin7
+  [kept] com.example.Plugin8 -> com.example.Plugin8
+  [kept] com.example.Plugin9 -> com.example.Plugin9
+  [kept] com.example.Plugin10 -> com.example.Plugin10
+注册表类：io.flutter.plugins.GeneratedPluginRegistrant -> io.flutter.plugins.GeneratedPluginRegistrant
+APK good.apk: dex 合计 1024 字节（被剥光的包 ≈ 无 dex）
+  [ok] manifest digest mismatch fails
+注册插件 11 个；mapping.txt 里存活 11 个
+  [kept] com.example.Plugin0 -> com.example.Plugin0
+  [kept] com.example.Plugin1 -> com.example.Plugin1
+  [kept] com.example.Plugin2 -> com.example.Plugin2
+  [kept] com.example.Plugin3 -> com.example.Plugin3
+  [kept] com.example.Plugin4 -> com.example.Plugin4
+  [kept] com.example.Plugin5 -> com.example.Plugin5
+  [kept] com.example.Plugin6 -> com.example.Plugin6
+  [kept] com.example.Plugin7 -> com.example.Plugin7
+  [kept] com.example.Plugin8 -> com.example.Plugin8
+  [kept] com.example.Plugin9 -> com.example.Plugin9
+  [kept] com.example.Plugin10 -> com.example.Plugin10
+注册表类：io.flutter.plugins.GeneratedPluginRegistrant -> io.flutter.plugins.GeneratedPluginRegistrant
+APK good.apk: dex 合计 1024 字节（被剥光的包 ≈ 无 dex）
+manifest 绑定校验通过：good.apk sha256=46592ce1abd1e460…
+  [ok] manifest digest match passes
+  [ok] missing mapping fails
+  [ok] non-ZIP apk fails
+self-test: 9/9 passed

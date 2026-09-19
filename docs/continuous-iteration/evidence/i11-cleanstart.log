@@ -1,0 +1,25 @@
+== clean_start prefix=i11 repo=/d/AI/zcode/ZCode App ==
+[2026-09-19T12:19:47+08:00] 1/5 fresh export (HEAD + working-tree overlay)
+[2026-09-19T12:20:07+08:00] export ok (20s)
+[2026-09-19T12:20:07+08:00] 2/5 pub get (cold: no pubspec.lock reuse beyond overlay)
+[2026-09-19T12:20:09+08:00] 3/5 gen-l10n + drift check (arb ↔ 生成物)
+l10n drift check: clean
+[2026-09-19T12:20:11+08:00] 4/5 analyze
+[2026-09-19T12:20:17+08:00] 5/5 test (full)
+test: 694 passed
+[2026-09-19T12:21:12+08:00] clean_start exit=0 (wall 85s)
+ 0.4.1 (0.4.3 available)
+  flutter_secure_storage_linux 3.0.2 (3.0.3 available)
+  flutter_secure_storage_platform_interface 2.1.0 (2.1.1 available)
+  local_auth_android 2.0.10 (2.2.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  mobile_scanner 7.4.1 (7.4.2 available)
+  test_api 0.7.12 (0.7.14 available)
+Got dependencies!
+11 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Because l10n.yaml exists, the options defined there will be used instead.
+To use the command line arguments, delete the l10n.yaml file in the Flutter project.
+
+
+l10n drift check: clean

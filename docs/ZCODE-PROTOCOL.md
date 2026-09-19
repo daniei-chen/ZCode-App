@@ -46,6 +46,8 @@ updated, completed, error
 
 - 可推送类型（kNotifiableTypes）：permission_request / elicitation_request / completed / error
 - `StateDiffer` 由状态差分合成事件：permissionCount/userInputCount 0→N 触发请求事件，N→0 触发 resolved；phase 进入 completedSuccess/completedInterrupted 触发 completed，进入 error 触发 error
+- 请求/resolved 事件携带 `pendingTotal = permissionCount + userInputCount`（转移后的权威剩余量）；红点与系统通知按剩余量记账——同任务两条交互解决一条不清红点，归零才清（R-19，见 `docs/adr/ADR-001`）。观察面没有请求级 id：`pendingInteraction.interactionId` 只标识当前浮出的一条，其余挂起项仅有计数
+- **缺 `pendingInteractionSummary` = 未知，不是 0**：`controller/tasks-index` 的任务行天然不带该字段；同一投递内它不覆盖带 summary 的会话镜像，跨投递沿用基线计数，避免把 1 覆盖成 0 产生假 resolved
 
 ## 关键硬限制
 
