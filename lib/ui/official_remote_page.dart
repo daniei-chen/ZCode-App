@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
+import '../services/biometric.dart';
 import '../services/in_page_back.dart';
 import '../services/link_builder.dart';
 import '../services/page_refresh_policy.dart';
@@ -654,7 +655,13 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   bool _loading = true;
   // 静默刷新（用户反馈"打开页面半天都是缓存"）：页面常驻 IndexedStack，
   // 记录"不可见起点"，重新可见时由 [PageRefreshPolicy] 判定是否重载。
-  DateTime? _hiddenSince;
+  // iter13 W-030：不可见起点改单调+墙钟成对字段（main.dart _awayFor/
+  // _leftAtWall 同款先例）——Stopwatch 深睡期冻结、墙钟可被回拨，读取处
+  // 用 [BiometricService.relockEvidence] 取大，两类失真都 fail-closed；
+  // 置位/清空必须成对，??= 的"仅首次置位"语义保持不变。
+  Stopwatch? _hiddenFor;
+
+  DateTime? _hiddenSinceWall;
   // 品牌启动覆盖层（用户口径：首次加载用应用图标页盖住官方页的
   // "正在配对工作区 / 加载工作区中"，不露出 web 的启动过程）。
   // onLoadStop 只代表文档就绪，工作区 UI 还在挂载——用探针确认真实内容
@@ -1033,7 +1040,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   /// 加载盖板，而不是几小时前的缓存画面。
   void _onCoverChanged(bool covered) {
     if (covered) {
-      _hiddenSince ??= DateTime.now();
+      _hiddenFor ??= (Stopwatch()..start());
+      _hiddenSinceWall ??= DateTime.now();
       return;
     }
     // 外壳可能在 build 里幂等回调：刷新动作推到帧后，避免 build 期间 setState。
@@ -1051,10 +1059,13 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     final devices = ref.read(deviceListProvider);
     final myIndex = devices.indexWhere((d) => d.id == widget.device.id);
     final isCurrent = myIndex >= 0 && ref.read(activeTabProvider) == myIndex;
-    final hiddenSince = _hiddenSince;
-    final hiddenFor = hiddenSince == null
+    final hiddenFor = (_hiddenFor == null && _hiddenSinceWall == null)
         ? null
-        : DateTime.now().difference(hiddenSince);
+        : BiometricService.relockEvidence(
+            monotonic: _hiddenFor?.elapsed,
+            wallSince: _hiddenSinceWall,
+            now: DateTime.now(),
+          );
     final shouldRefresh = PageRefreshPolicy.shouldRefreshOnVisible(
       hiddenFor: hiddenFor,
       isCurrentDevice: isCurrent,
@@ -1065,7 +1076,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     // 其余不满足时清空——在途加载完成后没有再触发点，保旧时间戳反而会让
     // 下次揭盖算出虚假的"长时间不可见"而刚加载完又被无谓重载。
     if (!isCurrent) return;
-    _hiddenSince = null;
+    _hiddenFor = null;
+    _hiddenSinceWall = null;
     if (!shouldRefresh) return;
     // release 可见：静默刷新代表"用户回来看到的是重载"，field 排查需要它。
     AppLog.event(LogEvent.webviewSilentReload, level: LogLevel.warn, fields: {
@@ -1081,7 +1093,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     // 页面常驻 IndexedStack：切后台不销毁，回来就是旧画面。记录不可见起点，
     // resumed 时统一交给 [PageRefreshPolicy] 判定（仍被盖住时不抢跑）。
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      _hiddenSince ??= DateTime.now();
+      _hiddenFor ??= (Stopwatch()..start());
+      _hiddenSinceWall ??= DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _maybeSilentRefresh();
