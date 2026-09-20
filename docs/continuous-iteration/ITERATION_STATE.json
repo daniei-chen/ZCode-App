@@ -1178,6 +1178,17 @@
       "approval_ref": null,
       "review_id": null,
       "description": "复核 P3 可选：sheet 等待行红点断言 + sheet 内 markRead 断言/变异；面板相对时间自动刷新（polish）"
+    },
+    {
+      "id": "W-036",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter15 观察：fingerprint.sh 在代码域全部已提交时退化为常量（diff HEAD 为空 + 无未跟踪文件）——cp-14/cp-15 指纹因此相同；改进=并入 HEAD 树哈希（git rev-parse HEAD:paths 或 git ls-tree 摘要），clean 树时指纹仍随 HEAD 变化"
     }
   ],
   "blockers": [
