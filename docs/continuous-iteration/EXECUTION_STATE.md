@@ -3,7 +3,7 @@
 > 本文件由 `ITERATION_STATE.json` 渲染；JSON 是唯一机器权威。
 
 - Run: `zcode-app-maturation-2026-09`
-- Revision / iteration / phase: `15` / `13` / `RECOVER`
+- Revision / iteration / phase: `16` / `14` / `RECOVER`
 - Status: **CONTINUE**
 - Target: `release_candidate` / 85；当前 83
 - Checkpoint: `cp-13-iter13` · Git `33b5952d56d3ed87db8e28e6c01f54deda578cdd` · `sha256:62a361b3e199608bdc05bcd1f41efc257e0efc87bb86bb5f291302f9455d77b7`
@@ -84,6 +84,8 @@
 | A-123 | 12 | code-reviewer-iter12-r1 | R2 | cp-12-iter12-pre-repair | RESILIENCE, BOUNDARY_CONTRACT, SCALE_DATA | 0/2 |
 | A-124 | 12 | code-reviewer-iter12-r1（最终裁定） | R2 | cp-12-iter12 | RESILIENCE, BOUNDARY_CONTRACT, SCALE_DATA | 0/0 |
 | A-125 | 13 | code-reviewer-iter13-r1（dynamic-workflow 零上下文） | R2 | cp-13-iter13-pre-closure | DIFF_CORRECTNESS, BOUNDARY_CONTRACT, SCALE_DATA | 0/0 |
+| A-126 | 14 | code-reviewer-iter14-r1 | R2 | cp-14-iter14-pre-repair | DIFF_CORRECTNESS, BOUNDARY_CONTRACT | 0/2 |
+| A-127 | 14 | code-reviewer-iter14-r1（最终裁定） | R2 | cp-14-iter14 | DIFF_CORRECTNESS, BOUNDARY_CONTRACT | 0/0 |
 
 ## Candidates
 
@@ -126,6 +128,8 @@
 | W-029 | P2 | False | BLOCKED | BL-001 |
 | W-030 | P3 | False | DONE | — |
 | W-031 | P2 | False | BLOCKED | BL-004 |
+| W-032 | P2 | False | DONE | — |
+| W-033 | P3 | False | LOCAL | — |
 
 ## Blockers
 
@@ -143,4 +147,4 @@
 
 **Next action:** 本地候选清零。待用户：① ADR-003 密钥处置（P0）② ADR-004/005 ③ W-031 release.yml 签名 Secrets+分支保护（新仓库管理配置）④ 真机窗口（W-025/W-027/W-028/BL-003）⑤ iter13 已提交推送（E-49 注记）。
 
-Validation: `valid=true` · derived `CONTINUE` · qualifying audit rounds `[1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13]`.
+Validation: `valid=true` · derived `CONTINUE` · qualifying audit rounds `[1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14]`.
