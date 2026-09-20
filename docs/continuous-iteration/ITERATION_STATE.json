@@ -15,10 +15,10 @@
     "used": 0
   },
   "checkpoint": {
-    "id": "cp-13-iter13",
-    "git_head": "33b5952d56d3ed87db8e28e6c01f54deda578cdd",
-    "diff_fingerprint": "sha256:62a361b3e199608bdc05bcd1f41efc257e0efc87bb86bb5f291302f9455d77b7",
-    "recorded_at": "2026-09-19T23:59:00+08:00"
+    "id": "cp-14-iter14",
+    "git_head": "3499bce4eb29bf85b550614b06259375e15f4583",
+    "diff_fingerprint": "sha256:32d4ef030cbc936f17ba11cf83c5e65905b3ad6f480d3116f2f93c9f6a67d52a",
+    "recorded_at": "2026-09-19T18:20:00+08:00"
   },
   "source_map": {
     "defects": "docs/DEFECTS.md",
@@ -149,9 +149,9 @@
       "command": "flutter analyze（tools/iteration/gates.sh 导出目录，DEC-02）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-analyze.log"
+        "docs/continuous-iteration/evidence/i15-analyze.log"
       ]
     },
     {
@@ -159,9 +159,9 @@
       "command": "flutter test 全量（同上导出目录）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-test.log"
+        "docs/continuous-iteration/evidence/i15-test.log"
       ]
     },
     {
@@ -169,9 +169,9 @@
       "command": "node scripts/check_injected_js.mjs",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-js.log"
+        "docs/continuous-iteration/evidence/i15-js.log"
       ]
     },
     {
@@ -179,9 +179,9 @@
       "command": "python scripts/check-doc-drift.py",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-docdrift.log"
+        "docs/continuous-iteration/evidence/i15-docdrift.log"
       ]
     },
     {
@@ -189,9 +189,9 @@
       "command": "秘密扫描（git ls-files 扩展名过滤 + git grep 凭据字面量 + check-ignore）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-secrets.log"
+        "docs/continuous-iteration/evidence/i15-secrets.log"
       ]
     },
     {
@@ -199,7 +199,7 @@
       "command": "python scripts/check-dependency-advisories.py --sbom <b5 SBOM> --exceptions scripts/security-exceptions.json --fail-on high（公网 OSV）",
       "required": true,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
         "docs/continuous-iteration/evidence/i11-osv.log"
       ]
@@ -209,9 +209,9 @@
       "command": "发布脚本自测：check-doc-drift / check-dependency-advisories / check-plugin-survival / verify-release-artifacts / generate-sbom（--self-test）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-script-selftests.log"
+        "docs/continuous-iteration/evidence/i15-script-selftests.log"
       ]
     },
     {
@@ -219,7 +219,7 @@
       "command": "flutter build apk --release + check-plugin-survival --apk（11 插件存活门）+ verify-release-artifacts",
       "required": false,
       "status": "NOT_RUN",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": []
     },
     {
@@ -227,7 +227,7 @@
       "command": "GitHub Actions CI 三条工作流真实实跑（ci.yml / ci-heavy.yml / release.yml）",
       "required": false,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": []
     },
     {
@@ -235,9 +235,9 @@
       "command": "python tools/iteration/mutate.py --export <导出> --spec tools/iteration/mutations/*.json --require-green（全语料\"回退即失败\"变异验证）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-mutations.log"
+        "docs/continuous-iteration/evidence/i15-mutations.log"
       ]
     },
     {
@@ -245,10 +245,10 @@
       "command": "tools/iteration/gates.sh state + mutcov 门：iteration_state.py validate --repo-root . + gitignore canary（检查点终跑 --strict-state）；mutate.py --coverage 对 mutations/coverage-files.txt 全覆盖",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
-        "docs/continuous-iteration/evidence/i13-state.log",
-        "docs/continuous-iteration/evidence/i13-mutcov.log"
+        "docs/continuous-iteration/evidence/i15-state.log",
+        "docs/continuous-iteration/evidence/i15-mutcov.log"
       ]
     },
     {
@@ -256,7 +256,7 @@
       "command": "导出目录 flutter build apk --debug（编译可行性门；release 需密钥属 P0 治理，AI 不做）",
       "required": false,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
         "docs/continuous-iteration/evidence/b1-build.log"
       ]
@@ -266,7 +266,7 @@
       "command": "tools/iteration/clean_start.sh <prefix>（冷启动门：fresh export → pub get → gen-l10n 漂移检查 → analyze → 全量 test；必败样验证过 DRIFT→exit 1）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-13-iter13",
+      "checkpoint_id": "cp-14-iter14",
       "evidence": [
         "docs/continuous-iteration/evidence/i12b-cleanstart.log"
       ]
@@ -1362,10 +1362,10 @@
       "T6": "DONE",
       "T7": "OPEN"
     },
-    "reason": "ITERATION 13 完成：W-015/W-026/W-030 关闭（本地候选清零）；复核员一轮通过、5 注记闭环；702/702、变异 102/102+7、10 门 PASS（OSV BLOCKED）；分数 80 不变。剩余全部为用户决策/管理项：ADR-003/004/005、tag 线已收口（DEC-18）、release.yml 签名 Secrets（W-031）、真机窗口（W-025/W-027/W-028 + BL-003）。T3 置回 OPEN：复核 A-125 覆盖三件修复本体（cp-13-pre-closure），其后的闭环编辑（F-1..F-5）由门禁机器验证、独立复评留给下一轮。"
+    "reason": "ITERATION 14 完成：升级路线图 top1（W-032 红点常显）落地，复核两轮（A-126 需返修→A-127 可合并），710/710、变异 109/109+7、10 门 PASS；分数 83（缺陷级修复无翻转）。下一批候选：路线图自主层剩余项（待处理中心/冷启动提速/CI 接质量门）与 W-033。"
   },
   "resume": {
-    "next_action": "本地候选清零。待用户：① ADR-003 密钥处置（P0）② ADR-004/005 ③ W-031 release.yml 签名 Secrets+分支保护（新仓库管理配置）④ 真机窗口（W-025/W-027/W-028/BL-003）⑤ iter13 已提交推送（E-49 注记）。",
+    "next_action": "可继续的自主层（升级路线图）：① 应用内「待处理中心」（事件历史+会话待处理速览，M）② 冷启动提速（设备库 N+2 次串行 Keystore 往返，需先实测读放大）③ 本地质量门接进 ci.yml（变异语料+状态校验分级）④ 更新链演练模式 ⑤ W-033（mutcov testWidgets 盲区）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口（W-025/027/028）。",
     "retry_after": null
   },
   "change_log": [
