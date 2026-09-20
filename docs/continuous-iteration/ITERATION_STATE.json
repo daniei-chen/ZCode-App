@@ -1,8 +1,8 @@
 {
   "schema_version": "3.0",
   "run_id": "zcode-app-maturation-2026-09",
-  "revision": 15,
-  "iteration": 13,
+  "revision": 16,
+  "iteration": 14,
   "phase": "RECOVER",
   "status": "CONTINUE",
   "target": {
@@ -133,6 +133,11 @@
       },
       {
         "iteration": 13,
+        "total": 83,
+        "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
+      },
+      {
+        "iteration": 14,
         "total": 83,
         "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
       }
@@ -653,6 +658,36 @@
       "new_p0": 0,
       "new_p1": 0,
       "report": "docs/audits/2026-09-19-iter13-review.md"
+    },
+    {
+      "id": "A-126",
+      "iteration": 14,
+      "reviewer_id": "code-reviewer-iter14-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-14-iter14-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 2,
+      "report": "docs/audits/2026-09-19-iter14-review.md"
+    },
+    {
+      "id": "A-127",
+      "iteration": 14,
+      "reviewer_id": "code-reviewer-iter14-r1（最终裁定）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-14-iter14",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter14-review.md"
     }
   ],
   "candidates": [
@@ -1062,6 +1097,28 @@
       "approval_ref": null,
       "review_id": null,
       "description": "iter13 CI 观察：release.yml 仅有的 run 挂在 Verify provenance（要求受保护 main）——需配置签名 Secrets 与分支保护后 CI 自动出包链才通（本地构建路径已可用，E-48）；操作手册已写入 docs/RELEASE-CHECKLIST.md（E-51）"
+    },
+    {
+      "id": "W-032",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-127",
+      "description": "路线图 top1：未读徽标与「待批准」语义分离——仅剩待批准红点常显（10px danger 圆点+语义标签），计数徽标保留；event_feed 注释同步；6+1 变异钉 7 用例"
+    },
+    {
+      "id": "W-033",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "复核 L-30：mutcov 对 testWidgets 盲区——mutate.py TEST_NAME 只匹配 test(；修 regex 为 test(?:Widgets)?( 并处理存量 testWidgets 文件的覆盖欠账（单独一轮）"
     }
   ],
   "blockers": [
@@ -1175,7 +1232,7 @@
     {
       "path": "docs/ACCEPTANCE_MATRIX.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1186,7 +1243,7 @@
     {
       "path": "docs/DEFECTS.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1199,7 +1256,7 @@
     {
       "path": "docs/EVIDENCE.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1219,7 +1276,7 @@
     {
       "path": "docs/DECISIONS.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "DEC-10",
@@ -1229,7 +1286,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1239,7 +1296,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_STATE.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1249,7 +1306,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1260,7 +1317,7 @@
     {
       "path": "docs/continuous-iteration/LESSONS.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1272,7 +1329,7 @@
     {
       "path": "tools/iteration/README.md",
       "required": true,
-      "revision": 15,
+      "revision": 16,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1542,6 +1599,16 @@
         "E-52"
       ],
       "reason": "升级探索工作流挑刺员发现的真实不一致：revision 15 提交时 artifacts 仍 14（T6 声明 DONE/派生 OPEN，validate=false）→ artifacts 对齐 15；D2 按 DEC-18 翻 PASS（operations earned 2→4，矩阵哈希换新，history 记新点；首个分数变动 80→82——T1/T2 仍被 ADR-003 等阻塞，离 85 目标仍差）；EVIDENCE 清 NUL（U+0000 字面误落）；EXECUTION_STATE（continuous-iteration）同步；重跑 render 后复验"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_14",
+      "ids": [
+        "W-032",
+        "W-033",
+        "D-20260919-16"
+      ],
+      "reason": "升级路线图 top1 落地（workflow 探索产出，A-126 需返修→A-127 可合并）：未读/待批准语义分离（红点常显）；复核 P1×2（语料自坏+守卫缺口）当轮闭环，7 变异钉 7 用例；event_feed 注释按新语义修订 + R-19 复审条件；mutcov testWidgets 盲区登记 W-033（L-30）；分数 83 不变（缺陷级修复）"
     }
   ]
 }

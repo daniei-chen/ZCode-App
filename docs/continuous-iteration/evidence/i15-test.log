@@ -1,0 +1,1141 @@
+Resolving dependencies...
+Downloading packages...
+  code_assets 2.0.0 (2.1.0 available)
+  dbus 0.7.15 (0.8.0 available)
+  flutter_local_notifications 22.3.0 (22.3.1 available)
+  flutter_secure_storage 11.1.1 (11.2.0 available)
+  flutter_secure_storage_darwin 0.4.1 (0.4.3 available)
+  flutter_secure_storage_linux 3.0.2 (3.0.3 available)
+  flutter_secure_storage_platform_interface 2.1.0 (2.1.1 available)
+  local_auth_android 2.0.10 (2.2.0 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  mobile_scanner 7.4.1 (7.4.2 available)
+  test_api 0.7.12 (0.7.14 available)
+Got dependencies!
+11 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading D:/tmp/zr/ci_i15/test/about_footer_test.dart
+00:00 +0: D:/tmp/zr/ci_i15/test/acceptance/b6_notification_withdraw_guard_test.dart: B6：撤销条件钉死为"无剩余才撤"（(pendingTotal ?? 0) <= 0）
+00:00 +1: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +2: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +3: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +4: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +5: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +6: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +7: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +8: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +9: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +10: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +11: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +12: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +13: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +14: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +15: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +16: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +17: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 页尾点 GitHub 地址外开仓库；通道抛错被吞不崩
+00:00 +18: D:/tmp/zr/ci_i15/test/about_footer_test.dart: 窄屏（320dp）页尾不溢出（X06 / G10-63）
+00:01 +19: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 层级决策（back_stack） 页面处理了 → 不再往下走（对话页 → 对话列表）
+00:01 +20: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 层级决策（back_stack） 页面处理不了 → 露出设备页（对话列表 → 设备页）
+00:01 +21: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 层级决策（back_stack） 设备页已可见 → 放行系统退出应用
+00:01 +22: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板同屏布局判定（isTabletLayout） 最短边 ≥700dp 为平板：返回一次直接露出设备页，页内脚本不跑
+00:01 +23: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板同屏布局判定（isTabletLayout） 大屏手机（约 606dp 折叠屏）按手机处理：保留页内返回
+00:01 +24: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板同屏布局判定（isTabletLayout） 普通手机正常走页内返回：对话页 → 对话列表
+00:01 +25: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: OfficialRemotePageController 契约 页面报告"已处理"时，返回键不再往下走
+00:01 +26: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: OfficialRemotePageController 契约 页面处理器抛错时按"未处理"返回，不把异常抛给返回键
+2026-09-20T09:08:13.637216Z W WV109 event=webviewBackFailed reason=controller_exception err=Bad state: boom
+00:01 +27: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: OfficialRemotePageController 契约 未挂载处理器（页面尚未建立）时返回 false
+00:01 +28: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +29: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +30: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +31: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +32: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +33: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:01 +34: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +35: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +36: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +37: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +38: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +39: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +40: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +41: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +42: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +43: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +44: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +45: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +46: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +47: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +48: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +49: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +50: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +51: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +52: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +53: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +54: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +55: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +56: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +57: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +58: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +59: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +60: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +61: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +62: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +63: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +64: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +65: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +66: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +67: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +68: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +69: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +70: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +71: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +72: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +73: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +74: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +75: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +76: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置返回停在设备页，外壳不会收到"回到对话页"的请求
+00:02 +77: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 恢复验证被取消：停在锁屏，不放行
+00:02 +78: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +79: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +80: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +81: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +82: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +83: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +84: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +85: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +86: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +87: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +88: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +89: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +90: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +91: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +92: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +93: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +94: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +95: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +96: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +97: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +98: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +99: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +100: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +101: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +102: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +103: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +104: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +105: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +106: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +107: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +108: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +109: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +110: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +111: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +112: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +113: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 设置返回 = 普通弹栈，一次回到设备列表页（不经过对话页） 从设置里进诊断页：返回只回设置，再返回回设备页
+00:03 +114: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 读取失败时锁屏必须有恢复出口；验证身份后关闭门禁并进入（R-03）
+2026-09-20T09:08:16.151850Z I LC803 event=securityRecoveryVerified ok=true reason=verified_prefs_written
+00:03 +115: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +116: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +117: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +118: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +119: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +120: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +121: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +122: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +123: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 平板尺寸下设置返回触发 onSettingsReturned（外壳揭示远控页）
+00:03 +124: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 锁定时不构建受保护的 AppShell 子树
+00:03 +125: D:/tmp/zr/ci_i15/test/device_reorder_test.dart: DeviceListNotifier.reorder 原位不动：reorder(1, 1) 是 no-op
+00:04 +126: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +127: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +128: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +129: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +130: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +131: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +132: D:/tmp/zr/ci_i15/test/biometric_gate_test.dart: 生产拓扑（builder 中的 Gate）：恢复确认不再依赖 Navigator（R-02 回归）
+00:04 +133: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 手机尺寸下设置返回不触发 onSettingsReturned
+00:04 +134: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：大屏手机上官方页不是同屏 → 不揭示
+
+Warning: A call to tap() with finder "Found 1 widget with text "设置": [
+  Text("设置", inherit: true, size: 15.0, weight: 600, dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(408.0, 610.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(408.0, 610.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#71a9e relayoutBoundary=up19
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#069b1(_ReusableRenderView#f223b), HitTestEntry<HitTestTarget>#6e83f(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure>.<anonymous closure> (file:///D:/tmp/zr/ci_i15/test/back_navigation_test.dart:272:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:04 +135: D:/tmp/zr/ci_i15/test/device_store_chaos_test.dart: 索引含重复 id → 去重，设备只加载一次
+00:04 +136: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +137: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +138: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +139: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +139: D:/tmp/zr/ci_i15/test/device_store_chaos_test.dart: 设备 JSON 为旧 schema（缺字段）→ 跳过不崩溃
+2026-09-20T09:08:16.942263Z W DS704 event=deviceRecordSkipped reason=record_quarantined dev=old
+00:04 +140: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +140: D:/tmp/zr/ci_i15/test/device_store_chaos_test.dart: 设备值为空/纯空白 → 跳过不崩溃
+2026-09-20T09:08:16.951113Z W DS704 event=deviceRecordSkipped reason=record_quarantined dev=empty
+00:04 +141: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +142: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +143: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +143: D:/tmp/zr/ci_i15/test/device_store_readall_test.dart: 索引缺失 + readAll 失败：unavailable，且不得写空索引覆盖（R-05）
+2026-09-20T09:08:17.122917Z W DS700 event=deviceStoreUnavailable reason=enumerate_incomplete err=PlatformException(storage_unavailable, null, null, null)
+00:04 +144: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +145: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +145: D:/tmp/zr/ci_i15/test/device_store_readall_test.dart: 索引为空数组 + 枚举失败：unavailable（无法证明"真的没有设备"）
+2026-09-20T09:08:17.157047Z W DS700 event=deviceStoreUnavailable reason=enumerate_incomplete err=PlatformException(storage_unavailable, null, null, null)
+00:04 +146: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +146: D:/tmp/zr/ci_i15/test/device_store_readall_test.dart: 枚举失败时变更入口 fail-closed：不静默按空库继续写
+2026-09-20T09:08:17.166423Z W DS700 event=deviceStoreUnavailable reason=enumerate_incomplete err=PlatformException(storage_unavailable, null, null, null)
+00:04 +147: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 平板设置返回 = 回到对话/列表同屏页（2026-09-15 用户口径） 页面探测优先于尺寸：小屏手机上同屏布局 → 揭示同屏页
+00:04 +148: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:04 +148: D:/tmp/zr/ci_i15/test/device_store_recovery_test.dart: 索引损坏自愈：排除索引键/坏数据/键值不符，只恢复真实设备（D1）
+2026-09-20T09:08:17.354208Z W DS704 event=deviceRecordSkipped reason=orphan_quarantined dev=bad
+2026-09-20T09:08:17.358411Z W DS704 event=deviceRecordSkipped reason=id_mismatch dev=mismatch
+00:04 +149: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:04 +149: D:/tmp/zr/ci_i15/test/device_store_recovery_test.dart: 索引损坏且无有效设备 → 返回空列表而不是崩溃
+2026-09-20T09:08:17.370664Z W DS704 event=deviceRecordSkipped reason=orphan_quarantined dev=bad
+00:04 +150: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:04 +151: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:04 +152: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:04 +153: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设备页 → 设置 → 返回回到设备页
+00:05 +154: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +155: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +156: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +156: D:/tmp/zr/ci_i15/test/diagnostics_bundle_test.dart: DiagnosticsBundle canary 零命中：把凭证塞进构建日志后，诊断包整段无 canary
+2026-09-20T09:08:17.589622Z I WV103 event=webviewNavBlocked route=https://zcode.z.ai/remote/v4
+2026-09-20T09:08:17.592229Z W raw https://zcode.z.ai/remote/v4
+2026-09-20T09:08:17.595324Z W UP600 event=updateCheckFailed err=Exception: sid=<redacted>
+00:05 +157: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +158: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +159: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +160: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +161: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置 → 诊断：连续返回依次回到设置、再回到设备页
+00:05 +162: D:/tmp/zr/ci_i15/test/event_feed_test.dart: EventFeedNotifier 白名单事件计数 +1
+00:05 +163: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +164: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +165: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +166: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +167: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +168: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +169: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +170: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +171: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +172: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +173: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +174: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +175: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +176: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +177: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +178: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +179: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +180: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +181: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +182: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+00:05 +183: D:/tmp/zr/ci_i15/test/back_navigation_test.dart: 原生页面栈：返回先弹掉推入的页面 设置页返回时不会触发远控页/启动器的额外跳转
+
+Warning: A call to tap() with finder "Found 1 widget with text "设置": [
+  Text("设置", inherit: true, size: 15.0, weight: 600, dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(408.0, 610.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+Indeed, Offset(408.0, 610.0) is outside the bounds of the root of the render tree, Size(800.0, 600.0).
+The finder corresponds to this RenderBox: RenderParagraph#0c3a5 relayoutBoundary=up19
+The hit test result at that offset is: HitTestResult(HitTestEntry<HitTestTarget>#13bfe(_ReusableRenderView#f223b), HitTestEntry<HitTestTarget>#9c711(<AutomatedTestWidgetsFlutterBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure>.<anonymous closure> (file:///D:/tmp/zr/ci_i15/test/back_navigation_test.dart:345:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1953:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:05 +184: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 单事件：permission_request + taskId + title
+00:05 +185: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 嵌套：事件藏在 payload 里，task_id 蛇形命名
+00:05 +186: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 数组：多个事件一次识别
+00:05 +187: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 无关 JSON：不产出事件（含旧枚举名）
+00:05 +188: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 非 JSON（SSE 原始帧与 HTML）被拒收
+00:05 +189: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 未知事件名不产出（协议新增需先入枚举表）
+00:05 +190: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 深嵌套（超过 3 层）不爆栈且不产出
+00:05 +191: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage elicitation_request 缺 title 时回退 description
+00:05 +192: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventParser.parseMessage 通知解析只保留有目标的审批/输入请求，不消费流式终态字段
+00:05 +193: D:/tmp/zr/ci_i15/test/event_parser_test.dart: 白名单 kNotifiableTypes 只含四类高价值事件（agent 等待用户动作的都在内）
+00:05 +194: D:/tmp/zr/ci_i15/test/event_parser_test.dart: 白名单 kKnownEventTypes 覆盖白名单
+00:05 +195: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 幂等哨兵存在
+00:05 +196: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 上报走 zrEvents handler
+00:05 +197: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 早桥队列（r8 根因修复）：桥未就绪缓存、就绪后按序冲刷
+00:05 +198: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript EventSource 包装转发类静态量（CONNECTING/OPEN/CLOSED）
+00:05 +199: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript content-length 体积预检存在（大响应不进内存）
+00:05 +200: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 体积上限已常量化为 4MB：4194304 在案、旧值 262144 绝迹
+00:05 +201: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript WebSocket 包装只监听 message 帧
+00:05 +202: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 体积预检不信任 messageBytes：按 base64 编码长度判定（R-13/B13）
+00:05 +203: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventObserver.hookScript 分片计数去重：重复投递同一 fragmentIndex 不递增 got
+00:05 +204: D:/tmp/zr/ci_i15/test/event_parser_test.dart: hookScript：flush 定时器带重试上限（通道缺席时空转有界）
+00:05 +205: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from permission_request → 标题使用会话名，正文讲做什么（非工具名）
+00:05 +206: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from error → 失败渠道/高优先级，带会话名，无摘要用兜底
+00:05 +207: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from completed → 完成渠道/高优先级；非白名单返回 null
+00:05 +208: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from 会话标题缺省时使用设备名兜底
+00:05 +209: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from l10n 缺省回退 zh 模板（冷启动链路安全）
+00:05 +210: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from 固定简体中文实例；未命名设备本地化兜底
+00:05 +211: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.from 通知固定使用系统默认提示音通道
+00:05 +212: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.stableId（通知位：设备×类型×会话） 同设备同会话同类型 → 稳定（原位更新不堆叠）
+00:05 +213: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.stableId（通知位：设备×类型×会话） 同设备不同会话 → 不同位（不得互相顶掉）
+00:05 +214: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.stableId（通知位：设备×类型×会话） 同会话不同类型 → 不同位（审批与追问是两件事）
+00:05 +215: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationSpec.stableId（通知位：设备×类型×会话） 不同设备 → 不同位；taskId 空参与 hash
+00:05 +216: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationPrefs（默认全部通知） 默认值：审批、完成、失败均开启
+00:05 +217: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationPrefs（默认全部通知） enabled 映射：审批族共用一个开关位
+00:05 +218: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationTap 无绑定时暂存，consumePending 只消费一次
+00:05 +219: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationTap 有绑定时直接分发不暂存
+00:05 +220: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 合法回执被解析
+00:05 +221: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 合法回执被解析
+00:05 +222: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 合法回执被解析
+00:05 +223: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 合法回执被解析
+00:05 +224: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 合法回执被解析
+00:05 +225: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：permissionCount 0→1 发 permission_request，带会话标题
+00:05 +226: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBackOutcome.parse 非法输入一律拒绝（不抛异常）
+00:05 +227: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：重复推送同一状态（中继重发）不再发事件
+00:05 +228: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 是 IIFE 表达式并带上本次尝试号
+00:05 +229: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：权限解除（1→0）发 resolved（通知撤回信号）
+00:05 +230: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 回执经 bridge 携带主 frame 令牌，且没令牌不裸发
+00:05 +231: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：计数下降未归零（2→1）不发 resolved——剩 2 个待审时通知仍有效
+00:05 +232: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 三种结论都会回执：clicked / not_found / no_change
+00:05 +233: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：userInput 归零（2→0）也发 resolved
+00:05 +234: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 点击后用内容签名验证页面确实换了（不是点到就算）
+00:05 +235: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 事件携带剩余交互计数 请求事件带 pendingTotal = permission + userInput
+00:05 +236: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 多策略候选：显式标签 → 通用标签 → 左上角图标键几何兜底
+00:05 +237: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 事件携带剩余交互计数 审批解决但输入仍在：resolved 带 pendingTotal=1（红点不该落）
+00:05 +238: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 「返回顶部」绝不能被当成返回（历史回归点）
+00:05 +239: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 事件携带剩余交互计数 全部解决：resolved 带 pendingTotal=0
+00:05 +240: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 只点击可见且可交互的元素，不碰 disabled / pointer-events:none
+00:05 +241: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 事件携带剩余交互计数 任务整行消失的 resolved 不带计数（观察面给不出剩余量）
+00:05 +242: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 代际守卫：新的返回尝试会让旧脚本停止
+00:05 +243: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 事件携带剩余交互计数 提取：hasPendingSummary 区分"没带 summary"与"确认无待处理"
+00:05 +244: D:/tmp/zr/ci_i15/test/in_page_back_test.dart: InPageBack.script 预算常量与 Dart 侧兜底超时匹配（脚本更短，避免双超时打架）
+00:05 +245: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 同一投递内重复副本合并 镜像在前、扁平行在后：保留带 summary 的镜像，不发假 resolved
+00:05 +246: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 同一投递内重复副本合并 扁平行在前、镜像在后：同样保留镜像
+00:05 +247: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 同一投递内重复副本合并 两个副本都带 summary：仍按后到覆盖（计数真变化照常发 resolved）
+00:05 +248: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 同一投递内重复副本合并 只有扁平行（无镜像）：沿用基线 0，不发事件；后续镜像 0→1 正常发请求
+00:05 +249: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 TaskIndexExtractor：无 summary 的任务行不算权威；activity 带 summary 才算
+00:05 +250: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 待审基线后只来任务索引行：不发假 resolved；再来同计数镜像不重复发请求；权威归零才 resolved
+00:05 +251: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 同一投递内镜像 + 任务索引行（webview_sync 的拼接顺序）：不发假 resolved
+00:05 +252: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 首见即任务索引行：按 0 记基线；随后镜像 0→1 正常发请求（沿用只在基线权威时发生）
+00:05 +253: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 带 summary 的任务索引行是权威：能把基线 1 归零并发 resolved
+00:05 +254: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 跨投递：缺 summary 的行沿用基线计数 权威基线 1 后连续只来扁平行：不发事件（粘滞窗口，ADR-001 成文）；removed 对账兜底清理
+00:05 +255: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 负数计数按 0 处理且仍算权威；随后 0→1 照常发请求（不被负基线吞掉）
+00:05 +256: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 1e999（Infinity）/ 小数 / 字符串计数都不采信且不抛异常；时间戳同样只认有限值
+00:05 +257: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 超大计数封顶 kMaxPendingCount：pendingTotal 求和不回绕为负
+00:05 +258: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 任务索引扁平计数字段：负数/非 int 不算权威，合法 int 才算
+00:05 +259: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 dedupe：显式事件在前无计数、differ 副本带计数 → 合并计数与缺失标题，文案保留显式版
+00:05 +260: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 dedupe：保留副本已带计数时后到副本不覆盖；不同 taskId 互不影响
+00:05 +261: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 dedupe：保留副本已有标题时不被后到副本覆盖（合并方向 = 保留副本优先）
+00:05 +262: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） R-19 复审：计数值域、有限性与 dedupe 合并 inheritPendingFrom：preview 与交互描述都回退基线，计数与权威标记来自基线
+00:05 +263: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） resolved 不在通知白名单（家务信号不发系统通知不计未读）
+00:05 +264: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：解除后再次出现（0→1）重新发事件（新一轮权限）
+00:05 +265: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：首见即带 userInput 发 elicitation_request
+00:05 +266: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：首见即带待批准（存量未决）照发
+00:05 +267: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：phase 变迁到终态发 completed/error（首见终态不发）
+00:05 +268: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：sessionEnded=false 的假终态不通知，确认结束后才通知
+00:05 +269: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：session.removed delta 只带裸 sessionId
+00:05 +270: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：会话被显式移除且带走未清待办 → 补发 resolved（通知撤回）
+00:05 +271: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：无待办的会话移除不发 resolved
+00:05 +272: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：移除未知 sessionId 是 no-op
+00:05 +273: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：非 sessions-index 帧（空提取）不清空 _prev
+00:05 +274: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 差分：移除后会话重现 → 按首见处理（重新发待审事件）
+00:05 +275: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 非 JSON 与无关 JSON 不产出状态
+00:05 +276: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：session.workspaceId 的 basename 进 workspace（Windows 路径）
+00:05 +277: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：缺 workspaceId 的会话 → workspace null（防御；schema 里必填）
+00:05 +278: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：一帧内两个会话不同 workspaceId → 各归各的 basename（逐对象归属）
+00:05 +279: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） workspaceBasenameOf：取最后一个 / 或 \\ 之后的末段并 trim，取不到则 null
+00:05 +280: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：lastActivityAt 时间戳进 SessionState（面板相对排序用）
+00:05 +281: D:/tmp/zr/ci_i15/test/event_parser_test.dart: SessionStateExtractor + StateDiffer（快照差分） 提取：无 lastActivityAt 键的会话 → null（视为最旧）
+00:05 +282: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） 解析完整帧：id/title/workspace/lastActivityAt/phase/pinned 全映射
+00:05 +283: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） membership.pinned=true → pinned（「已置顶」数据源）
+00:05 +284: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） membership.archived=true → 不 upsert（评审 r6：面板幽灵行）
+00:05 +285: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseArchived：archived 任务的 id 以移除信号吐出（摘既有条目）
+00:05 +286: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseRemoved：task.removed op（schema 判别联合）→ address.taskId
+00:05 +287: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） meta.createdAt 映射（比较器主键 + 合并源）
+00:05 +288: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseSnapshot：kind:snapshot 的裸 task 数组全解析（跨 workspace 全量回放）
+00:05 +289: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseSnapshot：delta 帧与垃圾输入 → null（非 snapshot 不得误判）
+00:05 +290: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseResultTasks：bootstrap/workspace-list RPC 回应的扁平 task 视图（每次连接必到）
+00:05 +291: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） parseResultTasks：无 result.tasks 的消息 → null
+00:05 +292: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） isBootstrapResult：requestId 前缀判定（评审 r10 抽纯函数）
+00:05 +293: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） activity 缺失 → phase 走 meta.status 映射，时间走 meta.updatedAt
+00:05 +294: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） 扁平 task delta 也保留非当前会话的待审批计数
+00:05 +295: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） 两流正交：tasks-index 帧不喂 SessionStateExtractor，反之亦然
+00:05 +296: D:/tmp/zr/ci_i15/test/event_parser_test.dart: TaskIndexExtractor（controller/tasks-index，跨项目全量） 无 task.upserted 的消息与非 JSON → 空
+00:05 +297: D:/tmp/zr/ci_i15/test/event_parser_test.dart: MobileViewStateSync（mobile-view-state POST 请求体） 带 taskId（打开任务）→ valid + taskId
+00:05 +298: D:/tmp/zr/ci_i15/test/event_parser_test.dart: MobileViewStateSync（mobile-view-state POST 请求体） 不带 taskId（回到任务列表）→ valid + null（清锚点信号）
+00:05 +299: D:/tmp/zr/ci_i15/test/event_parser_test.dart: MobileViewStateSync（mobile-view-state POST 请求体） 非 JSON / 非对象 / 缺 activeWorkspaceKey → 无信号（不清锚）
+00:05 +300: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationGate（前台应用内、后台系统提醒） 后台/锁屏：一律提醒（含正在看的会话）
+00:06 +301: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationGate（前台应用内、后台系统提醒） 前台 + 其他设备：由应用内通知承接，不发系统通知
+00:06 +302: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationGate（前台应用内、后台系统提醒） 前台 + 同设备 + 另一个会话：由应用内通知承接，不发系统通知
+00:06 +303: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationGate（前台应用内、后台系统提醒） 前台 + 正在看的事件会话本身：不发系统通知
+00:06 +304: D:/tmp/zr/ci_i15/test/event_parser_test.dart: NotificationGate（前台应用内、后台系统提醒） 前台事件带不上会话 ID：仍不发系统通知
+00:06 +305: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） 引导帧 mobileViewState.activeTaskId
+00:06 +306: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） 打开会话的 bridge 帧 initialTaskId
+00:06 +307: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） 无关消息返回 null
+00:06 +308: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） conversation/<sessionId> topic 即正在查看的会话
+00:06 +309: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） 同一帧内 conversation 胜过列表选择镜像（mobileViewState 老值）
+00:06 +310: D:/tmp/zr/ci_i15/test/event_parser_test.dart: ActiveSessionExtractor（bootstrap 与 bridge 帧） conversation/ 空 id 不作信号，回落其他信号
+00:06 +311: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） 窗口内同一事件只放行一次，重复投递被抑制
+00:06 +312: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） 轮换 summary 制造不出新键：同任务同类型窗口内只提醒一次（D-10）
+00:06 +313: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） 缺 taskId 的事件同类型窗口内也只提醒一次（键不依赖摘要）
+00:06 +314: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） 窗口过期后允许再次提醒，且不同事件不互相抑制
+00:06 +315: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） resolved 清理该任务的键：同一任务的新一轮照常提醒（N06）
+00:06 +316: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） resolved 只清精确 taskId：t1 的 resolved 不得误清 t10 的键
+00:06 +317: D:/tmp/zr/ci_i15/test/event_parser_test.dart: EventDedupeGate（跨消息幂等，F12） 有界：大量不同事件不会无限增长
+00:06 +318: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-014 未命中占比分母抗伪造 wsMessages 灌大不再稀释占比：framesDecoded 封顶后 OB202 照常触发
+00:06 +319: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-014 未命中占比分母抗伪造 framesDecoded 正常（≥ wsMessages）时行为不变：不误报
+00:06 +320: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-014 未命中占比分母抗伪造 fetch200 虚报用 fetchCloned 封顶：OB203 同口径
+00:06 +321: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-016 跳转 taskId 白名单与段匹配 taskIdWellFormed：合法 id 通过；空/超长/非法字符拒绝
+00:06 +322: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-016 跳转 taskId 白名单与段匹配 跳转脚本包含段匹配契约：testid 精确等于 tid 或 task-item- 前缀
+00:06 +323: D:/tmp/zr/ci_i15/test/iter11_hardening_test.dart: W-024 探测 in-flight 去重 重叠轮跳过：第一轮在跑时第二轮不发探测、不覆盖结果
+00:06 +324: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P1-1：_armBootCover 必须重置 _takeoverLogged（否则第二次顶号无日志）
+00:06 +325: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P2-1：三处揭盖点都必须停掉盖板跟随计时器
+00:06 +326: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 源码钉：盖板状态机（official_remote_page 无 WebView 测试环境） N-P2-1 配套：盖板纪元护栏（揭盖/重挂递增，陈旧探针作废）
+00:06 +327: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-3：session_index 合并视图上限 两表各 5000 个互不相同的 id：合并视图也必须 ≤ 上限
+00:06 +328: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-3：session_index 合并视图上限 两表各 5000 个互不相同的 id：合并视图也必须 ≤ 上限
+00:06 +329: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-3：session_index 合并视图上限 两表各 5000 个互不相同的 id：合并视图也必须 ≤ 上限
+00:06 +330: D:/tmp/zr/ci_i15/test/iter13_hardening_test.dart: 源码钉：_hiddenFor/_hiddenSinceWall 成对状态机（official_remote_page 无 WebView 测试环境） W-030：_hiddenFor 与 _hiddenSinceWall 成对出现，读取走 relockEvidence
+00:06 +331: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-3：session_index 合并视图上限 合并视图驱逐同样保护钉住会话
+00:06 +332: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-3：session_index 合并视图上限 合并视图驱逐同样保护钉住会话
+00:06 +333: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +334: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +335: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +336: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +337: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +338: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +339: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +340: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +341: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +342: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +343: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +344: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +345: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +346: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +347: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +348: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +349: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-5：event_feed pendingByTask 硬上限 灌唯一 taskId：上限内不提前驱逐，超限有界且最新键受保护
+00:06 +350: D:/tmp/zr/ci_i15/test/link_builder_test.dart: LinkBuilder.isPublicEndpoint（出站端点第二道防线） 官方 origin 放行
+00:06 +351: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021：Bidi 控制符清洗 TextSanitize：剥离 U+202A–E / U+2066–69，其余原样
+00:06 +352: D:/tmp/zr/ci_i15/test/link_builder_test.dart: LinkBuilder.isPublicEndpoint（出站端点第二道防线） 环回 / 私网 / 保留地址一律拒绝
+00:06 +353: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021：Bidi 控制符清洗 event_feed：lastSummary/lastSessionTitle 入表前清洗
+00:06 +354: D:/tmp/zr/ci_i15/test/link_builder_test.dart: LinkBuilder.isPublicEndpoint（出站端点第二道防线） 非 https/wss scheme 拒绝
+00:06 +355: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021：Bidi 控制符清洗 session_index：标题/预览/工作区入表前清洗
+00:06 +356: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-6：update tag 归一收紧 带后缀的 tag 一律非法（fail-closed，不参与比较）
+00:06 +357: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P2-6：update tag 归一收紧 合法形态兼容：v 前缀 / 两段 / 首尾空白
+00:06 +358: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: N-P3-2：warmup 不收录 query/fragment 带 query 的只读面板请求不再进入重放脚本
+00:06 +359: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 alertMode 白名单归一：未知值回落 sound
+00:06 +360: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 startupTarget 白名单归一：未知值回落 lastDevice
+00:06 +361: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 LogRedactor._clip 不产出孤立代理
+00:06 +362: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 bridge_health：旧 generation 迟到状态两个方向都不得覆盖新代
+00:06 +363: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 biometric：sinceLastSuccess 单调时长（成功后非空，失败前为 null）
+00:06 +364: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 AppSettings.notificationsEnabled：未知一律 false（fail-closed）
+00:06 +365: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 integrity provider：加载结果上报 + 清空
+00:06 +366: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: W-021 杂项 诊断包 settings 段含设备库完整性两行（只有数字/枚举）
+00:06 +367: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 relockEvidence：深睡（墙钟大）与回拨（单调大）两场景都取真值
+00:06 +368: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 标题截断：emoji 落在 120 切点上不产出孤立代理
+00:06 +369: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:06 +370: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:06 +371: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+2026-09-20T09:08:19.479462Z I WV111 event=webviewStorageCleared reason=protected_wipe ok=false
+00:07 +372: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +373: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +374: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +375: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +376: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +377: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +378: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +379: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +380: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +381: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +382: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+00:07 +383: D:/tmp/zr/ci_i15/test/iter12_hardening_test.dart: 复核返修：双钟 relock 证据 / 标题代理对 / 擦除覆盖 擦除事务清掉设备库完整性计数（同生命周期口径）
+2026-09-20T09:08:19.684269Z W LC802 event=protectedDataWipeFailed reason=notify_cancel err=LateInitializationError: Field '_instance@1215271368' has not been initialized.
+2026-09-20T09:08:19.685390Z W LC802 event=protectedDataWipeFailed reason=wipe_incomplete n=6
+00:07 +384: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 事件行含事件码、事件名与白名单字段
+2026-09-20T09:08:19.682725Z I WV101 event=webviewLoadStop dev=3f2a1b9c gen=2 route=https://zcode.z.ai/remote/v4 ms=318 ok=true
+00:07 +385: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 null 字段被跳过，不会写出 key=- 这种噪声
+2026-09-20T09:08:19.692535Z I WV100 event=webviewLoadStart
+00:07 +386: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 failure 走同一脱敏路径（异常文本带凭证也不泄漏）
+2026-09-20T09:08:19.697941Z W UP600 event=updateCheckFailed err=Exception: https://zcode.z.ai/remote/v4
+00:07 +387: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 旧字符串入口同样被强制脱敏（第二道防线）
+2026-09-20T09:08:19.701958Z W raw https://zcode.z.ai/remote/v4 token=<redacted>
+00:07 +388: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 canary 扫零命中：多种凭证形态混写后，整段导出无 canary
+2026-09-20T09:08:19.706056Z I WV103 event=webviewNavBlocked route=https://zcode.z.ai/remote/v4
+2026-09-20T09:08:19.706056Z W UP600 event=updateCheckFailed err=boom <redacted>
+2026-09-20T09:08:19.707085Z W link https://zcode.z.ai/remote/v4
+2026-09-20T09:08:19.707151Z E inner: Exception: sid=<redacted> hash=<redacted>
+00:07 +389: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: AppLog 结构化事件 环形缓冲有上限，不无限增长
+2026-09-20T09:08:19.711242Z I line 0
+2026-09-20T09:08:19.711242Z I line 1
+2026-09-20T09:08:19.712262Z I line 2
+2026-09-20T09:08:19.712262Z I line 3
+2026-09-20T09:08:19.712262Z I line 4
+2026-09-20T09:08:19.712262Z I line 5
+2026-09-20T09:08:19.712262Z I line 6
+2026-09-20T09:08:19.712262Z I line 7
+2026-09-20T09:08:19.713287Z I line 8
+2026-09-20T09:08:19.713287Z I line 9
+2026-09-20T09:08:19.713287Z I line 10
+2026-09-20T09:08:19.713287Z I line 11
+2026-09-20T09:08:19.713287Z I line 12
+2026-09-20T09:08:19.713287Z I line 13
+2026-09-20T09:08:19.713287Z I line 14
+2026-09-20T09:08:19.713287Z I line 15
+2026-09-20T09:08:19.714310Z I line 16
+2026-09-20T09:08:19.714310Z I line 17
+2026-09-20T09:08:19.714310Z I line 18
+2026-09-20T09:08:19.714310Z I line 19
+2026-09-20T09:08:19.714310Z I line 20
+2026-09-20T09:08:19.714310Z I line 21
+2026-09-20T09:08:19.714310Z I line 22
+2026-09-20T09:08:19.714310Z I line 23
+2026-09-20T09:08:19.714310Z I line 24
+2026-09-20T09:08:19.714310Z I line 25
+2026-09-20T09:08:19.714310Z I line 26
+2026-09-20T09:08:19.714310Z I line 27
+2026-09-20T09:08:19.714310Z I line 28
+2026-09-20T09:08:19.714310Z I line 29
+2026-09-20T09:08:19.714310Z I line 30
+2026-09-20T09:08:19.714310Z I line 31
+2026-09-20T09:08:19.714310Z I line 32
+2026-09-20T09:08:19.714310Z I line 33
+2026-09-20T09:08:19.714310Z I line 34
+2026-09-20T09:08:19.714310Z I line 35
+2026-09-20T09:08:19.714310Z I line 36
+2026-09-20T09:08:19.714310Z I line 37
+2026-09-20T09:08:19.715330Z I line 38
+2026-09-20T09:08:19.715330Z I line 39
+2026-09-20T09:08:19.715330Z I line 40
+2026-09-20T09:08:19.715330Z I line 41
+2026-09-20T09:08:19.715330Z I line 42
+2026-09-20T09:08:19.715330Z I line 43
+2026-09-20T09:08:19.715330Z I line 44
+2026-09-20T09:08:19.715330Z I line 45
+2026-09-20T09:08:19.715330Z I line 46
+2026-09-20T09:08:19.715929Z I line 47
+2026-09-20T09:08:19.715929Z I line 48
+2026-09-20T09:08:19.715929Z I line 49
+2026-09-20T09:08:19.715929Z I line 50
+2026-09-20T09:08:19.715929Z I line 51
+2026-09-20T09:08:19.715929Z I line 52
+2026-09-20T09:08:19.715929Z I line 53
+2026-09-20T09:08:19.715929Z I line 54
+2026-09-20T09:08:19.715929Z I line 55
+2026-09-20T09:08:19.715929Z I line 56
+2026-09-20T09:08:19.715929Z I line 57
+2026-09-20T09:08:19.715929Z I line 58
+2026-09-20T09:08:19.715929Z I line 59
+2026-09-20T09:08:19.715929Z I line 60
+2026-09-20T09:08:19.715929Z I line 61
+2026-09-20T09:08:19.716434Z I line 62
+2026-09-20T09:08:19.716434Z I line 63
+2026-09-20T09:08:19.716434Z I line 64
+2026-09-20T09:08:19.716434Z I line 65
+2026-09-20T09:08:19.716434Z I line 66
+2026-09-20T09:08:19.716434Z I line 67
+2026-09-20T09:08:19.716434Z I line 68
+2026-09-20T09:08:19.716434Z I line 69
+2026-09-20T09:08:19.716434Z I line 70
+2026-09-20T09:08:19.716434Z I line 71
+2026-09-20T09:08:19.716434Z I line 72
+2026-09-20T09:08:19.716434Z I line 73
+2026-09-20T09:08:19.716434Z I line 74
+2026-09-20T09:08:19.716434Z I line 75
+2026-09-20T09:08:19.716434Z I line 76
+2026-09-20T09:08:19.716434Z I line 77
+2026-09-20T09:08:19.716434Z I line 78
+2026-09-20T09:08:19.716434Z I line 79
+2026-09-20T09:08:19.716434Z I line 80
+2026-09-20T09:08:19.716434Z I line 81
+2026-09-20T09:08:19.716434Z I line 82
+2026-09-20T09:08:19.716434Z I line 83
+2026-09-20T09:08:19.716434Z I line 84
+2026-09-20T09:08:19.716434Z I line 85
+2026-09-20T09:08:19.716434Z I line 86
+2026-09-20T09:08:19.716434Z I line 87
+2026-09-20T09:08:19.717441Z I line 88
+2026-09-20T09:08:19.717441Z I line 89
+2026-09-20T09:08:19.717441Z I line 90
+2026-09-20T09:08:19.717441Z I line 91
+2026-09-20T09:08:19.717441Z I line 92
+2026-09-20T09:08:19.717441Z I line 93
+2026-09-20T09:08:19.717441Z I line 94
+2026-09-20T09:08:19.717441Z I line 95
+2026-09-20T09:08:19.717441Z I line 96
+2026-09-20T09:08:19.717441Z I line 97
+2026-09-20T09:08:19.717441Z I line 98
+2026-09-20T09:08:19.717950Z I line 99
+2026-09-20T09:08:19.717950Z I line 100
+2026-09-20T09:08:19.717950Z I line 101
+2026-09-20T09:08:19.717950Z I line 102
+2026-09-20T09:08:19.717950Z I line 103
+2026-09-20T09:08:19.717950Z I line 104
+2026-09-20T09:08:19.717950Z I line 105
+2026-09-20T09:08:19.717950Z I line 106
+2026-09-20T09:08:19.717950Z I line 107
+2026-09-20T09:08:19.717950Z I line 108
+2026-09-20T09:08:19.717950Z I line 109
+2026-09-20T09:08:19.717950Z I line 110
+2026-09-20T09:08:19.717950Z I line 111
+2026-09-20T09:08:19.717950Z I line 112
+2026-09-20T09:08:19.717950Z I line 113
+2026-09-20T09:08:19.717950Z I line 114
+2026-09-20T09:08:19.717950Z I line 115
+2026-09-20T09:08:19.717950Z I line 116
+2026-09-20T09:08:19.717950Z I line 117
+2026-09-20T09:08:19.717950Z I line 118
+2026-09-20T09:08:19.717950Z I line 119
+2026-09-20T09:08:19.717950Z I line 120
+2026-09-20T09:08:19.718999Z I line 121
+2026-09-20T09:08:19.718999Z I line 122
+2026-09-20T09:08:19.718999Z I line 123
+2026-09-20T09:08:19.718999Z I line 124
+2026-09-20T09:08:19.718999Z I line 125
+2026-09-20T09:08:19.718999Z I line 126
+2026-09-20T09:08:19.718999Z I line 127
+2026-09-20T09:08:19.718999Z I line 128
+2026-09-20T09:08:19.718999Z I line 129
+2026-09-20T09:08:19.718999Z I line 130
+2026-09-20T09:08:19.718999Z I line 131
+2026-09-20T09:08:19.718999Z I line 132
+2026-09-20T09:08:19.718999Z I line 133
+2026-09-20T09:08:19.718999Z I line 134
+2026-09-20T09:08:19.718999Z I line 135
+2026-09-20T09:08:19.718999Z I line 136
+2026-09-20T09:08:19.718999Z I line 137
+2026-09-20T09:08:19.718999Z I line 138
+2026-09-20T09:08:19.718999Z I line 139
+2026-09-20T09:08:19.718999Z I line 140
+2026-09-20T09:08:19.720024Z I line 141
+2026-09-20T09:08:19.720024Z I line 142
+2026-09-20T09:08:19.720024Z I line 143
+2026-09-20T09:08:19.720024Z I line 144
+2026-09-20T09:08:19.720024Z I line 145
+2026-09-20T09:08:19.720024Z I line 146
+2026-09-20T09:08:19.720024Z I line 147
+2026-09-20T09:08:19.720024Z I line 148
+2026-09-20T09:08:19.720024Z I line 149
+2026-09-20T09:08:19.720024Z I line 150
+2026-09-20T09:08:19.720024Z I line 151
+2026-09-20T09:08:19.720024Z I line 152
+2026-09-20T09:08:19.720024Z I line 153
+2026-09-20T09:08:19.720024Z I line 154
+2026-09-20T09:08:19.720024Z I line 155
+2026-09-20T09:08:19.720024Z I line 156
+2026-09-20T09:08:19.720024Z I line 157
+2026-09-20T09:08:19.720024Z I line 158
+2026-09-20T09:08:19.720024Z I line 159
+2026-09-20T09:08:19.720024Z I line 160
+2026-09-20T09:08:19.720024Z I line 161
+2026-09-20T09:08:19.720024Z I line 162
+2026-09-20T09:08:19.721046Z I line 163
+2026-09-20T09:08:19.721046Z I line 164
+2026-09-20T09:08:19.721046Z I line 165
+2026-09-20T09:08:19.721046Z I line 166
+2026-09-20T09:08:19.721046Z I line 167
+2026-09-20T09:08:19.721046Z I line 168
+2026-09-20T09:08:19.721046Z I line 169
+2026-09-20T09:08:19.721046Z I line 170
+2026-09-20T09:08:19.721046Z I line 171
+2026-09-20T09:08:19.721046Z I line 172
+2026-09-20T09:08:19.721046Z I line 173
+2026-09-20T09:08:19.721046Z I line 174
+2026-09-20T09:08:19.721046Z I line 175
+2026-09-20T09:08:19.721046Z I line 176
+2026-09-20T09:08:19.721046Z I line 177
+2026-09-20T09:08:19.721046Z I line 178
+2026-09-20T09:08:19.721046Z I line 179
+2026-09-20T09:08:19.721046Z I line 180
+2026-09-20T09:08:19.721046Z I line 181
+2026-09-20T09:08:19.721046Z I line 182
+2026-09-20T09:08:19.721046Z I line 183
+2026-09-20T09:08:19.721046Z I line 184
+2026-09-20T09:08:19.721046Z I line 185
+2026-09-20T09:08:19.721046Z I line 186
+2026-09-20T09:08:19.721046Z I line 187
+2026-09-20T09:08:19.721046Z I line 188
+2026-09-20T09:08:19.721046Z I line 189
+2026-09-20T09:08:19.721046Z I line 190
+2026-09-20T09:08:19.721046Z I line 191
+2026-09-20T09:08:19.721046Z I line 192
+2026-09-20T09:08:19.721046Z I line 193
+2026-09-20T09:08:19.721046Z I line 194
+2026-09-20T09:08:19.721046Z I line 195
+2026-09-20T09:08:19.721046Z I line 196
+2026-09-20T09:08:19.721046Z I line 197
+2026-09-20T09:08:19.721046Z I line 198
+2026-09-20T09:08:19.721046Z I line 199
+2026-09-20T09:08:19.721046Z I line 200
+2026-09-20T09:08:19.721046Z I line 201
+2026-09-20T09:08:19.722073Z I line 202
+2026-09-20T09:08:19.722073Z I line 203
+2026-09-20T09:08:19.722073Z I line 204
+2026-09-20T09:08:19.722073Z I line 205
+2026-09-20T09:08:19.722073Z I line 206
+2026-09-20T09:08:19.722073Z I line 207
+2026-09-20T09:08:19.722073Z I line 208
+2026-09-20T09:08:19.722073Z I line 209
+2026-09-20T09:08:19.722073Z I line 210
+2026-09-20T09:08:19.722073Z I line 211
+2026-09-20T09:08:19.722073Z I line 212
+2026-09-20T09:08:19.722073Z I line 213
+2026-09-20T09:08:19.722073Z I line 214
+2026-09-20T09:08:19.722073Z I line 215
+2026-09-20T09:08:19.722073Z I line 216
+2026-09-20T09:08:19.722073Z I line 217
+2026-09-20T09:08:19.722073Z I line 218
+2026-09-20T09:08:19.722073Z I line 219
+2026-09-20T09:08:19.722073Z I line 220
+2026-09-20T09:08:19.722073Z I line 221
+2026-09-20T09:08:19.722073Z I line 222
+2026-09-20T09:08:19.722073Z I line 223
+2026-09-20T09:08:19.722073Z I line 224
+2026-09-20T09:08:19.722073Z I line 225
+2026-09-20T09:08:19.722073Z I line 226
+2026-09-20T09:08:19.722073Z I line 227
+2026-09-20T09:08:19.722073Z I line 228
+2026-09-20T09:08:19.722073Z I line 229
+2026-09-20T09:08:19.722073Z I line 230
+2026-09-20T09:08:19.722073Z I line 231
+2026-09-20T09:08:19.722073Z I line 232
+2026-09-20T09:08:19.722073Z I line 233
+2026-09-20T09:08:19.722073Z I line 234
+2026-09-20T09:08:19.722073Z I line 235
+2026-09-20T09:08:19.722073Z I line 236
+2026-09-20T09:08:19.723106Z I line 237
+2026-09-20T09:08:19.723106Z I line 238
+2026-09-20T09:08:19.723106Z I line 239
+2026-09-20T09:08:19.723106Z I line 240
+2026-09-20T09:08:19.723106Z I line 241
+2026-09-20T09:08:19.723106Z I line 242
+2026-09-20T09:08:19.723106Z I line 243
+2026-09-20T09:08:19.723106Z I line 244
+2026-09-20T09:08:19.723106Z I line 245
+2026-09-20T09:08:19.723106Z I line 246
+2026-09-20T09:08:19.723106Z I line 247
+2026-09-20T09:08:19.723106Z I line 248
+2026-09-20T09:08:19.723106Z I line 249
+2026-09-20T09:08:19.723106Z I line 250
+2026-09-20T09:08:19.723106Z I line 251
+2026-09-20T09:08:19.723106Z I line 252
+2026-09-20T09:08:19.723106Z I line 253
+2026-09-20T09:08:19.723106Z I line 254
+2026-09-20T09:08:19.723106Z I line 255
+2026-09-20T09:08:19.723106Z I line 256
+2026-09-20T09:08:19.723106Z I line 257
+2026-09-20T09:08:19.723106Z I line 258
+2026-09-20T09:08:19.723106Z I line 259
+2026-09-20T09:08:19.723106Z I line 260
+2026-09-20T09:08:19.723106Z I line 261
+2026-09-20T09:08:19.723106Z I line 262
+2026-09-20T09:08:19.723106Z I line 263
+2026-09-20T09:08:19.723106Z I line 264
+2026-09-20T09:08:19.723106Z I line 265
+2026-09-20T09:08:19.723106Z I line 266
+2026-09-20T09:08:19.723106Z I line 267
+2026-09-20T09:08:19.723106Z I line 268
+2026-09-20T09:08:19.723106Z I line 269
+2026-09-20T09:08:19.723106Z I line 270
+2026-09-20T09:08:19.724130Z I line 271
+2026-09-20T09:08:19.724130Z I line 272
+2026-09-20T09:08:19.724130Z I line 273
+2026-09-20T09:08:19.724130Z I line 274
+2026-09-20T09:08:19.724130Z I line 275
+2026-09-20T09:08:19.724130Z I line 276
+2026-09-20T09:08:19.724130Z I line 277
+2026-09-20T09:08:19.724130Z I line 278
+2026-09-20T09:08:19.724130Z I line 279
+2026-09-20T09:08:19.724652Z I line 280
+2026-09-20T09:08:19.724652Z I line 281
+2026-09-20T09:08:19.724652Z I line 282
+2026-09-20T09:08:19.724652Z I line 283
+2026-09-20T09:08:19.724652Z I line 284
+2026-09-20T09:08:19.724652Z I line 285
+2026-09-20T09:08:19.724652Z I line 286
+2026-09-20T09:08:19.724652Z I line 287
+2026-09-20T09:08:19.724652Z I line 288
+2026-09-20T09:08:19.724652Z I line 289
+2026-09-20T09:08:19.724652Z I line 290
+2026-09-20T09:08:19.724652Z I line 291
+2026-09-20T09:08:19.724652Z I line 292
+2026-09-20T09:08:19.724652Z I line 293
+2026-09-20T09:08:19.724652Z I line 294
+2026-09-20T09:08:19.725168Z I line 295
+2026-09-20T09:08:19.725168Z I line 296
+2026-09-20T09:08:19.725168Z I line 297
+2026-09-20T09:08:19.725168Z I line 298
+2026-09-20T09:08:19.725168Z I line 299
+2026-09-20T09:08:19.725168Z I line 300
+2026-09-20T09:08:19.725168Z I line 301
+2026-09-20T09:08:19.725168Z I line 302
+2026-09-20T09:08:19.725687Z I line 303
+2026-09-20T09:08:19.725687Z I line 304
+2026-09-20T09:08:19.725687Z I line 305
+2026-09-20T09:08:19.725687Z I line 306
+2026-09-20T09:08:19.725687Z I line 307
+2026-09-20T09:08:19.725687Z I line 308
+00:07 +390: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: 事件码表 事件码唯一且形如 XXnnn
+00:07 +391: D:/tmp/zr/ci_i15/test/log_redactor_test.dart: 事件码表 字段键唯一且短（日志行不长）
+00:07 +392: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +393: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +394: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +395: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +396: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +397: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +398: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +399: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +399: D:/tmp/zr/ci_i15/test/notifier_test.dart: notifyFrom 异常围栏（D-20260916-15） spec 构造抛错 → future 正常完成且记 NT501，不外溢
+2026-09-20T09:08:20.197278Z W NT501 event=notificationShowFailed reason=spec err=Bad state: l10n boom
+00:07 +400: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +401: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +402: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +403: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +404: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +405: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +406: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +407: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +408: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +409: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +410: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +411: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +412: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +413: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +414: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +415: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:07 +416: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +417: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +418: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +419: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +420: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +421: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +422: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +423: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +424: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +425: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +426: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +427: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +428: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +429: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +430: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +431: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +432: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +433: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +434: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +435: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +436: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +437: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +438: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +439: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +440: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +441: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +442: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +443: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +444: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +445: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +446: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +447: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +448: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:08 +449: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 改名写失败：弹"操作失败"，名字不变
+00:09 +450: D:/tmp/zr/ci_i15/test/manage_page_write_failure_test.dart: 删除写失败：弹"操作失败"，设备仍在列表
+00:09 +451: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:09 +451: D:/tmp/zr/ci_i15/test/protected_wipe_test.dart: 擦除事务：内存 Provider 与磁盘上的 CANARY 凭证都被清除（R-04）
+2026-09-20T09:08:22.060523Z I WV111 event=webviewStorageCleared reason=protected_wipe ok=false
+2026-09-20T09:08:22.267582Z W LC802 event=protectedDataWipeFailed reason=notify_cancel err=LateInitializationError: Field '_instance@1222271368' has not been initialized.
+2026-09-20T09:08:22.268628Z W LC802 event=protectedDataWipeFailed reason=wipe_incomplete n=4
+00:09 +452: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:09 +452: D:/tmp/zr/ci_i15/test/protected_wipe_test.dart: 擦除后重载不会从磁盘"复活"设备（R-04/R-06 交叉）
+2026-09-20T09:08:22.291392Z I WV111 event=webviewStorageCleared reason=protected_wipe ok=false
+2026-09-20T09:08:22.493503Z W LC802 event=protectedDataWipeFailed reason=notify_cancel err=LateInitializationError: Field '_instance@1222271368' has not been initialized.
+2026-09-20T09:08:22.494649Z W LC802 event=protectedDataWipeFailed reason=wipe_incomplete n=4
+00:10 +453: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +454: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +455: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +456: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +457: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +458: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +459: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +460: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +461: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +462: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +463: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +464: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +465: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +466: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +467: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +468: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +469: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +470: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +471: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +472: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +473: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +474: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:10 +475: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +476: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +477: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +478: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +479: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +480: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +481: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +482: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +483: D:/tmp/zr/ci_i15/test/paste_import_test.dart: 非法链接（解析失败）不炸元素树：snackbar 提示导入失败
+00:11 +484: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +485: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +486: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +487: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +488: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +489: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +490: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +491: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +492: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +493: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +494: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +495: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +496: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +497: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +498: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +499: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +500: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +501: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +502: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +503: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +504: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +505: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +506: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +507: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +508: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +509: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +510: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +511: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +512: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +513: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +514: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +515: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +516: D:/tmp/zr/ci_i15/test/rename_dialog_test.dart: 改名保存：退场动画期间不炸元素树，名字生效
+00:11 +517: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:11 +518: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:11 +519: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:11 +520: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:11 +521: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +522: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +523: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +524: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +525: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +525: D:/tmp/zr/ci_i15/test/scanner_page_test.dart: 相机故障界面：可读原因 + 重试 + 改用粘贴（不再是黑屏）
+2026-09-20T09:08:24.454326Z W CM910 event=cameraFailed reason=genericerror ok=false
+00:12 +526: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +527: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +528: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +528: D:/tmp/zr/ci_i15/test/scanner_page_test.dart: 相机被占用：错误原因分类为"被占用/初始化中"
+2026-09-20T09:08:24.640201Z W CM910 event=cameraFailed reason=controlleralreadyinitialized ok=false
+00:12 +529: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +530: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +531: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +532: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +533: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +533: D:/tmp/zr/ci_i15/test/service_resilience_test.dart: R-3 损坏设备记录隔离留痕 损坏记录被隔离：计入 skippedRecords 且 DS704 留痕
+2026-09-20T09:08:24.917084Z W DS704 event=deviceRecordSkipped reason=record_quarantined dev=baddevic
+00:12 +534: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1e5 次子 frame 记账：计数精确，无回绕
+00:12 +535: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 100% 无溢出
+00:12 +536: D:/tmp/zr/ci_i15/test/service_resilience_test.dart: R-8 洪泛驱逐不挤掉 pinned 会话 6000 条（前 2000 pinned）：驱逐只落在非 pinned 上
+00:12 +537: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +538: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +539: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +540: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +541: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +542: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +543: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +544: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +545: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +546: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +547: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +548: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +549: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +550: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +551: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +552: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +553: D:/tmp/zr/ci_i15/test/scale_test.dart: SubFrameStats 与诊断包规模 1000 台设备 × 全部计数键：诊断包行数与告警行数按设备线性，且可渲染
+00:12 +554: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 100% 无溢出
+00:12 +555: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 100% 无溢出
+00:12 +556: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 100% 无溢出
+00:12 +557: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 100% 无溢出
+00:12 +558: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 100% 无溢出
+00:12 +559: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +560: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +561: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +562: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +563: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +564: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +565: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +566: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +567: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +568: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +569: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +570: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +571: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +572: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +573: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +574: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +575: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +576: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +577: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +578: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +579: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +580: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +581: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +582: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +583: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 100% 无溢出
+00:12 +584: D:/tmp/zr/ci_i15/test/session_jump_test.dart: JumpOutcome.parse 合法回执被解析
+00:12 +585: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：最窄手机 320dp × 130% 无溢出
+00:12 +586: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：最窄手机 320dp × 130% 无溢出
+00:12 +587: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：最窄手机 320dp × 130% 无溢出
+00:13 +588: D:/tmp/zr/ci_i15/test/session_pool_test.dart: ActiveTabNotifier 启动恢复 set(设备 tab) 落盘该设备 id
+00:13 +589: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +590: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +591: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +592: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +593: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +594: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +595: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +596: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +597: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 130% 无溢出
+00:13 +598: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：常规手机 411dp × 130% 无溢出
+00:13 +599: D:/tmp/zr/ci_i15/test/session_status_test.dart: RelayLedPolicy.onFrame 外层 data 帧 → live
+00:13 +600: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +601: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +602: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +603: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +604: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +605: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +606: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +607: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +608: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +609: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +610: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +611: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +612: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +613: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +614: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +615: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +616: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：常规手机 411dp × 130% 无溢出
+00:13 +617: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：平板竖屏 800dp × 130% 无溢出
+00:13 +618: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：平板竖屏 800dp × 130% 无溢出
+00:13 +619: D:/tmp/zr/ci_i15/test/subframe_stats_test.dart: 设备互相独立；forget 只清自己（多设备不串号）
+00:13 +620: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +621: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +622: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +623: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +624: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +625: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +626: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +627: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +628: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +629: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：平板竖屏 800dp × 130% 无溢出
+00:13 +630: D:/tmp/zr/ci_i15/test/theme_test.dart: 调色板完整性 paletteOf / ZT.paletteOf 返回对应主题
+00:13 +631: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +632: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +633: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +634: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +635: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +636: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +637: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +638: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +639: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +640: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +641: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +642: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +643: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +644: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +645: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +646: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：横屏 1280x800 × 130% 无溢出
+00:13 +647: D:/tmp/zr/ci_i15/test/theme_test.dart: 主题构建 ThemeData 带上了调色板扩展
+00:13 +648: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +649: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +650: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +651: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +652: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +653: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +654: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +655: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +656: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +657: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +658: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +659: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：横屏 1280x800 × 130% 无溢出
+00:13 +660: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设备中心：最窄手机 320dp × 200% 无溢出
+00:14 +661: D:/tmp/zr/ci_i15/test/responsive_layout_test.dart: 设置页：最窄手机 320dp × 200% 无溢出
+00:14 +662: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +663: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +664: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +665: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +666: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +667: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +668: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +669: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +670: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +671: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +671: D:/tmp/zr/ci_i15/test/updater_client_policy_test.dart: R-11：sidecar 重定向到非白名单主机 → 摘要取不到，退化为"引导页面"
+2026-09-20T09:08:27.255699Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:14 +672: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +673: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +674: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +675: D:/tmp/zr/ci_i15/test/unread_badge_test.dart: 有未读且待批准：显示计数，危险色
+00:14 +676: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +677: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +678: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +679: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +680: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +681: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +682: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +683: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +684: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +685: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +686: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:14 +687: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +688: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +689: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +690: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +691: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +692: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +693: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +694: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:15 +695: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +696: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +697: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +698: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +699: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +700: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +701: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 206 Content-Range 起点不符 → 重置断点并报错
+00:17 +701: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到非白名单地址 → 拒绝下载（不跟随、不落盘）
+2026-09-20T09:08:29.549420Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+2026-09-20T09:08:31.554304Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+2026-09-20T09:08:35.557833Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:26 +702: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到非白名单地址 → 拒绝下载（不跟随、不落盘）
+2026-09-20T09:08:41.560875Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:29 +703: D:/tmp/zr/ci_i15/test/updater_chaos_test.dart: 下载混沌 416 但断点小于声明大小 → 报错
+00:29 +703: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到私网地址 → 拒绝下载（不请求私网）
+2026-09-20T09:08:41.565469Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+2026-09-20T09:08:43.568341Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+2026-09-20T09:08:47.570439Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:38 +704: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到私网地址 → 拒绝下载（不请求私网）
+00:38 +705: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到私网地址 → 拒绝下载（不请求私网）
+00:38 +706: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到私网地址 → 拒绝下载（不请求私网）
+2026-09-20T09:08:53.573559Z W UP602 event=updateOutboundBlocked reason=redirect_not_allowed
+00:41 +707: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 重定向到发布资产 CDN（白名单内）→ 跟随并完成下载
+00:41 +708: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 下载入口拒绝非官方 host（策略 + 精确路径双重校验）
+00:41 +709: D:/tmp/zr/ci_i15/test/update_service_test.dart: 出站 URL 策略（重定向逐跳校验） 检查更新：发布页重定向到私网地址 → 不跟随（走失败分支）
+00:41 +710: All tests passed!
