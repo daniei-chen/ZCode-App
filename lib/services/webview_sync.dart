@@ -8,6 +8,7 @@ import '../models/device.dart';
 import '../state/active_session.dart';
 import '../state/app_lifecycle.dart';
 import '../state/event_feed.dart';
+import '../state/event_history.dart';
 import '../state/notification_prefs.dart';
 import '../state/session_index.dart';
 import '../state/session_pool.dart';
@@ -130,6 +131,7 @@ class WebViewSyncController {
         ref.read(appLifecycleProvider) == AppLifecycleState.resumed;
     final prefs = ref.read(notificationPrefsProvider);
     final feed = ref.read(eventFeedProvider.notifier);
+    final history = ref.read(eventHistoryProvider.notifier);
 
     for (final event in events) {
       // 跨消息幂等（F12）：同一逻辑事件在窗口内重复到达只提醒一次；
@@ -151,6 +153,7 @@ class WebViewSyncController {
           NotifierService.instance.cancelPending(device, taskId);
         }
         feed.ingest(device.id, enriched);
+        history.record(device.id, enriched); // 待处理中心历史（resolved 也留痕）
         continue;
       }
       if (!prefs.enabled(enriched.type)) continue;
@@ -159,6 +162,7 @@ class WebViewSyncController {
       // including the session currently on screen. The gate below only
       // suppresses the duplicate system notification in that case.
       feed.ingest(device.id, enriched);
+      history.record(device.id, enriched); // 待处理中心历史（与 feed 同一收口）
 
       final shouldNotify = NotificationGate.shouldNotify(
         appForeground: foreground,
@@ -210,6 +214,7 @@ class WebViewSyncController {
   void forget() {
     ref.read(sessionStatusProvider.notifier).forget(device.id);
     ref.read(eventFeedProvider.notifier).forget(device.id);
+    ref.read(eventHistoryProvider.notifier).forget(device.id);
     ref.read(sessionIndexProvider.notifier).forget(device.id);
     ref.read(activeSessionProvider.notifier).forget(device.id);
   }

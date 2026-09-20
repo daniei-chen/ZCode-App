@@ -21,6 +21,7 @@ import '../theme.dart';
 import '../models/device_label.dart';
 import 'section_label.dart';
 import 'settings_page.dart';
+import 'pending_center_sheet.dart';
 import 'unread_badge.dart';
 
 class ManagePage extends ConsumerWidget {
@@ -107,6 +108,37 @@ class ManagePage extends ConsumerWidget {
                       ),
                       const SizedBox(width: 12),
                       const Flexible(child: _TimeGreeting()),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: l10n.pendingCenterTitle,
+                        onPressed: () => PendingCenterSheet.show(context),
+                        icon: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.notifications_outlined,
+                              size: 22,
+                              color: context.zt.textLo,
+                            ),
+                            if (ref
+                                .watch(eventFeedProvider)
+                                .values
+                                .any((f) => f.permPending))
+                              Positioned(
+                                right: 1,
+                                top: 1,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: context.zt.danger,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

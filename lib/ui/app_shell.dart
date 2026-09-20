@@ -257,6 +257,16 @@ class _AppShellState extends ConsumerState<AppShell> {
       NotifierService.instance.setAlertMode(next.alertMode);
     });
 
+    // 跳转请求（待处理中心点按/通知深链）到达即揭启动器盖板：点按**当前
+    // 设备**的等待行时 activeTab.set 同值不发射，上面的 activeTab 监听
+    // 不会触发，盖板会挡住会话跳转（iter15 复核 F1）。
+    ref.listen(pendingSessionJumpProvider, (_, next) {
+      if (next == null) return;
+      if (_launcherVisible && mounted) {
+        _setLauncherVisible(false);
+      }
+    });
+
     ref.listen(deviceListProvider, (prev, next) {
       ref.read(activeTabProvider.notifier).clampTo(next.length);
       if (prev != null && prev.isEmpty && next.isNotEmpty) {

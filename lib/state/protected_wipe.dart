@@ -11,6 +11,7 @@ import '../services/wipe_result.dart';
 import 'active_session.dart';
 import 'bridge_health.dart';
 import 'event_feed.dart';
+import 'event_history.dart';
 import 'observer_stats.dart';
 import 'pending_session_jump.dart';
 import 'session_index.dart';
@@ -48,6 +49,7 @@ abstract final class ProtectedStateWipe {
     'sessionIndexProvider',
     'sessionStatusProvider',
     'eventFeedProvider',
+    'eventHistoryProvider',
     'observerStatsProvider',
     'subFrameStatsProvider',
     'bridgeHealthProvider',
@@ -73,6 +75,8 @@ abstract final class ProtectedStateWipe {
       container.read(sessionIndexProvider.notifier).clearAll();
       container.read(sessionStatusProvider.notifier).clearAll();
       container.read(eventFeedProvider.notifier).clearAll();
+      // 事件历史含会话标题/摘要（升级路线图待处理中心），随擦除事务清除。
+      container.read(eventHistoryProvider.notifier).clearAll();
       container.read(observerStatsProvider.notifier).clear();
       container.read(subFrameStatsProvider.notifier).clear();
       container.read(bridgeHealthProvider.notifier).clear();

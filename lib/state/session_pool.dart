@@ -8,6 +8,7 @@ import '../services/device_store.dart';
 import '../services/structured_log.dart';
 import '../services/warmup.dart';
 import 'bridge_health.dart';
+import 'event_history.dart';
 import '../services/device_connectivity.dart';
 import 'observer_stats.dart';
 import 'subframe_stats.dart';
@@ -93,6 +94,8 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     ref.read(subFrameStatsProvider.notifier).forget(id);
     // 桥健康同生命周期（iter7 R-6）：否则诊断包仍带已删设备的 bridge 行。
     ref.read(bridgeHealthProvider.notifier).forget(id);
+    // 事件历史（待处理中心）同生命周期：设备不在了，历史不残留。
+    ref.read(eventHistoryProvider.notifier).forget(id);
     // 连通性探测结果同生命周期（iter8）。
     ref.read(deviceConnectivityProvider.notifier).forget(id);
     if (!ref.mounted) return;
