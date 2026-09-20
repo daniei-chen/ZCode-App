@@ -15,10 +15,10 @@
     "used": 0
   },
   "checkpoint": {
-    "id": "cp-14-iter14",
-    "git_head": "7c5fb5a1fad29e61606e9ced1292c1d848de4637",
+    "id": "cp-15-iter15",
+    "git_head": "e83d33b730a4650c8becf909000489fd066d8946",
     "diff_fingerprint": "sha256:32d4ef030cbc936f17ba11cf83c5e65905b3ad6f480d3116f2f93c9f6a67d52a",
-    "recorded_at": "2026-09-19T18:20:00+08:00"
+    "recorded_at": "2026-09-20T00:25:00+08:00"
   },
   "source_map": {
     "defects": "docs/DEFECTS.md",
@@ -154,9 +154,9 @@
       "command": "flutter analyze（tools/iteration/gates.sh 导出目录，DEC-02）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-analyze.log"
+        "docs/continuous-iteration/evidence/i16-analyze.log"
       ]
     },
     {
@@ -164,9 +164,9 @@
       "command": "flutter test 全量（同上导出目录）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-test.log"
+        "docs/continuous-iteration/evidence/i16-test.log"
       ]
     },
     {
@@ -174,9 +174,9 @@
       "command": "node scripts/check_injected_js.mjs",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-js.log"
+        "docs/continuous-iteration/evidence/i16-js.log"
       ]
     },
     {
@@ -184,9 +184,9 @@
       "command": "python scripts/check-doc-drift.py",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-docdrift.log"
+        "docs/continuous-iteration/evidence/i16-docdrift.log"
       ]
     },
     {
@@ -194,9 +194,9 @@
       "command": "秘密扫描（git ls-files 扩展名过滤 + git grep 凭据字面量 + check-ignore）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-secrets.log"
+        "docs/continuous-iteration/evidence/i16-secrets.log"
       ]
     },
     {
@@ -204,7 +204,7 @@
       "command": "python scripts/check-dependency-advisories.py --sbom <b5 SBOM> --exceptions scripts/security-exceptions.json --fail-on high（公网 OSV）",
       "required": true,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
         "docs/continuous-iteration/evidence/i11-osv.log"
       ]
@@ -214,9 +214,9 @@
       "command": "发布脚本自测：check-doc-drift / check-dependency-advisories / check-plugin-survival / verify-release-artifacts / generate-sbom（--self-test）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-script-selftests.log"
+        "docs/continuous-iteration/evidence/i16-script-selftests.log"
       ]
     },
     {
@@ -224,7 +224,7 @@
       "command": "flutter build apk --release + check-plugin-survival --apk（11 插件存活门）+ verify-release-artifacts",
       "required": false,
       "status": "NOT_RUN",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": []
     },
     {
@@ -232,7 +232,7 @@
       "command": "GitHub Actions CI 三条工作流真实实跑（ci.yml / ci-heavy.yml / release.yml）",
       "required": false,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": []
     },
     {
@@ -240,9 +240,9 @@
       "command": "python tools/iteration/mutate.py --export <导出> --spec tools/iteration/mutations/*.json --require-green（全语料\"回退即失败\"变异验证）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-mutations.log"
+        "docs/continuous-iteration/evidence/i16-mutations.log"
       ]
     },
     {
@@ -250,10 +250,10 @@
       "command": "tools/iteration/gates.sh state + mutcov 门：iteration_state.py validate --repo-root . + gitignore canary（检查点终跑 --strict-state）；mutate.py --coverage 对 mutations/coverage-files.txt 全覆盖",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
-        "docs/continuous-iteration/evidence/i15-state.log",
-        "docs/continuous-iteration/evidence/i15-mutcov.log"
+        "docs/continuous-iteration/evidence/i16-state.log",
+        "docs/continuous-iteration/evidence/i16-mutcov.log"
       ]
     },
     {
@@ -261,7 +261,7 @@
       "command": "导出目录 flutter build apk --debug（编译可行性门；release 需密钥属 P0 治理，AI 不做）",
       "required": false,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
         "docs/continuous-iteration/evidence/b1-build.log"
       ]
@@ -271,7 +271,7 @@
       "command": "tools/iteration/clean_start.sh <prefix>（冷启动门：fresh export → pub get → gen-l10n 漂移检查 → analyze → 全量 test；必败样验证过 DRIFT→exit 1）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-14-iter14",
+      "checkpoint_id": "cp-15-iter15",
       "evidence": [
         "docs/continuous-iteration/evidence/i12b-cleanstart.log"
       ]
