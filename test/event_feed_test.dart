@@ -257,4 +257,17 @@ void main() {
       });
     });
   });
+  group('W-032 语义：待批准是权威状态，不随已读落下', () {
+    test('resolved 携带的剩余量建立 pending 条目（即使请求事件被偏好门控过）', () {
+      final notifier = container.read(eventFeedProvider.notifier);
+      // 先用普通可提醒事件建立 feed（模拟 prefs 开启的其它类型），
+      // 再模拟"请求事件被门控、只有 resolved 带剩余量进来"的路径。
+      notifier.ingest('d1', ev('completed', summary: 'x'));
+      notifier.ingest('d1', ev('resolved', taskId: 't1', pendingTotal: 2));
+      final feed = container.read(eventFeedProvider)['d1']!;
+      expect(feed.pendingByTask['t1'], 2);
+      expect(feed.permPending, isTrue);
+    });
+
+  });
 }

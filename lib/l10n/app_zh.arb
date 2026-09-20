@@ -115,6 +115,8 @@
   "statusUnreachable": "不可连通（点开设备页可重试）",
   "@statusUnreachable": {"description": "Device link LED: probe failed / not connected"},
   "statusReachable": "可联通",
+  "badgePendingApproval": "有待批准的请求",
+  "@badgePendingApproval": {"description": "Device card red dot semantics: pending approvals remain visible after read"},
   "@statusReachable": {"description": "Device link LED: probe ok (network reachable, not necessarily session alive)"},
   "@statusConnecting": {"description": "Session LED status: connecting"},
   "retry": "重试",

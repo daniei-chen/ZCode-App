@@ -140,8 +140,11 @@ class EventFeedNotifier extends Notifier<Map<String, DeviceFeed>> {
     // 不能与旧值取大。缺计数（如任务整行消失）才按"未知"走旧的逐键清理。
     //
     // 计数是对页面真实状态的事实记账，与通知偏好无关：用户关掉审批提醒时
-    // 请求事件不会进入 feed，但带剩余量的 resolved 仍会在这里建立条目——
-    // 红点 UI 只在 unread > 0 时显示，因此不会因此凭空出现红点。
+    // 请求事件不会进入 feed，但带剩余量的 resolved 仍会在这里建立条目。
+    // iter14 W-032 起徽标语义分离：未读数与「待批准」独立——本条路径建立的
+    // 条目会让设备卡片**常显红点**（即使 unread=0）。这是有意行为：红点表示
+    // 页面真实还有东西在等你（作为事实记账），不是未读提醒；若上游协议变化
+    // 导致 resolved 剩余量不再可信，此决定随 R-19 复审。
     final total = event.pendingTotal;
     if (total != null && total > 0) {
       final key = _keyOf(event);
