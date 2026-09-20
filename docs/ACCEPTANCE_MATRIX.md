@@ -51,7 +51,7 @@
 | # | 需求 | 维度 | 权重 | 关键 | 优先级 | 实现位置 | 验证方式 | 证据 | 状态 | 阻塞 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | D1 | CI 三条工作流在真实 GitHub 实跑通过 | operations | 3 | 是 | P1 | `.github/workflows/*` | Actions 运行记录 | — | BLOCKED | BL-002 GitHub 账号 |
-| D2 | tag 策略（`v1.0.0` 已占用）落定并记录 | operations | 2 | 否 | P1 | 发布流程 | 决策记录 | — | BLOCKED | BL-006 用户决策 |
+| D2 | tag 策略（`v1.0.0` 已占用）落定并记录 | operations | 2 | 否 | P1 | 发布流程 | 决策记录 | DEC-18（沿用 v1.0.0、内部 versionCode 递增）；E-51 | PASS | — |
 | D3 | 真机矩阵 / 48h soak / TalkBack / 实体生物识别 | operations | 3 | 是 | P1 | — | 按 RELEASE-CHECKLIST 归档 | — | BLOCKED | BL-003 用户设备 |
 | D4 | 生成文件陷阱有防护说明 | operations | 1 | 否 | P2 | 台账 + `EXECUTION_PROMPT` | 执行者遵守备份/恢复 | E-15/DEC-02；控制面协议（导出跑测试） | PASS | — |
 | D5 | 无凭据机型擦除失败出口 | operations | 2 | 否 | P2 | 待定（ADR-005） | — | — | BLOCKED | BL-005 产品决策 |

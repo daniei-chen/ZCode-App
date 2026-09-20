@@ -57,7 +57,7 @@
         "possible": 14
       },
       "operations": {
-        "earned": 2,
+        "earned": 4,
         "possible": 12
       },
       "docs": {
@@ -133,8 +133,8 @@
       },
       {
         "iteration": 13,
-        "total": 80,
-        "source_hash": "sha256:f4f0a9a6e8d2dc27d6c2c2c1e9cb6c3a03f3a9645f27344ac103e76e9010ccbf"
+        "total": 83,
+        "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
       }
     ]
   },
@@ -1175,7 +1175,7 @@
     {
       "path": "docs/ACCEPTANCE_MATRIX.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1186,7 +1186,7 @@
     {
       "path": "docs/DEFECTS.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1199,7 +1199,7 @@
     {
       "path": "docs/EVIDENCE.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1219,7 +1219,7 @@
     {
       "path": "docs/DECISIONS.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "DEC-10",
@@ -1229,7 +1229,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1239,7 +1239,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_STATE.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1249,7 +1249,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1260,7 +1260,7 @@
     {
       "path": "docs/continuous-iteration/LESSONS.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1272,7 +1272,7 @@
     {
       "path": "tools/iteration/README.md",
       "required": true,
-      "revision": 14,
+      "revision": 15,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1533,6 +1533,15 @@
         "W-031"
       ],
       "reason": "W-015 启用半步：--require-tracked 接入 gates.sh --strict-state 检查点路径（批次运行豁免原因写入注释），i14 全门禁实测通过；W-031 操作手册（Secrets 名与生成法/分支保护/发版路径/dry_run 演练）写入 RELEASE-CHECKLIST；CI 实时复查因 GCM 非交互凭据不可用暂缓（事实以 A-125 CI 观察为准）"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "control_plane_fix",
+      "ids": [
+        "D2",
+        "E-52"
+      ],
+      "reason": "升级探索工作流挑刺员发现的真实不一致：revision 15 提交时 artifacts 仍 14（T6 声明 DONE/派生 OPEN，validate=false）→ artifacts 对齐 15；D2 按 DEC-18 翻 PASS（operations earned 2→4，矩阵哈希换新，history 记新点；首个分数变动 80→82——T1/T2 仍被 ADR-003 等阻塞，离 85 目标仍差）；EVIDENCE 清 NUL（U+0000 字面误落）；EXECUTION_STATE（continuous-iteration）同步；重跑 render 后复验"
     }
   ]
 }

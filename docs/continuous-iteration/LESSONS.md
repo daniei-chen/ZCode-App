@@ -59,6 +59,8 @@
 
 - **L-28（world.run 无 profile PATH）**：dynamic-workflow 的 world.run 直接 spawn、不经 shell profile——Windows 上 `bash` 不在 PATH（spawn ENOENT），flutter/python 同理可能缺失。解法：命令用绝对路径（PortableGit usr/bin/bash.exe）+ `-lc` 登录 shell 继承 PATH；先在会话内确认绝对路径再写进脚本。
 
+- **L-29（验证输出必须真读；渲染文件不手改）**：`validate | head -2` 把 `valid=false` 截在管道里、输出被 git 警告淹没 → 未真读就提交了非法状态（iter13 提交 7ec46ca，被下一轮挑刺员抓出）。规则：状态文件提交前跑 validate 必须看**完整**结尾（valid/ERROR 行）；`EXECUTION_STATE.md` 是 `render` 生成物——改 JSON 后重跑 render，不手改；写文档提到控制字符用字面 `U+0000` 而非真实字节。
+
 ## 三、待观察的假设
 
 - H-1：`gates.sh` 把门禁墙钟从 ~10 min 压到 ~1 min 后，每轮总工具调用数应降到 ≤30（iter3 40 / iter4 35：趋势对但未达标——审计返修占大头，见 H-2）。
