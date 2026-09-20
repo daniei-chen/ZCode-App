@@ -1,8 +1,8 @@
 {
   "schema_version": "3.0",
   "run_id": "zcode-app-maturation-2026-09",
-  "revision": 16,
-  "iteration": 14,
+  "revision": 17,
+  "iteration": 15,
   "phase": "RECOVER",
   "status": "CONTINUE",
   "target": {
@@ -138,6 +138,11 @@
       },
       {
         "iteration": 14,
+        "total": 83,
+        "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
+      },
+      {
+        "iteration": 15,
         "total": 83,
         "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
       }
@@ -688,6 +693,38 @@
       "new_p0": 0,
       "new_p1": 0,
       "report": "docs/audits/2026-09-19-iter14-review.md"
+    },
+    {
+      "id": "A-128",
+      "iteration": 15,
+      "reviewer_id": "code-reviewer-iter15-r1",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-15-iter15-pre-repair",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 3,
+      "new_p3": 4,
+      "report": "docs/audits/2026-09-19-iter15-review.md"
+    },
+    {
+      "id": "A-129",
+      "iteration": 15,
+      "reviewer_id": "code-reviewer-iter15-r2（终裁，新代理）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-15-iter15",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-19-iter15-review.md"
     }
   ],
   "candidates": [
@@ -1119,6 +1156,28 @@
       "approval_ref": null,
       "review_id": null,
       "description": "复核 L-30：mutcov 对 testWidgets 盲区——mutate.py TEST_NAME 只匹配 test(；修 regex 为 test(?:Widgets)?( 并处理存量 testWidgets 文件的覆盖欠账（单独一轮）"
+    },
+    {
+      "id": "W-034",
+      "severity": "P2",
+      "required_for_target": false,
+      "status": "DONE",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": "A-129",
+      "description": "升级路线图自主层：应用内待处理中心（事件历史+会话待处理速览，点按复用 session_jump）；复核两轮闭环"
+    },
+    {
+      "id": "W-035",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "复核 P3 可选：sheet 等待行红点断言 + sheet 内 markRead 断言/变异；面板相对时间自动刷新（polish）"
     }
   ],
   "blockers": [
@@ -1232,7 +1291,7 @@
     {
       "path": "docs/ACCEPTANCE_MATRIX.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1243,7 +1302,7 @@
     {
       "path": "docs/DEFECTS.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1256,7 +1315,7 @@
     {
       "path": "docs/EVIDENCE.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1276,7 +1335,7 @@
     {
       "path": "docs/DECISIONS.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "DEC-10",
@@ -1286,7 +1345,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1296,7 +1355,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_STATE.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1306,7 +1365,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1317,7 +1376,7 @@
     {
       "path": "docs/continuous-iteration/LESSONS.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1329,7 +1388,7 @@
     {
       "path": "tools/iteration/README.md",
       "required": true,
-      "revision": 16,
+      "revision": 17,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1362,10 +1421,10 @@
       "T6": "DONE",
       "T7": "OPEN"
     },
-    "reason": "ITERATION 14 完成：升级路线图 top1（W-032 红点常显）落地，复核两轮（A-126 需返修→A-127 可合并），710/710、变异 109/109+7、10 门 PASS；分数 83（缺陷级修复无翻转）。下一批候选：路线图自主层剩余项（待处理中心/冷启动提速/CI 接质量门）与 W-033。"
+    "reason": "ITERATION 15 完成：W-034 待处理中心落地（路线图自主层第 2 项），复核两轮 A-128→A-129 可合并；724/724、变异 127/127+7、10 门 PASS；分数 83。下一批：路线图余项（冷启动提速/质量门接 CI/更新链演练）+ W-033/W-035。"
   },
   "resume": {
-    "next_action": "可继续的自主层（升级路线图）：① 应用内「待处理中心」（事件历史+会话待处理速览，M）② 冷启动提速（设备库 N+2 次串行 Keystore 往返，需先实测读放大）③ 本地质量门接进 ci.yml（变异语料+状态校验分级）④ 更新链演练模式 ⑤ W-033（mutcov testWidgets 盲区）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口（W-025/027/028）。",
+    "next_action": "可继续的自主层（升级路线图）：① 冷启动提速（设备库 N+2 次串行 Keystore 往返，需先实测读放大）② 本地质量门接进 ci.yml（变异语料+状态校验分级）③ 更新链演练模式 ④ W-033（mutcov testWidgets 盲区）⑤ W-035（待处理中心 polish）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口。",
     "retry_after": null
   },
   "change_log": [
@@ -1609,6 +1668,15 @@
         "D-20260919-16"
       ],
       "reason": "升级路线图 top1 落地（workflow 探索产出，A-126 需返修→A-127 可合并）：未读/待批准语义分离（红点常显）；复核 P1×2（语料自坏+守卫缺口）当轮闭环，7 变异钉 7 用例；event_feed 注释按新语义修订 + R-19 复审条件；mutcov testWidgets 盲区登记 W-033（L-30）；分数 83 不变（缺陷级修复）"
+    },
+    {
+      "date": "2026-09-19",
+      "type": "iteration_15",
+      "ids": [
+        "W-034",
+        "W-035"
+      ],
+      "reason": "升级路线图自主层第 2 项落地：待处理中心（事件历史+待处理面板+入口）；复核 A-128 需返修（3×P2+4×P3）→ 全部闭环 → A-129 可合并（放行条件复跑 127/127 满足）；724/724、变异全语料 127/127+7；分数 83 不变（功能增量，无验收翻转）"
     }
   ]
 }

@@ -15,3 +15,5 @@ test/iter12_hardening_test.dart
 test/manage_page_write_failure_test.dart
 test/iter13_hardening_test.dart
 test/unread_badge_test.dart
+test/event_history_test.dart
+test/pending_center_test.dart

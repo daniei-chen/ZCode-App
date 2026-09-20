@@ -1,0 +1,220 @@
+[
+ {
+  "id": "iter15-history-empty-guard",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "    if (deviceId.isEmpty) return;",
+  "replace": "    if (false) return;",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "record：新在前，字段保留；空 deviceId 不记录"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-history-bound-removed",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "    return LogRedactor.clipCodeUnits(clean, 120);",
+  "replace": "    return clean;",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "record：bidi 控制符剥离、超长按 120 码元截断（不切代理对）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-history-cap-removed",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "    final next = <HistoryEntry>[entry, ...list];\n    if (next.length > maxEntriesPerDevice) {\n      next.removeRange(maxEntriesPerDevice, next.length);\n    }",
+  "replace": "    final next = <HistoryEntry>[entry, ...list];",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "上限：第 51 条挤掉最旧，最新保留"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-history-forget-noop",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "  /// 设备移除/页面销毁时清掉（与其它遥测同生命周期）。\n  void forget(String deviceId) {\n    if (!state.containsKey(deviceId)) return;\n    state = Map.of(state)..remove(deviceId);\n  }",
+  "replace": "  /// 设备移除/页面销毁时清掉（与其它遥测同生命周期）。\n  void forget(String deviceId) {}",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "forget 移除该设备；clearAll 全清；多设备互不影响",
+   "删除设备清历史（与服务面同生命周期）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-history-clearall-noop",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "  /// 擦除事务（R-04）：事件历史含会话标题与摘要，全量清除。\n  void clearAll() {\n    if (state.isEmpty) return;\n    state = const {};\n  }",
+  "replace": "  /// 擦除事务（R-04）：事件历史含会话标题与摘要，全量清除。\n  void clearAll() {}",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "forget 移除该设备；clearAll 全清；多设备互不影响",
+   "擦除事务清空历史（R-04）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-latest-request-type-blind",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "    if ((e.type == 'permission_request' || e.type == 'elicitation_request') &&",
+  "replace": "    if (true &&",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "latestPendingRequest：只认仍在等待的审批类（权威键过滤），取最新一条"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-wiring-record-a-removed",
+  "candidate": "W-034",
+  "file": "lib/services/webview_sync.dart",
+  "find": "        history.record(device.id, enriched); // 待处理中心历史（resolved 也留痕）",
+  "replace": "",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "源码钉：webview_sync 两处收口都记录历史且 forget 同生命周期"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-sheet-empty-branch",
+  "candidate": "W-034",
+  "file": "lib/ui/pending_center_sheet.dart",
+  "find": "            if (waiting.isEmpty && historyOrder.isEmpty)",
+  "replace": "            if (false)",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "空状态：无待处理与历史时显示提示"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-sheet-count-sum",
+  "candidate": "W-034",
+  "file": "lib/ui/pending_center_sheet.dart",
+  "find": "    return map.values.fold<int>(0, (a, b) => a + b);",
+  "replace": "    return map.length;",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "等待处理：设备行 + 计数求和 + 红点"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-sheet-type-label",
+  "candidate": "W-034",
+  "file": "lib/ui/pending_center_sheet.dart",
+  "find": "        'permission_request' => l10n.eventTypeApproval,",
+  "replace": "        'permission_request' => l10n.eventTypeOther,",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "最近事件：类型标签 + 摘要 + 相对时间（刚刚）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-sheet-jump-removed",
+  "candidate": "W-034",
+  "file": "lib/ui/pending_center_sheet.dart",
+  "find": "      ref\n          .read(pendingSessionJumpProvider.notifier)\n          .set(PendingSessionJump(deviceId: deviceId, sessionId: target!.taskId!));",
+  "replace": "      // jump removed",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "点按等待行：切到该设备 + 设置会话跳转 + 关闭面板"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-entry-onpressed-noop",
+  "candidate": "W-034",
+  "file": "lib/ui/manage_page.dart",
+  "find": "                        onPressed: () => PendingCenterSheet.show(context),",
+  "replace": "                        onPressed: () {},",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "设备列表入口：有待批准时显示红点，点按打开面板"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-wipe-history-clear-removed",
+  "candidate": "W-034",
+  "file": "lib/state/protected_wipe.dart",
+  "find": "      container.read(eventHistoryProvider.notifier).clearAll();",
+  "replace": "      // removed",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "擦除事务清空历史（R-04）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-remove-forgets-history",
+  "candidate": "W-034",
+  "file": "lib/state/session_pool.dart",
+  "find": "    // 事件历史（待处理中心）同生命周期：设备不在了，历史不残留。\n    ref.read(eventHistoryProvider.notifier).forget(id);",
+  "replace": "    // removed",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "删除设备清历史（与服务面同生命周期）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-entry-dot-removed",
+  "candidate": "W-034",
+  "file": "lib/ui/manage_page.dart",
+  "find": "                            if (ref\n                                .watch(eventFeedProvider)\n                                .values\n                                .any((f) => f.permPending))",
+  "replace": "                            if (false)",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "设备列表入口：有待批准时显示红点，点按打开面板"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-history-taskid-unbounded",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "      taskId: event.taskId == null\n          ? null\n          : LogRedactor.clipCodeUnits(event.taskId!, 128),",
+  "replace": "      taskId: event.taskId,",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "taskId 与跳转白名单上限对齐（≤128 截断）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-latest-request-pending-filter",
+  "candidate": "W-034",
+  "file": "lib/state/event_history.dart",
+  "find": "        e.taskId != null &&\n        pendingKeys.contains(e.taskId)) {",
+  "replace": "        e.taskId != null) {",
+  "test_file": "test/event_history_test.dart",
+  "expect_fail": [
+   "latestPendingRequest：只认仍在等待的审批类（权威键过滤），取最新一条"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter15-launcher-lift-removed",
+  "candidate": "W-034",
+  "file": "lib/ui/app_shell.dart",
+  "find": "    ref.listen(pendingSessionJumpProvider, (_, next) {\n      if (next == null) return;\n      if (_launcherVisible && mounted) {\n        _setLauncherVisible(false);\n      }\n    });",
+  "replace": "    ref.listen(pendingSessionJumpProvider, (_, next) {\n      if (next == null) return;\n    });",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "源码钉：AppShell 对跳转请求揭启动器盖板（复核 F1）"
+  ],
+  "only": true
+ }
+]
