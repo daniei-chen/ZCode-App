@@ -1,0 +1,88 @@
+[
+ {
+  "id": "iter14-badge-pending-hidden",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "    final alert = feed?.permPending ?? false;",
+  "replace": "    final alert = false;",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "有未读且待批准：显示计数，危险色",
+   "已读但待批准：红点常显（无数字）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-badge-cap-removed",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "        unread >= 99 ? '99+' : '$unread',",
+  "replace": "        '$unread',",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "99+ 封顶"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-badge-null-safe-removed",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "    final unread = feed?.unread ?? 0;",
+  "replace": "    final unread = feed!.unread;",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "feed 为 null：不渲染"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-badge-accent-removed",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "        color: alert ? context.zt.danger : context.zt.accent,",
+  "replace": "        color: context.zt.danger,",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "有未读、无待批准：计数正常色（accent）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-badge-empty-shrink-removed",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "      if (!alert) return const SizedBox.shrink();",
+  "replace": "      if (!alert && false) return const SizedBox.shrink();",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "已读且无待批准：不渲染任何指示",
+   "feed 为 null：不渲染"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-badge-dot-accent",
+  "candidate": "W-032",
+  "file": "lib/ui/unread_badge.dart",
+  "find": "            color: context.zt.danger,",
+  "replace": "            color: context.zt.accent,",
+  "test_file": "test/unread_badge_test.dart",
+  "expect_fail": [
+   "已读但待批准：红点常显（无数字）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter14-markread-keeps-pending",
+  "candidate": "W-032",
+  "file": "lib/state/event_feed.dart",
+  "find": "    state = {...state, deviceId: current.copyWith(unread: 0)};",
+  "replace": "    state = {...state, deviceId: current.copyWith(unread: 0, pendingByTask: const {})};",
+  "test_file": "test/event_feed_test.dart",
+  "expect_fail": [
+   "markRead 进入设备后清未读，但保留待审批状态"
+  ],
+  "only": true
+ }
+]
