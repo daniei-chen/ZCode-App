@@ -16,7 +16,7 @@
   },
   "checkpoint": {
     "id": "cp-14-iter14",
-    "git_head": "3499bce4eb29bf85b550614b06259375e15f4583",
+    "git_head": "7c5fb5a1fad29e61606e9ced1292c1d848de4637",
     "diff_fingerprint": "sha256:32d4ef030cbc936f17ba11cf83c5e65905b3ad6f480d3116f2f93c9f6a67d52a",
     "recorded_at": "2026-09-19T18:20:00+08:00"
   },
