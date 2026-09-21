@@ -125,13 +125,14 @@
   "id": "iter15-sheet-jump-removed",
   "candidate": "W-034",
   "file": "lib/ui/pending_center_sheet.dart",
-  "find": "      ref\n          .read(pendingSessionJumpProvider.notifier)\n          .set(PendingSessionJump(deviceId: deviceId, sessionId: target!.taskId!));",
-  "replace": "      // jump removed",
+  "find": "    final sessionId = target?.taskId ?? _fallbackPendingKey(pendingKeys);",
+  "replace": "    final String? sessionId = null;",
   "test_file": "test/pending_center_test.dart",
   "expect_fail": [
-   "点按等待行：切到该设备 + 设置会话跳转 + 关闭面板"
+   "点按等待行：切到该设备",
+   "等待行历史无命中时用 feed 权威键兜底跳转"
   ],
-  "only": true
+  "only": false
  },
  {
   "id": "iter15-entry-onpressed-noop",

@@ -18,6 +18,9 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
 const MAX_LISTEN_BYTES = 4194304;
+// 与 lib/services/event_observer.dart 的 kMaxSeenBatchBytes 同步（JS 钩子
+// 的 zrSeen 批次预算；桥侧上限是 256 KiB，见桥 schema 门）。
+const SEEN_BATCH_BYTES = 192 * 1024;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dartFile = resolve(root, 'lib/services/event_observer.dart');
 const jumpFile = resolve(root, 'lib/services/session_jump.dart');
@@ -43,6 +46,16 @@ export function extractHook(dartSource) {
     if (c === '$' && raw.startsWith('kMaxListenBytes', i + 1)) {
       out += String(MAX_LISTEN_BYTES);
       i += 'kMaxListenBytes'.length;
+      continue;
+    }
+    if (c === '$' && raw.startsWith('kMaxSeenBatchBytes', i + 1)) {
+      out += String(SEEN_BATCH_BYTES);
+      i += 'kMaxSeenBatchBytes'.length;
+      continue;
+    }
+    if (c === '$' && raw.startsWith('{kMaxSeenBatchBytes}', i + 1)) {
+      out += String(SEEN_BATCH_BYTES);
+      i += '{kMaxSeenBatchBytes}'.length;
       continue;
     }
     if (c === '$' && raw[i + 1] === '{') {
@@ -814,6 +827,36 @@ await check('R-13 重复分片不泄漏全局在途预算（H-1 回归）', () =
 });
 
 // 4k) 已并入 4e（invalidFragments 留痕断言）——避免重复用例。
+
+// 4l) iter16：zrSeen 批次预算。旧实现只限 64 条 × 16 KiB，单批可达 ~1 MiB，
+// 而桥侧只收 256/512 KiB → 整批 warmup 录制被丢且只计一次 droppedMessages。
+// 行为断言：塞满超预算的请求记录后，每一次 zrSeen 消息都必须 ≤ 批次预算，
+// 且预算内不丢录制（seenDropped 为 0）。
+await check('iter16 zrSeen 单批不超过预算（超预算按批冲刷，不整批丢）', () => {
+  const box = makeSandbox();
+  vm.runInContext("window.__zrToken = 'seen-budget'", box.context);
+  vm.runInContext(hook, box.context, { filename: 'observer_hook.js' });
+  const body = 'b'.repeat(16 * 1024); // 单条 body 上限
+  for (let i = 0; i < 16; i += 1) {
+    box.window.fetch('/api/v1/usage-stats', { method: 'GET', body });
+  }
+  const batches = box.posted.filter((args) => args[0] === 'zrSeen');
+  assert(
+    batches.length >= 1,
+    `超预算必须触发按批冲刷（实际 ${batches.length} 批；预算未接线时 0 批）`,
+  );
+  for (const args of batches) {
+    const bytes = Buffer.byteLength(args[1], 'utf8');
+    assert(
+      bytes <= SEEN_BATCH_BYTES,
+      `单批 zrSeen 必须 ≤ 预算 ${SEEN_BATCH_BYTES} 字节（实际 ${bytes}）`,
+    );
+  }
+  assert(
+    box.window.__zrStats.seenDropped === 0,
+    `预算内不得丢弃录制（实际 seenDropped=${box.window.__zrStats.seenDropped}）`,
+  );
+});
 
 // 5) B08 正例：正常大小的事件仍应送达（且带令牌）。
 await check('B08 正常大小 WS 文本照常上报', () => {

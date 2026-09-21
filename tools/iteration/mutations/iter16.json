@@ -1,0 +1,412 @@
+[
+ {
+  "id": "iter16-integrity-seed-dropped",
+  "candidate": "iter16",
+  "file": "lib/state/session_pool.dart",
+  "find": "  @override\n  DeviceStoreIntegrity? build() => initial;",
+  "replace": "  @override\n  DeviceStoreIntegrity? build() => null;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "seed 注入结果进 provider"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-main-integrity-not-wired",
+  "candidate": "iter16",
+  "file": "lib/main.dart",
+  "find": "                    skippedRecords: initialDevicesResult.skippedRecords,",
+  "replace": "                    skippedRecords: 0,",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "seed 注入结果进 provider"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-bundle-unknown-lies-zero",
+  "candidate": "iter16",
+  "file": "lib/services/diagnostics_bundle.dart",
+  "find": "        'storeSkippedRecords': storeSkippedRecords?.toString() ?? 'unknown',",
+  "replace": "        'storeSkippedRecords': '${storeSkippedRecords ?? 0}',",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "seed 注入结果进 provider"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-security-doc-old-account",
+  "candidate": "iter16",
+  "file": "SECURITY.md",
+  "find": "https://github.com/daniei-chen/ZCode-App/security/advisories/new",
+  "replace": "https://github.com/2421873411a-rgb/ZCode-App/security/advisories/new",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "仓库改址补漏"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-cancel-on-remove-dropped",
+  "candidate": "iter16",
+  "file": "lib/state/session_pool.dart",
+  "find": "      await NotifierService.instance.cancelForDevice(device, taskIds);",
+  "replace": "      // await NotifierService.instance.cancelForDevice(device, taskIds);",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "撤销该设备全部通知位",
+   "重启后删除设备仍撤通知"
+  ],
+  "only": false
+ },
+ {
+  "id": "iter16-stale-jump-not-cleared",
+  "candidate": "iter16",
+  "file": "lib/state/session_pool.dart",
+  "find": "    if (pendingJump != null && pendingJump.deviceId == id) {\n      ref.read(pendingSessionJumpProvider.notifier).clear();\n    }",
+  "replace": "    if (false && pendingJump != null && pendingJump.deviceId == id) {\n      ref.read(pendingSessionJumpProvider.notifier).clear();\n    }",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "撤销该设备全部通知位"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-jump-payload-prefix",
+  "candidate": "iter16",
+  "file": "lib/services/session_jump.dart",
+  "find": "    if (parts.length != 2 || parts[1].isEmpty) return (deviceId, null);",
+  "replace": "    if (parts[1].isEmpty) return (deviceId, null);",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "decodePayload"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-appshell-stale-jump",
+  "candidate": "iter16",
+  "file": "lib/ui/app_shell.dart",
+  "find": "    if (index < 0) return;",
+  "replace": "    if (false) return;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "AppShell 对已删设备提前返回"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-fingerprint-key-dropped",
+  "candidate": "iter16",
+  "file": "lib/services/credential_fingerprint.dart",
+  "find": "    'token',\n    'remotecontroltoken',\n",
+  "replace": "    'token',\n",
+  "test_file": "test/device_import_test.dart",
+  "expect_fail": [
+   "同一 token 再次导入",
+   "只带 remoteControlToken"
+  ],
+  "only": false
+ },
+ {
+  "id": "iter16-event-text-substring-reverted",
+  "candidate": "iter16",
+  "file": "lib/services/event_observer.dart",
+  "find": "      // 截断走共享的码元边界保护（iter16）：180 切点上不得产出孤立代理对。\n      return text.length > 180\n          ? '${LogRedactor.clipCodeUnits(text, 180)}…'\n          : text;",
+  "replace": "      // 截断走共享的码元边界保护（iter16）：180 切点上不得产出孤立代理对。\n      return text.length > 180 ? '${text.substring(0, 180)}…' : text;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "事件摘要（_eventText）与预览（_previewText）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-preview-text-substring-reverted",
+  "candidate": "iter16",
+  "file": "lib/services/event_observer.dart",
+  "find": "      // 同 `_eventText`：码元边界保护（iter16）。\n      return text.length > 180\n          ? '${LogRedactor.clipCodeUnits(text, 180)}…'\n          : text;",
+  "replace": "      return text.length > 180 ? '${text.substring(0, 180)}…' : text;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "事件摘要（_eventText）与预览（_previewText）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-notifier-clip-substring-reverted",
+  "candidate": "iter16",
+  "file": "lib/services/notifier.dart",
+  "find": "  static String _clip(String value, int max) => value.length > max\n      ? '${LogRedactor.clipCodeUnits(value, max)}…'\n      : value;",
+  "replace": "  static String _clip(String value, int max) =>\n      value.length > max ? '${value.substring(0, max)}…' : value;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "通知标题/正文（_clip）"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-storage-policy-old-text",
+  "candidate": "iter16",
+  "file": "lib/services/webview_storage.dart",
+  "find": "      'cookies+domStorage+indexedDb+httpCache；触发：换凭证/锁定擦除';",
+  "replace": "      'cookies+domStorage+indexedDb+httpCache；触发：换凭证/移除设备/锁定擦除';",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "存储策略文案与实现一致"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-bridge-token-wall-only",
+  "candidate": "iter16",
+  "file": "lib/services/bridge_token.dart",
+  "find": "    final wall = now.difference(startedWall);\n    return (wall > monotonic ? wall : monotonic) >= budget;",
+  "replace": "    final wall = now.difference(startedWall);\n    return wall >= budget;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "桥令牌等待预算双钟"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-dedupe-clock-wall",
+  "candidate": "iter16",
+  "file": "lib/services/event_observer.dart",
+  "find": "    clock = () => _monotonicOrigin.add(_monotonic.elapsed);",
+  "replace": "    clock = DateTime.now;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "EventDedupeGate 默认时钟单调"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-warmup-budget-reverted",
+  "candidate": "iter16",
+  "file": "lib/services/warmup.dart",
+  "find": "  static bool seenBatchWithinBudget(String body) =>\n      utf8.encode(body).length <= kMaxSeenBatchBytes;",
+  "replace": "  static bool seenBatchWithinBudget(String body) =>\n      utf8.encode(body).length <= 256 * 1024;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "钩子批次预算"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-seen-hook-budget-unwired",
+  "candidate": "iter16",
+  "file": "lib/services/event_observer.dart",
+  "find": "  var kSeenBatchBytes = $kMaxSeenBatchBytes;",
+  "replace": "  var kSeenBatchBytes = 4 * 1024 * 1024;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "钩子批次预算"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-warmup-load-epoch-guard-removed",
+  "candidate": "iter16",
+  "file": "lib/services/warmup.dart",
+  "find": "    if (!ref.mounted) return;\n    if (epoch != _wipeEpoch) return;",
+  "replace": "    if (!ref.mounted) return;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "预热加载的 await 后守卫"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-probe-writeback-unguarded",
+  "candidate": "iter16",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "        if (_forgottenInFlight.remove(r.$1)) continue;",
+  "replace": "        if (false) continue;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "在途探测轮次不把已删设备写回"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-replacelink-connectivity-not-cleared",
+  "candidate": "iter16",
+  "file": "lib/state/session_pool.dart",
+  "find": "    if (!ref.mounted) return;\n    // 连通性探测结果随链接失效（iter16）：probeUri 跟随 baseUrl.path，\n    // 换到不同 /remote/vN 路径后旧结果语义上属于另一条路径。此前只有\n    // 设备删除会 forget，与 device_connectivity 的注释口径不符。\n    ref.read(deviceConnectivityProvider.notifier).forget(id);",
+  "replace": "    if (!ref.mounted) return;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "replaceLink 清掉旧链接的探测结果"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-activesession-hotpath-reverted",
+  "candidate": "iter16",
+  "file": "lib/services/webview_sync.dart",
+  "find": "  void ingestViewState(String body) {\n    final result = MobileViewStateSync.parse(body);\n    if (!result.valid) return;",
+  "replace": "  void ingestViewState(String body) {\n    final result = MobileViewStateSync.parse(body);\n    if (!result.valid) return;\n    ref.read(activeSessionProvider.notifier).report(device.id, result.taskId);",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "观测热路径不再做 activeSession"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-scanner-navigating-not-reset",
+  "candidate": "iter7",
+  "file": "lib/ui/manage_page.dart",
+  "find": "      // 写失败必须复位 _navigating 并给出反馈（iter7 R-1）：否则扫码页此后\n      // 对所有二维码直接 return，相机取景但\"死锁\"直到手动退出。\n      _navigating = false;",
+  "replace": "      // 写失败必须复位 _navigating 并给出反馈（iter7 R-1）：否则扫码页此后\n      // 对所有二维码直接 return，相机取景但\"死锁\"直到手动退出。",
+  "test_file": "test/scanner_page_test.dart",
+  "expect_fail": [
+   "扫码写失败复位与提示"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-pending-fallback-removed",
+  "candidate": "iter16",
+  "file": "lib/ui/pending_center_sheet.dart",
+  "find": "    final sessionId = target?.taskId ?? _fallbackPendingKey(pendingKeys);",
+  "replace": "    final sessionId = target?.taskId;",
+  "test_file": "test/pending_center_test.dart",
+  "expect_fail": [
+   "等待行历史无命中时用 feed 权威键兜底跳转"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-privacy-doc-old-text",
+  "candidate": "iter16 复核返修",
+  "file": "docs/PRIVACY.md",
+  "find": "| WebView 本地存储（Cookie / DOM storage / HTTP cache / IndexedDB） | Android WebView 数据目录 | 只属于官方远控页面；换凭证、锁定擦除时清空（见下） |",
+  "replace": "| WebView 本地存储（Cookie / DOM storage / HTTP cache / IndexedDB） | Android WebView 数据目录 | 只属于官方远控页面；换凭证、移除设备、锁定擦除时清空（见下） |",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "存储策略文案与实现一致"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-privacy-table-old-text",
+  "candidate": "iter16 复核返修",
+  "file": "docs/PRIVACY.md",
+  "find": "| cookies | 远控页的会话语义；不使用第三方 Cookie（`thirdPartyCookiesEnabled=false`） | 换凭证 / 锁定擦除 |",
+  "replace": "| cookies | 远控页的会话语义；不使用第三方 Cookie（`thirdPartyCookiesEnabled=false`） | 换凭证 / 移除设备 / 锁定擦除 |",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "存储策略文案与实现一致"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-notifyfrom-id-not-recorded",
+  "candidate": "iter16 复核返修",
+  "file": "lib/services/notifier.dart",
+  "find": "      try {\n        await DeviceStore.instance.recordNotificationId(device.id, id);\n      } catch (_) {}",
+  "replace": "      // 登记移除（变异）",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "重启后删除设备仍撤通知"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-cancel-registry-not-consulted",
+  "candidate": "iter16 复核返修",
+  "file": "lib/services/notifier.dart",
+  "find": "      ids.addAll(await DeviceStore.instance.notificationIds(device.id));",
+  "replace": "      // 登记未读取（变异）",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "重启后删除设备仍撤通知"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-integrity-unavailable-lies-clean",
+  "candidate": "iter16 复核返修",
+  "file": "lib/state/session_pool.dart",
+  "find": "    state = result.unavailable\n        ? null\n        : DeviceStoreIntegrity(\n            skippedRecords: result.skippedRecords,\n            repaired: result.repaired,\n          );",
+  "replace": "    state = DeviceStoreIntegrity(\n      skippedRecords: result.skippedRecords,\n      repaired: result.repaired,\n    );",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "seed 注入结果进 provider"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-mounted-zrviewstate-guard-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "                            if (!mounted) return null;\n                            final body = BridgeSchema.acceptString(\n                              args.isNotEmpty ? args.first : null,\n                              maxBytes: BridgeSchema.maxViewStateBytes,",
+  "replace": "                            final body = BridgeSchema.acceptString(\n                              args.isNotEmpty ? args.first : null,\n                              maxBytes: BridgeSchema.maxViewStateBytes,",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "桥回调 await 后 mounted 守卫在位"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-mounted-tokenready-guard-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "          if (!mounted || _bridgeToken != token) return false;\n          _markBridgeTokenReady();",
+  "replace": "          _markBridgeTokenReady();",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "桥回调 await 后 mounted 守卫在位"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-mounted-logtokenmissing-guard-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/ui/official_remote_page.dart",
+  "find": "    // 日志本身仍留痕（全局缓冲，不碰 ref）。\n    if (mounted) {\n      ref\n          .read(bridgeHealthProvider.notifier)\n          .report(widget.device.id, _webviewGeneration, ready: false);\n    }",
+  "replace": "    // 日志本身仍留痕（全局缓冲，不碰 ref）。\n    if (true) {\n      ref\n          .read(bridgeHealthProvider.notifier)\n          .report(widget.device.id, _webviewGeneration, ready: false);\n    }",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "桥回调 await 后 mounted 守卫在位"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-connectivity-clear-inflight-guard-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/services/device_connectivity.dart",
+  "find": "      // 擦除事务在探测期间到达：本轮结果整体作废（不得写回任何设备）。\n      if (_wipedInFlight) return;",
+  "replace": "      // 擦除事务在探测期间到达：本轮结果整体作废（不得写回任何设备）。",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "擦除 clear() 之后的在途轮次不写回任何结果"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-warmup-forget-epoch-guard-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/services/warmup.dart",
+  "find": "    if ((_deviceEpoch[deviceId] ?? 0) != deviceEpoch) return;",
+  "replace": "    if (false) return;",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "设备在读取期间被删除（forget）时不写回内存"
+  ],
+  "only": true
+ },
+ {
+  "id": "iter16-warmup-forget-epoch-bump-removed",
+  "candidate": "iter16 复核返修",
+  "file": "lib/services/warmup.dart",
+  "find": "    // 推纪元：作废在途 load 的写回（iter16 复核返修）。\n    _deviceEpoch[deviceId] = (_deviceEpoch[deviceId] ?? 0) + 1;",
+  "replace": "    // 推纪元：作废在途 load 的写回（iter16 复核返修）。",
+  "test_file": "test/iter16_hardening_test.dart",
+  "expect_fail": [
+   "设备在读取期间被删除（forget）时不写回内存"
+  ],
+  "only": true
+ }
+]

@@ -174,7 +174,7 @@
   "id": "iter12-bundle-store-rows-removed",
   "candidate": "W-018b",
   "file": "lib/services/diagnostics_bundle.dart",
-  "find": "        'storeRepaired': storeRepaired ? 'yes' : 'no',",
+  "find": "        'storeRepaired': storeRepaired == null\n            ? 'unknown'\n            : (storeRepaired ? 'yes' : 'no'),",
   "replace": "        'storeRepaired': 'no',",
   "test_file": "test/iter12_hardening_test.dart",
   "expect_fail": [
