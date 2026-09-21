@@ -1,8 +1,8 @@
 {
   "schema_version": "3.0",
   "run_id": "zcode-app-maturation-2026-09",
-  "revision": 17,
-  "iteration": 15,
+  "revision": 19,
+  "iteration": 16,
   "phase": "RECOVER",
   "status": "CONTINUE",
   "target": {
@@ -15,10 +15,10 @@
     "used": 0
   },
   "checkpoint": {
-    "id": "cp-15-iter15",
-    "git_head": "e83d33b730a4650c8becf909000489fd066d8946",
-    "diff_fingerprint": "sha256:32d4ef030cbc936f17ba11cf83c5e65905b3ad6f480d3116f2f93c9f6a67d52a",
-    "recorded_at": "2026-09-20T00:25:00+08:00"
+    "id": "cp-16-iter16",
+    "git_head": "601973ccf89113305f1313eac31e5888a7b33b5d",
+    "diff_fingerprint": "sha256:f112dd1ef5fd5dfccd8bcaf578d951c8172eb9ef5b066dc0b4e649623b191acd",
+    "recorded_at": "2026-09-21T15:10:00+08:00"
   },
   "source_map": {
     "defects": "docs/DEFECTS.md",
@@ -145,6 +145,11 @@
         "iteration": 15,
         "total": 83,
         "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
+      },
+      {
+        "iteration": 16,
+        "total": 83,
+        "source_hash": "sha256:c3f7b2a8efbfc54f8de01007ad842be84b3b12fa8623fe4882c8fe3143a78faf"
       }
     ]
   },
@@ -154,9 +159,9 @@
       "command": "flutter analyze（tools/iteration/gates.sh 导出目录，DEC-02）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-analyze.log"
+        "docs/continuous-iteration/evidence/i19-analyze.log"
       ]
     },
     {
@@ -164,9 +169,9 @@
       "command": "flutter test 全量（同上导出目录）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-test.log"
+        "docs/continuous-iteration/evidence/i19-test.log"
       ]
     },
     {
@@ -174,9 +179,9 @@
       "command": "node scripts/check_injected_js.mjs",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-js.log"
+        "docs/continuous-iteration/evidence/i19-js.log"
       ]
     },
     {
@@ -184,9 +189,9 @@
       "command": "python scripts/check-doc-drift.py",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-docdrift.log"
+        "docs/continuous-iteration/evidence/i19-docdrift.log"
       ]
     },
     {
@@ -194,9 +199,9 @@
       "command": "秘密扫描（git ls-files 扩展名过滤 + git grep 凭据字面量 + check-ignore）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-secrets.log"
+        "docs/continuous-iteration/evidence/i19-secrets.log"
       ]
     },
     {
@@ -204,9 +209,9 @@
       "command": "python scripts/check-dependency-advisories.py --sbom <b5 SBOM> --exceptions scripts/security-exceptions.json --fail-on high（公网 OSV）",
       "required": true,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i11-osv.log"
+        "docs/continuous-iteration/evidence/i19-osv.log"
       ]
     },
     {
@@ -214,9 +219,9 @@
       "command": "发布脚本自测：check-doc-drift / check-dependency-advisories / check-plugin-survival / verify-release-artifacts / generate-sbom（--self-test）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-script-selftests.log"
+        "docs/continuous-iteration/evidence/i19-script-selftests.log"
       ]
     },
     {
@@ -224,7 +229,7 @@
       "command": "flutter build apk --release + check-plugin-survival --apk（11 插件存活门）+ verify-release-artifacts",
       "required": false,
       "status": "NOT_RUN",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": []
     },
     {
@@ -232,7 +237,7 @@
       "command": "GitHub Actions CI 三条工作流真实实跑（ci.yml / ci-heavy.yml / release.yml）",
       "required": false,
       "status": "BLOCKED",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": []
     },
     {
@@ -240,9 +245,9 @@
       "command": "python tools/iteration/mutate.py --export <导出> --spec tools/iteration/mutations/*.json --require-green（全语料\"回退即失败\"变异验证）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-mutations.log"
+        "docs/continuous-iteration/evidence/i19-mutations.log"
       ]
     },
     {
@@ -250,10 +255,10 @@
       "command": "tools/iteration/gates.sh state + mutcov 门：iteration_state.py validate --repo-root . + gitignore canary（检查点终跑 --strict-state）；mutate.py --coverage 对 mutations/coverage-files.txt 全覆盖",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i16-state.log",
-        "docs/continuous-iteration/evidence/i16-mutcov.log"
+        "docs/continuous-iteration/evidence/i19-state.log",
+        "docs/continuous-iteration/evidence/i19-mutcov.log"
       ]
     },
     {
@@ -261,7 +266,7 @@
       "command": "导出目录 flutter build apk --debug（编译可行性门；release 需密钥属 P0 治理，AI 不做）",
       "required": false,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
         "docs/continuous-iteration/evidence/b1-build.log"
       ]
@@ -271,9 +276,9 @@
       "command": "tools/iteration/clean_start.sh <prefix>（冷启动门：fresh export → pub get → gen-l10n 漂移检查 → analyze → 全量 test；必败样验证过 DRIFT→exit 1）",
       "required": true,
       "status": "PASS",
-      "checkpoint_id": "cp-15-iter15",
+      "checkpoint_id": "cp-16-iter16",
       "evidence": [
-        "docs/continuous-iteration/evidence/i12b-cleanstart.log"
+        "docs/continuous-iteration/evidence/i19b-cleanstart.log"
       ]
     }
   ],
@@ -725,6 +730,41 @@
       "new_p0": 0,
       "new_p1": 0,
       "report": "docs/audits/2026-09-19-iter15-review.md"
+    },
+    {
+      "id": "A-130",
+      "iteration": 16,
+      "reviewer_id": "wf-iter16 四路审计（数据管道/清理回归/全流程/边界失败面）+ 31 盲证实员",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-16-iter16-audit",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "RESILIENCE",
+        "SCALE_DATA"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "new_p2": 4,
+      "new_p3": 21,
+      "report": "docs/audits/2026-09-21-iter16-audit.md"
+    },
+    {
+      "id": "A-131",
+      "iteration": 16,
+      "reviewer_id": "wf-iter16 终审复核员（6 项返修闭环）",
+      "independent": true,
+      "risk": "R2",
+      "checkpoint_id": "cp-16-iter16",
+      "coverage": [
+        "DIFF_CORRECTNESS",
+        "BOUNDARY_CONTRACT",
+        "RESILIENCE"
+      ],
+      "new_p0": 0,
+      "new_p1": 0,
+      "report": "docs/audits/2026-09-21-iter16-audit.md"
     }
   ],
   "candidates": [
@@ -1189,6 +1229,17 @@
       "approval_ref": null,
       "review_id": null,
       "description": "iter15 观察：fingerprint.sh 在代码域全部已提交时退化为常量（diff HEAD 为空 + 无未跟踪文件）——cp-14/cp-15 指纹因此相同；改进=并入 HEAD 树哈希（git rev-parse HEAD:paths 或 git ls-tree 摘要），clean 树时指纹仍随 HEAD 变化"
+    },
+    {
+      "id": "W-037",
+      "severity": "P3",
+      "required_for_target": false,
+      "status": "LOCAL",
+      "blocker_id": null,
+      "defer_reason": null,
+      "approval_ref": null,
+      "review_id": null,
+      "description": "iter16 观察：待处理行在 pendingByTask 只剩 'unknown' 占位键（上游缺 taskId）时兜底目标缺失，点按仍无可见导航——是否强制揭盖/给出提示需产品确认；本轮已覆盖真实 taskId 的兜底"
     }
   ],
   "blockers": [
@@ -1302,7 +1353,7 @@
     {
       "path": "docs/ACCEPTANCE_MATRIX.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1313,7 +1364,7 @@
     {
       "path": "docs/DEFECTS.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1326,7 +1377,7 @@
     {
       "path": "docs/EVIDENCE.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "E-17",
@@ -1346,7 +1397,7 @@
     {
       "path": "docs/DECISIONS.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "DEC-10",
@@ -1356,7 +1407,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROMPT.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1366,7 +1417,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_STATE.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "docs/continuous-iteration/evidence/g-baseline-summary.log",
@@ -1376,7 +1427,7 @@
     {
       "path": "docs/continuous-iteration/EXECUTION_PROGRAM_8H.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1387,7 +1438,7 @@
     {
       "path": "docs/continuous-iteration/LESSONS.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1399,7 +1450,7 @@
     {
       "path": "tools/iteration/README.md",
       "required": true,
-      "revision": 17,
+      "revision": 19,
       "status": "CURRENT",
       "evidence": [
         "E-25",
@@ -1418,7 +1469,9 @@
       "docs/continuous-iteration/evidence/i8-secrets.log",
       "docs/continuous-iteration/evidence/i9-secrets.log",
       "docs/continuous-iteration/evidence/i10-secrets.log",
-      "docs/continuous-iteration/evidence/i11-secrets.log"
+      "docs/continuous-iteration/evidence/i11-secrets.log",
+      "docs/continuous-iteration/evidence/i17-secrets.log",
+      "docs/continuous-iteration/evidence/i19-secrets.log"
     ]
   },
   "termination": {
@@ -1432,10 +1485,10 @@
       "T6": "DONE",
       "T7": "OPEN"
     },
-    "reason": "ITERATION 15 完成：W-034 待处理中心落地（路线图自主层第 2 项），复核两轮 A-128→A-129 可合并；724/724、变异 127/127+7、10 门 PASS；分数 83。下一批：路线图余项（冷启动提速/质量门接 CI/更新链演练）+ W-033/W-035。"
+    "reason": "ITERATION 16 完成（含终审复核 6 项返修）：746/746、全语料变异 161/161+6、10 门 PASS + clean_start i19b；分数 83 不变；独立复审待下轮（A-13x）。"
   },
   "resume": {
-    "next_action": "可继续的自主层（升级路线图）：① 冷启动提速（设备库 N+2 次串行 Keystore 往返，需先实测读放大）② 本地质量门接进 ci.yml（变异语料+状态校验分级）③ 更新链演练模式 ④ W-033（mutcov testWidgets 盲区）⑤ W-035（待处理中心 polish）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口。",
+    "next_action": "① 零上下文独立复审本批 15 条修复（重点：通知撤销的任务 id 完备性、zrSeen 三层预算的边界、墙钟双钟口径）② W-037（\"unknown\" 占位键待处理行的点按出口）③ 路线图余项（冷启动提速 / 本地质量门接 ci.yml / 更新链演练）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口。",
     "retry_after": null
   },
   "change_log": [
@@ -1688,6 +1741,43 @@
         "W-035"
       ],
       "reason": "升级路线图自主层第 2 项落地：待处理中心（事件历史+待处理面板+入口）；复核 A-128 需返修（3×P2+4×P3）→ 全部闭环 → A-129 可合并（放行条件复跑 127/127 满足）；724/724、变异全语料 127/127+7；分数 83 不变（功能增量，无验收翻转）"
+    },
+    {
+      "date": "2026-09-21",
+      "type": "iteration_16",
+      "ids": [
+        "D-20260921-01",
+        "D-20260921-02",
+        "D-20260921-03",
+        "D-20260921-04",
+        "D-20260921-05",
+        "D-20260921-06",
+        "D-20260921-07",
+        "D-20260921-08",
+        "D-20260921-09",
+        "D-20260921-10",
+        "D-20260921-11",
+        "D-20260921-12",
+        "D-20260921-13",
+        "D-20260921-14",
+        "D-20260921-15",
+        "W-037"
+      ],
+      "reason": "用户清单 18 项 → 15 条根因修复当轮闭环（诊断完整性闭环断裂/仓库改址漏改/通知与陈旧跳转生命周期/指纹键名缺 remoteControlToken/三处代理对截断/存储策略文案/mounted 守卫/待处理兜底/连通性换凭证与在途写回/activeSession 热路径/zrSeen 三层预算/墙钟时限双钟/warmup 擦除纪元/payload 分隔符/幽灵豁免）；全语料变异 150/150+6；742/742；10 门 PASS + clean_start i17b；无验收翻转（分数 83 不变）；独立复审待下轮（A-13x）；收尾终跑 gates.sh i18 全门 PASS（含更新后的 state 校验），E-56 记录检查点指纹"
+    },
+    {
+      "date": "2026-09-21",
+      "type": "iteration_16_re_review",
+      "ids": [
+        "D-20260921-01",
+        "D-20260921-03",
+        "D-20260921-06",
+        "D-20260921-07",
+        "D-20260921-09",
+        "D-20260921-13",
+        "E-57"
+      ],
+      "reason": "终审复核 6 项返修全部闭环：PRIVACY.md 失实声明对齐、通知撤销持久登记（跨重启/无 taskId）并核否 payload 枚举路径、unavailable 注入 null（unknown）、mounted 守卫源码钉、clear/forget 在途一致性、E-55 叙述修正；附带修 iter12 用例排序假绿（全语料跑抓出）。161/161+6、gates i19 十门 PASS、test 746、clean_start i19b；无验收翻转（分数 83 不变）"
     }
   ]
 }

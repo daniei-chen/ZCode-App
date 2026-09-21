@@ -5,7 +5,7 @@
 
 ## 背景
 
-所有设备的 WebView 加载同一官方 origin（`zcode.z.ai`），不同设备 = 不同控制链接（凭证在 URL 参数），但 **localStorage / IndexedDB / Cookie 按 origin 共享**。现状缓解：换链接即重建 generation 并 `clearForCredentialChange`；删除/擦除走 `clearAllSiteData`（R-15/R-17）。未做：同一时刻多台设备共存时的存储互见。
+所有设备的 WebView 加载同一官方 origin（`zcode.z.ai`），不同设备 = 不同控制链接（凭证在 URL 参数），但 **localStorage / IndexedDB / Cookie 按 origin 共享**。现状缓解：换链接即重建 generation 并 `clearForCredentialChange`；擦除走 `clearAllSiteData`（R-15/R-17）。（iter16 更正：原文写"删除/擦除走 `clearAllSiteData`"，实际**设备删除不清理站点数据**——存储按 origin 共享，删除单台无法只清它那份，全清会波及其余并存设备；清单/policySummary 的措辞已按实现收紧，触发点只有换凭证与锁定擦除。）未做：同一时刻多台设备共存时的存储互见。
 
 威胁模型定位：手机上的多台设备都是**同一用户自有**，跨设备存储互见的实际影响是"页面 A 的本地状态可能被页面 B 读到"，不构成跨用户越权；官方页是否把会话凭据写入本地存储未证实（协议文档未见）。
 

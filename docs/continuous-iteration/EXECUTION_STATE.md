@@ -3,10 +3,10 @@
 > 本文件由 `ITERATION_STATE.json` 渲染；JSON 是唯一机器权威。
 
 - Run: `zcode-app-maturation-2026-09`
-- Revision / iteration / phase: `17` / `15` / `RECOVER`
+- Revision / iteration / phase: `19` / `16` / `RECOVER`
 - Status: **CONTINUE**
 - Target: `release_candidate` / 85；当前 83
-- Checkpoint: `cp-14-iter14` · Git `7c5fb5a1fad29e61606e9ced1292c1d848de4637` · `sha256:32d4ef030cbc936f17ba11cf83c5e65905b3ad6f480d3116f2f93c9f6a67d52a`
+- Checkpoint: `cp-16-iter16` · Git `601973ccf89113305f1313eac31e5888a7b33b5d` · `sha256:f112dd1ef5fd5dfccd8bcaf578d951c8172eb9ef5b066dc0b4e649623b191acd`
 - Budget: `none` · used `0` / limit `—`
 
 ## TERMINATION_CHECKLIST
@@ -41,19 +41,19 @@
 
 | ID | Required | Status | Checkpoint | Evidence |
 |---|---|---|---|---|
-| G-001 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-analyze.log |
-| G-002 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-test.log |
-| G-003 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-js.log |
-| G-004 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-docdrift.log |
-| G-005 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-secrets.log |
-| G-006 | True | BLOCKED | cp-14-iter14 | docs/continuous-iteration/evidence/i11-osv.log |
-| G-007 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-script-selftests.log |
-| G-008 | False | NOT_RUN | cp-14-iter14 | — |
-| G-009 | False | BLOCKED | cp-14-iter14 | — |
-| G-010 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-mutations.log |
-| G-011 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i15-state.log, docs/continuous-iteration/evidence/i15-mutcov.log |
-| G-012 | False | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/b1-build.log |
-| G-013 | True | PASS | cp-14-iter14 | docs/continuous-iteration/evidence/i12b-cleanstart.log |
+| G-001 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-analyze.log |
+| G-002 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-test.log |
+| G-003 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-js.log |
+| G-004 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-docdrift.log |
+| G-005 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-secrets.log |
+| G-006 | True | BLOCKED | cp-16-iter16 | docs/continuous-iteration/evidence/i19-osv.log |
+| G-007 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-script-selftests.log |
+| G-008 | False | NOT_RUN | cp-16-iter16 | — |
+| G-009 | False | BLOCKED | cp-16-iter16 | — |
+| G-010 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-mutations.log |
+| G-011 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19-state.log, docs/continuous-iteration/evidence/i19-mutcov.log |
+| G-012 | False | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/b1-build.log |
+| G-013 | True | PASS | cp-16-iter16 | docs/continuous-iteration/evidence/i19b-cleanstart.log |
 
 ## Audits
 
@@ -134,6 +134,8 @@
 | W-033 | P3 | False | LOCAL | — |
 | W-034 | P2 | False | DONE | — |
 | W-035 | P3 | False | LOCAL | — |
+| W-036 | P3 | False | LOCAL | — |
+| W-037 | P3 | False | LOCAL | — |
 
 ## Blockers
 
@@ -149,6 +151,6 @@
 
 ## Resume
 
-**Next action:** 可继续的自主层（升级路线图）：① 冷启动提速（设备库 N+2 次串行 Keystore 往返，需先实测读放大）② 本地质量门接进 ci.yml（变异语料+状态校验分级）③ 更新链演练模式 ④ W-033（mutcov testWidgets 盲区）⑤ W-035（待处理中心 polish）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口。
+**Next action:** ① 零上下文独立复审本批 15 条修复（重点：通知撤销的任务 id 完备性、zrSeen 三层预算的边界、墙钟双钟口径）② W-037（"unknown" 占位键待处理行的点按出口）③ 路线图余项（冷启动提速 / 本地质量门接 ci.yml / 更新链演练）。待用户：ADR-003/004/005、W-031 仓库配置、真机窗口。
 
 Validation: `valid=true` · derived `CONTINUE` · qualifying audit rounds `[1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]`.

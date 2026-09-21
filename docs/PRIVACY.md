@@ -13,20 +13,25 @@
 | 主题 / 通知偏好 / 启动目标 / 最近设备 | SharedPreferences（明文） | 不含凭证 |
 | 更新下载的 APK 与 `.part` | 应用缓存 `cache/updates/` | FileProvider 仅暴露该目录；安装后可清理 |
 | 运行日志（AppLog 环形 500 条） | 仅内存 | 不落盘、不上传；诊断页由用户主动复制导出 |
-| WebView 本地存储（Cookie / DOM storage / HTTP cache / IndexedDB） | Android WebView 数据目录 | 只属于官方远控页面；换凭证、移除设备、锁定擦除时清空（见下） |
+| WebView 本地存储（Cookie / DOM storage / HTTP cache / IndexedDB） | Android WebView 数据目录 | 只属于官方远控页面；换凭证、锁定擦除时清空（见下） |
 
 ### WebView 本地存储清单与清理策略（F19）
 
 | 类型 | 存什么 | 何时清 |
 | -- | -- | -- |
-| cookies | 远控页的会话语义；不使用第三方 Cookie（`thirdPartyCookiesEnabled=false`） | 换凭证 / 移除设备 / 锁定擦除 |
-| localStorage | `zcode-theme` 等页面偏好 | 换凭证 / 移除设备 / 锁定擦除 |
+| cookies | 远控页的会话语义；不使用第三方 Cookie（`thirdPartyCookiesEnabled=false`） | 换凭证 / 锁定擦除 |
+| localStorage | `zcode-theme` 等页面偏好 | 换凭证 / 锁定擦除 |
 | sessionStorage | 页面会话级状态 | WebView generation 重建（渲染进程回收、换凭证）时随上下文消失 |
-| HTTP cache | 静态资源缓存，不含业务凭证 | 换凭证 / 移除设备 / 锁定擦除 |
-| IndexedDB | 官方页面自行使用 | 换凭证 / 移除设备 / 锁定擦除 |
+| HTTP cache | 静态资源缓存，不含业务凭证 | 换凭证 / 锁定擦除 |
+| IndexedDB | 官方页面自行使用 | 换凭证 / 锁定擦除 |
 
 清理动作在 [lib/services/webview_storage.dart](../lib/services/webview_storage.dart)（与上面的清单同处一处，
 避免文档与实现漂移）；诊断页会展示同一份清单，用户可自查当前策略。
+
+> 「移除设备」**不是**站点数据清理触发点：Cookie / DOM storage / IndexedDB 都按
+> origin（`zcode.z.ai`）共享，删除单台设备无法只清它那一份，全清反而会波及仍在
+> 并存的其他设备。设备删除只清除本机设备清单、遥测与系统通知（凭证在该设备的
+> 链接失效后不再可用）。
 
 ## 二、日志边界（硬规则）
 

@@ -1,0 +1,6 @@
+  [ok] Dart SDK 下界一致
+  [ok] 支持范围与 minSdk 一致
+  [ok] Flutter 固定版本一致
+  [ok] 文档不复述当前版本
+  [ok] 文档齐全且 README 可达
+  [ok] 脚本/工作流行尾为 LF

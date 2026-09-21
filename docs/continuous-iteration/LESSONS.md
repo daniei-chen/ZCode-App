@@ -63,6 +63,10 @@
 
 - **L-30（mutcov 对 testWidgets 是盲的）**：`mutate.py` 的 TEST_NAME 只匹配 `test(`，`testWidgets(` 用例不进覆盖账——`--coverage` 报 "0 uncovered" 可能是假绿。新写 testWidgets 用例时必须手动确认每例有回退变异（或 declared covers），别信 mutcov 的空过；工具级修复登记为 W-033（连带存量 testWidgets 文件的欠账，单独一轮）。
 
+- **L-31（闭环声明要挂在生产路径上，不是测试路径上）**：W-018b 声称「存储隔离/修复在诊断面可见」，实现挂在 `DeviceListNotifier._load()` 的唯一 `report` 调用点；而生产用 seed 构造 notifier（`main` 首帧前已加载）根本不走 `_load()`——测试测的却正是 `_load()` 路径，于是全变异绿过的测试给了一条真机永不成立的闭环。规则：为「X 可见 / 进入 Y 面」类修复写测试前，先列"生产走到 X 的所有路径"，多路径逐条钉住或把注入点提到共同上游（本轮做法：`main` 注入 `DeviceStoreIntegrityNotifier(initial:)`）。同族：跨层预算（页面钩子 / 桥 schema / 接收方）必须单一常量来源——三层各写一份的代价是"哪层先丢"无人能答（本轮 zrSeen 统一 192 KiB 预算）。
+
+- **L-32（复核返修两条：枚举先核底层实现；声明漂移按"消费面"清点）**：① 终审建议用 `getActiveNotifications()` 按 payload 前缀撤销通知，插件的 Dart 层映射确实带 `payload` 字段，但 pinned 22.3.0 的 Android 原生实现（`FlutterLocalNotificationsPlugin.java` `getActiveNotifications` :1633–1669）根本不返回 payload——只有读原生源码才能发现。改用"show 成功后持久登记 id"（`DeviceStore`，64/设备有界）。规则：API 能力以**最底层实现**为准，Dart 层文档/映射可能是过时或平台差异的。② 上轮把「移除设备清站点数据」的失实声明只改在 in-app 清单与 ADR，漏了 README 可达的 `docs/PRIVACY.md`——一处声明往往有多个消费面（in-app、诊断包、用户文档），修复时要 grep 同口径措辞逐面清点并把每一面钉进回归测试。
+
 ## 三、待观察的假设
 
 - H-1：`gates.sh` 把门禁墙钟从 ~10 min 压到 ~1 min 后，每轮总工具调用数应降到 ≤30（iter3 40 / iter4 35：趋势对但未达标——审计返修占大头，见 H-2）。
