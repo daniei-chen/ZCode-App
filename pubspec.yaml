@@ -22,7 +22,7 @@ dependencies:
   mobile_scanner: ^7.4.0
   # 11.1.0 uses Flutter's compileSdkVersion (36) instead of pinning API 37,
   # so it remains compatible with the Flutter 3.47 / AGP 8.11 build chain.
-  flutter_secure_storage: ^11.1.1
+  flutter_secure_storage: ^11.2.0
   local_auth: ^3.0.2
   flutter_riverpod: ^3.3.2
   shared_preferences: ^2.5.5
