@@ -1778,6 +1778,15 @@
         "E-57"
       ],
       "reason": "终审复核 6 项返修全部闭环：PRIVACY.md 失实声明对齐、通知撤销持久登记（跨重启/无 taskId）并核否 payload 枚举路径、unavailable 注入 null（unknown）、mounted 守卫源码钉、clear/forget 在途一致性、E-55 叙述修正；附带修 iter12 用例排序假绿（全语料跑抓出）。161/161+6、gates i19 十门 PASS、test 746、clean_start i19b；无验收翻转（分数 83 不变）"
+    },
+    {
+      "date": "2026-09-21",
+      "type": "release",
+      "ids": [
+        "DEC-19",
+        "E-58"
+      ],
+      "reason": "v1.0.1（versionCode 29）发布：启用新版本线修掉应用内更新不可感知问题（iter16 审计 DEC-18 延伸项）；tag 重指 + GitHub Release 资产 + 桌面副本；全部本地提交（含 iter16 审计批）已推送 a91dcea"
     }
   ]
 }
