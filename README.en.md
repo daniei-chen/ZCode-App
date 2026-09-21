@@ -24,7 +24,7 @@ ZCode App is a mobile companion app for ZCode desktop's mobile remote-control fe
 
 ## Download & install
 
-Grab a build from [Releases](https://github.com/2421873411a-rgb/ZCode-App/releases):
+Grab a build from [Releases](https://github.com/daniei-chen/ZCode-App/releases):
 
 - **Android** — `ZCode-v<version>.apk` (arm64), application ID `com.zcode.app`
 - **iOS** — not supported; this is an Android-only project and no IPA is published

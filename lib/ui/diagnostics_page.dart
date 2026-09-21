@@ -112,6 +112,10 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final devices = ref.read(deviceListProvider);
     final statuses = ref.read(sessionStatusProvider);
     final stats = ref.read(observerStatsProvider);
+    // 设备库完整性（iter16）：provider 为 null 表示"本次启动从未有过加载
+    // 结果"——按 null 传给诊断包渲成 unknown，不谎报 0/no（旧实现 `?? 0`
+    // 把未知渲染成干净，W-018b 的闭环在此断裂）。
+    final integrity = ref.read(deviceStoreIntegrityProvider);
     // 子 frame 取证计数随包导出（ADR-002 步骤 1）：真机/soak 证据链的一环。
     // 与 JS 观测计数按设备取并集合并，缺任一侧的设备也不丢行。
     final subFrames = ref.read(subFrameStatsProvider);
@@ -131,8 +135,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       biometric: ref.read(biometricProvider),
       notificationsEnabled: _notifEnabled ?? false,
       batteryIgnored: _batteryIgnored ?? false,
-      storeSkippedRecords: ref.read(deviceStoreIntegrityProvider)?.skippedRecords ?? 0,
-      storeRepaired: ref.read(deviceStoreIntegrityProvider)?.repaired ?? false,
+      storeSkippedRecords: integrity?.skippedRecords,
+      storeRepaired: integrity?.repaired,
     );
   }
 

@@ -1,6 +1,17 @@
 import 'dart:convert';
 
+import 'structured_log.dart';
+
 const int kMaxListenBytes = 4194304;
+
+/// zrSeen（预热请求录制）单批次的 **UTF-8 字节**上限（iter16）。
+///
+/// 钩子按这个预算在页面侧分批：批次 JSON 在 `recordSeen` 内按 UTF-8 字节
+/// 累计，超预算先把当前批 `post` 出去再入队新条目——任何一次 `zrSeen`
+/// 消息都远低于桥侧 `BridgeSchema.maxSeenBytes` 与 warmup 的接收上限，
+/// 不会再出现"整批在桥侧被丢"（旧实现单批可到 ~1 MiB）。
+/// 桥侧上限与 `WarmupMemoryNotifier.ingestSeen` 都以它为同口径基准。
+const int kMaxSeenBatchBytes = 192 * 1024;
 
 abstract final class EventObserver {
   static const String hookScript =
@@ -126,11 +137,25 @@ abstract final class EventObserver {
     try { post('zrStats', JSON.stringify(stats)); } catch (e) {}
   }, 15000);
   var seenQ = [];
+  var seenBytes = 0;
+  // zrSeen 批次预算（iter16）：与 Dart 侧 kMaxSeenBatchBytes 同口径——
+  // 批次 JSON 的 UTF-8 字节必须小于预算，否则整批会在桥侧（256 KiB）
+  // 被丢弃且只计一次 droppedMessages。旧实现只限 64 条 × 16 KiB，
+  // 单批可达 ~1 MiB，是"整批静默丢失"的来源。
+  var kSeenBatchBytes = $kMaxSeenBatchBytes;
   var seenFlush = setInterval(function() {
     if (seenQ.length === 0 || !window.flutter_inappwebview) return;
     var batch = seenQ.splice(0, seenQ.length);
+    seenBytes = 0;
     post('zrSeen', JSON.stringify(batch));
   }, 900);
+  var seenDropOldest = function() {
+    while (seenQ.length > 0) {
+      var entry = seenQ.shift();
+      seenBytes -= utf8Len(JSON.stringify(entry));
+      if (window.__zrStats) window.__zrStats.seenDropped++;
+    }
+  };
   var recordSeen = function(url, method, body) {
     try {
       if (seenQ.length >= 64) {
@@ -144,7 +169,26 @@ abstract final class EventObserver {
         try { b = JSON.stringify(body); } catch (e2) { b = null; }
       }
       if (b && b.length > 16384) return;
-      seenQ.push({ u: url, m: String(method || 'GET').toUpperCase(), b: b });
+      var entry = { u: url, m: String(method || 'GET').toUpperCase(), b: b };
+      var entryBytes = utf8Len(JSON.stringify(entry)) + 2;
+      // 单条就放不进任何批次（病态转义）：只丢这一条并计数。
+      if (entryBytes > kSeenBatchBytes) {
+        if (window.__zrStats) window.__zrStats.seenDropped++;
+        return;
+      }
+      if (seenBytes + entryBytes > kSeenBatchBytes) {
+        if (window.flutter_inappwebview) {
+          // 先把当前批送出去（post 自身也会按预算收敛），再开新批。
+          var batch = seenQ.splice(0, seenQ.length);
+          seenBytes = 0;
+          post('zrSeen', JSON.stringify(batch));
+        } else {
+          // 通道未就绪：腾空间只能丢最旧，绝不越过桥侧上限。
+          seenDropOldest();
+        }
+      }
+      seenQ.push(entry);
+      seenBytes += entryBytes;
     } catch (e) {}
   };
   // 无原型对象（安全审计 S-3）：普通 `{}` 上 `asm["__proto__"]` 命中原型链，
@@ -731,7 +775,10 @@ abstract final class EventParser {
     if (value is String) {
       final text = value.replaceAll(RegExp(r'\s+'), ' ').trim();
       if (text.isEmpty) return null;
-      return text.length > 180 ? '${text.substring(0, 180)}…' : text;
+      // 截断走共享的码元边界保护（iter16）：180 切点上不得产出孤立代理对。
+      return text.length > 180
+          ? '${LogRedactor.clipCodeUnits(text, 180)}…'
+          : text;
     }
     if (value is Map) {
       for (final key in const [
@@ -1039,7 +1086,10 @@ abstract final class SessionStateExtractor {
     if (value is String) {
       final text = value.replaceAll(RegExp(r'\s+'), ' ').trim();
       if (text.isEmpty) return null;
-      return text.length > 180 ? '${text.substring(0, 180)}…' : text;
+      // 同 `_eventText`：码元边界保护（iter16）。
+      return text.length > 180
+          ? '${LogRedactor.clipCodeUnits(text, 180)}…'
+          : text;
     }
     if (value is Map) {
       for (final key in const [
@@ -1697,15 +1747,25 @@ class EventDedupeGate {
   EventDedupeGate({
     this.window = const Duration(minutes: 2),
     this.maxEntries = 256,
-  });
+  }) {
+    // 默认时钟取**单调**时长（进程起点 + Stopwatch），而不是墙钟（iter16）：
+    // 系统时间被回拨时 `now.difference(last)` 变负，旧键永不过期且同
+    // (type,taskId) 的新事件被一律压制（不写 feed、不进历史、不提醒），
+    // 红点计数停在上一次的值直到墙钟追平。单调钟对回拨免疫。
+    clock = () => _monotonicOrigin.add(_monotonic.elapsed);
+  }
 
   final Duration window;
   final int maxEntries;
 
   final Map<String, DateTime> _recent = {};
 
-  /// 便于测试注入时钟。
-  DateTime Function() clock = DateTime.now;
+  static final DateTime _monotonicOrigin = DateTime.now();
+
+  final Stopwatch _monotonic = Stopwatch()..start();
+
+  /// 便于测试注入时钟；默认是构造时装配的单调源（见构造函数）。
+  late DateTime Function() clock;
 
   /// 键尾保留空 summary 段：resolved 清理用 `\0taskId\0` 标记做包含匹配，
   /// 键必须以 `\0taskId\0` 结尾才不会被前缀更长的 taskId 误清。

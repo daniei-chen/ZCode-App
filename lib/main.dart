@@ -65,6 +65,21 @@ Future<void> main() async {
             initial: initialDevicesResult.unavailable,
           ),
         ),
+        // 设备库完整性（iter16）：生产路径用 seed 构造 DeviceListNotifier，
+        // `_load()` 不执行也就没人 report——这里把首帧前那次真实加载的
+        // skippedRecords/repaired 注入 provider，诊断页/诊断包才看得到
+        // 本次启动发生过隔离/修复（而非恒报 0/no）。存储不可用（unavailable）
+        // 时注入 null：那是"什么都没读到"，不是"读过且干净"（复核返修）。
+        deviceStoreIntegrityProvider.overrideWith(
+          () => DeviceStoreIntegrityNotifier(
+            initial: initialDevicesResult.unavailable
+                ? null
+                : DeviceStoreIntegrity(
+                    skippedRecords: initialDevicesResult.skippedRecords,
+                    repaired: initialDevicesResult.repaired,
+                  ),
+          ),
+        ),
         biometricProvider.overrideWith(
           () => BiometricNotifier(initial: initialSecurityPref.enabled),
         ),

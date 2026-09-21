@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'device_store.dart';
+import 'event_observer.dart';
 import 'link_builder.dart';
 import 'app_log.dart';
 import 'structured_log.dart';
@@ -79,13 +80,32 @@ const int _maxBodyBytes = 16 * 1024;
 class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
   final Map<String, Timer> _persistTimers = {};
 
+  /// 每设备写纪元（iter16 复核返修）：[forget]（设备删除）时递增。
+  /// `load` 的存储读跨越"该设备已被删除"边界时作废——擦除纪元只挡住
+  /// wipe，remove→forget 期间在途的读仍会把已删设备的预热脚本写回内存。
+  final Map<String, int> _deviceEpoch = {};
+
+  /// 擦除纪元（iter16）：[clearAll] 递增。`load` 的存储读结果跨越擦除
+  /// 边界时作废——否则擦除清空内存态之后到达的读结果会把已清除设备的
+  /// 预热脚本重新写回内存（预热脚本按敏感数据对待，见 DeviceStore）。
+  int _wipeEpoch = 0;
+
   @override
   Map<String, List<WarmupRequest>> build() => const {};
 
   /// 恢复上次录制的内容（页面加载前调用）。
   Future<void> load(String deviceId) async {
     if (state.containsKey(deviceId)) return;
+    final epoch = _wipeEpoch;
+    final deviceEpoch = _deviceEpoch[deviceId] ?? 0;
     final raw = await DeviceStore.instance.warmupScript(deviceId);
+    // await 之后、写 state 之前的三道守卫（iter16；与 session_pool/
+    // device_connectivity 的 await 后守卫同口径）：
+    // 1) provider 已销毁不得写 state；2) 读期间发生过擦除则整个结果作废；
+    // 3) 读期间该设备被删除（forget 推了它的纪元）同样作废。
+    if (!ref.mounted) return;
+    if (epoch != _wipeEpoch) return;
+    if ((_deviceEpoch[deviceId] ?? 0) != deviceEpoch) return;
     if (raw == null || raw.isEmpty) return;
     try {
       final list = (jsonDecode(raw) as List)
@@ -107,9 +127,7 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
   /// 接收页面钩子录到的请求签名（zrSeen 通道）。
   void ingestSeen(String deviceId, String body) {
     if (body.isEmpty) return;
-    // 按 UTF-8 字节计（iter7 R-9）：UTF-16 length 会放行 CJK 密集载荷 2-3 倍，
-    // 与 "256 KiB" 契约不符（与 BridgeSchema.acceptString 同口径）。
-    if (utf8.encode(body).length > 256 * 1024) return;
+    if (!seenBatchWithinBudget(body)) return;
     List<dynamic> raw;
     try {
       raw = jsonDecode(body) as List<dynamic>;
@@ -138,6 +156,8 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
   }
 
   Future<void> forget(String deviceId) async {
+    // 推纪元：作废在途 load 的写回（iter16 复核返修）。
+    _deviceEpoch[deviceId] = (_deviceEpoch[deviceId] ?? 0) + 1;
     _persistTimers.remove(deviceId)?.cancel();
     if (state.containsKey(deviceId)) {
       state = Map.of(state)..remove(deviceId);
@@ -168,6 +188,7 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
   /// 会把已删除设备的 warmup 脚本（含请求签名）重新写回安全存储。
   /// 磁盘侧 warmup 键由 `DeviceStore.clearAll` 在同一事务里删除。
   void clearAll() {
+    _wipeEpoch++;
     for (final timer in _persistTimers.values) {
       timer.cancel();
     }
@@ -175,6 +196,13 @@ class WarmupMemoryNotifier extends Notifier<Map<String, List<WarmupRequest>>> {
     if (state.isEmpty) return;
     state = const {};
   }
+
+  /// zrSeen 批次预算的第二道门（iter16）：钩子侧 `recordSeen` 保证单批
+  /// JSON 的 UTF-8 字节 ≤ [kMaxSeenBatchBytes]，这里用**同一常量**复核；
+  /// 旧实现三处口径各写一份（旧桥侧 512 KiB / 本处 256 KiB / 钩子 4 MiB），
+  /// 超限批次会在桥侧被整批丢弃。边界含等号（预算内放行）。
+  static bool seenBatchWithinBudget(String body) =>
+      utf8.encode(body).length <= kMaxSeenBatchBytes;
 
   static bool _shouldRecord(WarmupRequest req) {
     if (req.url.length > 2048) return false;

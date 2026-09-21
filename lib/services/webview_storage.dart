@@ -12,19 +12,24 @@ import 'wipe_result.dart';
 /// R-17 修正：清单里声明的 IndexedDB 以前没有任何清理动作（只写在文档里）；
 /// 现在 [clearForCredentialChange] 在页面上下文里请求删除全部数据库，
 /// [clearAllSiteData] 另走插件的 `WebStorageManager.deleteAllData()`。
+///
+/// iter16 修正：**设备删除不清站点数据**。存储按 origin（`zcode.z.ai`）共享，
+/// 删除单台设备无法只清它那一份 cookie/DOM storage，全清反而会波及仍共存的
+/// 其他设备；因此触发点只有"换凭证"（页面重建时）与"锁定擦除"（全量清理）。
+/// 清单与 policySummary 的措辞按实现收紧。
 abstract final class WebViewStorage {
   /// 数据流清单：类型 → 存什么、何时清。
   static const Map<String, String> inventory = {
-    'cookies': '远控页会话语义（无第三方 Cookie）；换凭证/移除设备/擦除时清空',
-    'domStorage': 'localStorage 保存 zcode-theme 等偏好；换凭证/移除设备/擦除时清空',
+    'cookies': '远控页会话语义（无第三方 Cookie）；换凭证/锁定擦除时清空',
+    'domStorage': 'localStorage 保存 zcode-theme 等偏好；换凭证/锁定擦除时清空',
     'sessionStorage': '页面会话级状态；随 WebView generation 重建消失',
-    'httpCache': '静态资源缓存，不含业务凭证；换凭证/移除设备/擦除时清空',
+    'httpCache': '静态资源缓存，不含业务凭证；换凭证/锁定擦除时清空',
     'indexedDb': '官方页面自行使用；换凭证/擦除时逐库清理（deleteDatabase / deleteAllData）',
   };
 
   /// 诊断包里的单行摘要（不展开细节，避免诊断文本膨胀）。
   static String get policySummary =>
-      'cookies+domStorage+indexedDb+httpCache；触发：换凭证/移除设备/锁定擦除';
+      'cookies+domStorage+indexedDb+httpCache；触发：换凭证/锁定擦除';
 
   /// JS 片段：清 localStorage/sessionStorage 并请求删除全部 IndexedDB。
   /// IndexedDB 删除是异步回调式，evaluate 不等回调——发出请求即尽力而为，

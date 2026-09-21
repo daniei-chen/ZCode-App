@@ -19,7 +19,10 @@ RemoteDevice _tokenDevice(
 }) => RemoteDevice(
   id: id,
   baseUrl: baseUrl,
-  params: {'t': token, ...extra},
+  // iter16：用应用自己识别的键名（LinkBuilder.parse 判 token 用的就是
+  // remoteControlToken）。旧夹具用 't' 冒充 token 链接，掩盖了
+  // CredentialFingerprint 键名集合缺 remotecontroltoken 的缺口。
+  params: {'remoteControlToken': token, ...extra},
   label: '',
   createdAt: DateTime(2026, 1, 1),
 );
@@ -91,6 +94,21 @@ void main() {
       expect(hit, same(existing.first));
       // 兼容入口同样按指纹判定。
       expect(findDuplicateBySid(existing, _tokenDevice('TOKEN-1')), isNotNull);
+    });
+
+    test('只带 remoteControlToken 的链接（应用自有键名）也参与去重（iter16）', () {
+      final existing = [_tokenDevice('TOKEN-1', id: 'id-1')];
+      expect(
+        CredentialFingerprint.of(existing.first),
+        isNotNull,
+        reason: 'remotecontroltoken 必须在指纹键集合里',
+      );
+      expect(
+        findDuplicateDevice(existing, _tokenDevice('TOKEN-1')),
+        same(existing.first),
+        reason: '同一条链接扫两次不得生成两台设备（F24 残余面）',
+      );
+      expect(findDuplicateDevice(existing, _tokenDevice('TOKEN-2')), isNull);
     });
 
     test('不同 token 不命中', () {

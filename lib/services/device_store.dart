@@ -467,7 +467,49 @@ class DeviceStore {
         }
       });
 
-  /// 清除本机全部远控数据：设备凭证、索引、warmup 脚本与"最近设备"指针。
+  static const _notifIdsKeyPrefix = 'zremote.notif.';
+
+  /// 每设备已展示通知 id 的登记上限：taskId 页面可控，登记必须**有界**
+  /// （超出按最早登记淘汰；淘汰只损失"旧通知的单独撤销能力"）。
+  static const int maxRecordedNotificationIds = 64;
+
+  static String _notifIdsKey(String id) => '$_notifIdsKeyPrefix$id';
+
+  /// 已展示通知的 id 登记（设备删除时撤销用，iter16 复核返修）。
+  ///
+  /// 为什么需要落盘：Android 通知跨进程存活，而通知撤销的任务 id 来源
+  /// （eventFeed/eventHistory）是内存态——重启后删除设备会拿到空集，
+  /// 重启前展示的通知撤不掉。这里在 `show` 成功后登记 id（通知 id 是
+  /// SHA256 前 31 bit，不是凭证，与"最近设备"指针同样放普通 prefs）。
+  Future<List<int>> notificationIds(String deviceId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getStringList(_notifIdsKey(deviceId)) ?? const <String>[])
+        .map(int.tryParse)
+        .whereType<int>()
+        .toList();
+  }
+
+  Future<void> recordNotificationId(String deviceId, int id) =>
+      _serialized(() async {
+        final prefs = await SharedPreferences.getInstance();
+        final key = _notifIdsKey(deviceId);
+        final list = prefs.getStringList(key) ?? <String>[];
+        final value = '$id';
+        list.remove(value);
+        list.add(value);
+        if (list.length > maxRecordedNotificationIds) {
+          list.removeRange(0, list.length - maxRecordedNotificationIds);
+        }
+        await prefs.setStringList(key, list);
+      });
+
+  Future<void> clearNotificationIds(String deviceId) => _serialized(() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_notifIdsKey(deviceId));
+  });
+
+  /// 清除本机全部远控数据：设备凭证、索引、warmup 脚本、"最近设备"指针
+  /// 与通知 id 登记。
   ///
   /// 用途是"无法验证身份时的恢复"与后续的清除数据入口：清掉受保护数据本身
   /// 不需要再验证身份（没有数据可暴露了）。主题/通知等非敏感偏好不在此范围。
@@ -494,6 +536,14 @@ class DeviceStore {
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_lastDeviceKey);
+      // 通知 id 登记同样按设备键存放：擦除后不再保留（R-04）。
+      final notifKeys = prefs
+          .getKeys()
+          .where((key) => key.startsWith(_notifIdsKeyPrefix))
+          .toList();
+      for (final key in notifKeys) {
+        await prefs.remove(key);
+      }
     }, supersedeable: false);
     return cleared;
   }

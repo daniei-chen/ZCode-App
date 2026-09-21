@@ -10,6 +10,7 @@ import '../models/device_label.dart';
 import '../models/notification_prefs.dart';
 import 'event_observer.dart';
 import 'app_log.dart';
+import 'device_store.dart';
 import 'structured_log.dart';
 
 class NotificationSpec {
@@ -90,8 +91,11 @@ class NotificationSpec {
   static String _clean(String? value) =>
       (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
 
-  static String _clip(String value, int max) =>
-      value.length > max ? '${value.substring(0, max)}…' : value;
+  /// 截断走共享的码元边界保护（iter16）：会话标题/正文来自页面数据，
+  /// 裸 `substring` 会在 120/180 切点上产出孤立代理对（半 emoji）。
+  static String _clip(String value, int max) => value.length > max
+      ? '${LogRedactor.clipCodeUnits(value, max)}…'
+      : value;
 
   static NotificationSpec? from(
     RemoteDevice device,
@@ -320,6 +324,12 @@ class NotifierService {
         ),
         payload: spec.payload,
       );
+      // 登记已展示的通知 id（iter16 复核返修）：Android 通知跨进程存活，
+      // 而撤销用的任务 id 来源（feed/history）是内存态——重启后删除设备
+      // 只有这份持久登记能把通知栏里的陈旧通知撤掉。登记失败不影响展示。
+      try {
+        await DeviceStore.instance.recordNotificationId(device.id, id);
+      } catch (_) {}
     } catch (e) {
       AppLog.failure(
         LogEvent.notificationShowFailed,
@@ -370,6 +380,60 @@ class NotifierService {
         await _plugin.cancel(id: id);
       } catch (_) {}
     }
+  }
+
+  /// 设备删除时撤销该设备已展示/待展示的通知（iter16；复核返修补齐
+  /// 「任务 id 完备性」）。
+  ///
+  /// 与 [cancelAll] 的擦除口径同源（R-04）：通知 payload 里带着设备与会话 id，
+  /// 设备记录都删了，这些通知点开只会是死路，不能继续留在系统通知栏。
+  ///
+  /// 两层来源：
+  /// 1) **持久登记**（[DeviceStore.notificationIds]）：`notifyFrom` 每次
+  ///    `show` 成功后按设备登记实际 id——覆盖重启后内存表为空、无 taskId 的
+  ///    通知（stableId 用 `taskId ?? ''`）与任务被挤出历史的全部情形；
+  /// 2) [taskIds]（feed 权威待处理键 + 事件历史）作为兜底：登记写入失败/
+  ///    旧版本遗留的通知没有登记时，按四类通知位逐一撤销。
+  /// 撤销完成后清掉该设备的登记（幂等，避免陈旧 id 累积）。
+  ///
+  /// 备选路径核查：`AndroidFlutterLocalNotificationsPlugin.getActiveNotifications()`
+  /// 在 pinned 22.3.0 的 Android 原生实现（FlutterLocalNotificationsPlugin.java
+  /// getActiveNotifications，:1633-1669）**不返回 payload**，无法按 payload
+  /// 前缀识别归属，故不采用枚举路径。单个 id 撤销失败只影响该条，不阻塞删除。
+  Future<void> cancelForDevice(
+    RemoteDevice device,
+    Iterable<String> taskIds,
+  ) async {
+    final ids = <int>{};
+    try {
+      ids.addAll(await DeviceStore.instance.notificationIds(device.id));
+    } catch (_) {
+      // 登记读取失败（存储异常）：走内存兜底集。
+    }
+    for (final taskId in taskIds) {
+      if (taskId.isEmpty) continue;
+      ids.addAll(NotificationSpec.cancellableIds(device, taskId));
+      ids.add(
+        NotificationSpec.stableId(
+          device,
+          ObservedEvent(type: 'completed', taskId: taskId),
+        ),
+      );
+      ids.add(
+        NotificationSpec.stableId(
+          device,
+          ObservedEvent(type: 'error', taskId: taskId),
+        ),
+      );
+    }
+    for (final id in ids) {
+      try {
+        await _plugin.cancel(id: id);
+      } catch (_) {}
+    }
+    try {
+      await DeviceStore.instance.clearNotificationIds(device.id);
+    } catch (_) {}
   }
 
   /// 擦除事务（R-04）：撤销所有已展示/待展示的通知。

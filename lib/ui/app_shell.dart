@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../services/app_settings.dart';
 import '../services/notifier.dart';
+import '../services/session_jump.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/back_stack.dart';
@@ -187,25 +188,25 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   /// 'deviceId' switches the tab; 'deviceId|sessionId' additionally asks
   /// that device's conversation shell to open the session in place.
+  ///
+  /// iter16：设备已删除时**不写任何跳转**——没有页面会消费它，只会留下一条
+  /// 长驻的陈旧目标，用户看到的是"点了通知什么也没发生"。payload 的会话段
+  /// 由 [SessionJump.decodePayload] 做过精确两段 + 白名单校验（页面可控
+  /// taskId 含 '|' 时不得截断成前缀去命中同前缀的另一个会话）。
   void _jumpTo(String payload) {
     if (!mounted) return;
-    final parts = payload.split('|');
-    final deviceId = parts.isEmpty || parts.first.isEmpty
-        ? payload
-        : parts.first;
+    final (deviceId, sessionId) = SessionJump.decodePayload(payload);
     final index = ref
         .read(deviceListProvider)
         .indexWhere((d) => d.id == deviceId);
-    if (index >= 0) {
-      ref.read(eventFeedProvider.notifier).markRead(deviceId);
-      ref.read(activeTabProvider.notifier).set(index);
-      if (_launcherVisible) _setLauncherVisible(false);
-    }
-    if (parts.length > 1 && parts[1].isNotEmpty) {
-      ref
-          .read(pendingSessionJumpProvider.notifier)
-          .set(PendingSessionJump(deviceId: deviceId, sessionId: parts[1]));
-    }
+    if (index < 0) return;
+    ref.read(eventFeedProvider.notifier).markRead(deviceId);
+    ref.read(activeTabProvider.notifier).set(index);
+    if (_launcherVisible) _setLauncherVisible(false);
+    if (sessionId == null) return;
+    ref
+        .read(pendingSessionJumpProvider.notifier)
+        .set(PendingSessionJump(deviceId: deviceId, sessionId: sessionId));
   }
 
   void _consumePendingTap() {

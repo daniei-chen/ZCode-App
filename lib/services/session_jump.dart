@@ -106,6 +106,23 @@ abstract final class SessionJump {
       taskId.length <= 128 &&
       RegExp(r'^[0-9A-Za-z_-]+$').hasMatch(taskId);
 
+  /// 通知/浮卡 payload 解析（iter16）：`'deviceId'` 或 `'deviceId|sessionId'`。
+  ///
+  /// `split('|')` 后必须**恰好两段**且会话段通过 [taskIdWellFormed]：
+  /// taskId 页面可控，含 `'|'` 时（`'abc|def'`）裸取 `parts[1]` 会得到前缀
+  /// `'abc'`——前缀可能通过白名单，把用户带到同前缀的另一个会话。
+  /// 任一段不合规时只返回设备段（退化为"打开设备"，不写会话跳转）。
+  static (String deviceId, String? sessionId) decodePayload(String payload) {
+    final parts = payload.split('|');
+    // 空设备段（如 '|abc'）不是一个设备 id：只回退整体，不解析会话段。
+    if (parts.first.isEmpty) return (payload, null);
+    final deviceId = parts.first;
+    if (parts.length != 2 || parts[1].isEmpty) return (deviceId, null);
+    final sessionId = parts[1];
+    if (!taskIdWellFormed(sessionId)) return (deviceId, null);
+    return (deviceId, sessionId);
+  }
+
   /// 跳转脚本不做格式裁剪——调用方（_jumpToSession）先用
   /// [taskIdWellFormed] 把关，不合格直接走 invalid 分支。
   static String jumpScript(String taskId, {String? workspace, int attemptId = 0}) {

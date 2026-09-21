@@ -99,6 +99,14 @@ class DeviceConnectivityNotifier
 
   bool _inFlight = false;
 
+  /// 本轮探测期间被 forget 的设备（iter16）：写回时跳过，否则 remove 的
+  /// 清理之后旧轮次会把已删设备的结果重新插回 provider。轮次结束清空。
+  final Set<String> _forgottenInFlight = {};
+
+  /// 本轮探测期间发生过 clear()（擦除事务）：写回整体作废（iter16 复核
+  /// 返修——擦除后不得再落任何探测结果）。
+  bool _wipedInFlight = false;
+
   /// 对设备清单做一轮探测。relay 已 live 的设备直接记可达（不发探测）；
   /// 其余并发探测（设备数上限受导入约束，量级个位数）。
   ///
@@ -116,12 +124,17 @@ class DeviceConnectivityNotifier
         for (final device in devices) _probeOne(device, statuses[device.id]),
       ]);
       if (!ref.mounted) return;
+      // 擦除事务在探测期间到达：本轮结果整体作废（不得写回任何设备）。
+      if (_wipedInFlight) return;
       final merged = Map.of(state);
       for (final r in results) {
+        if (_forgottenInFlight.remove(r.$1)) continue;
         merged[r.$1] = r.$2;
       }
       state = merged;
     } finally {
+      _forgottenInFlight.clear();
+      _wipedInFlight = false;
       _inFlight = false;
     }
   }
@@ -138,12 +151,22 @@ class DeviceConnectivityNotifier
   }
 
   /// 设备删除/换凭证时同步清理（与其它遥测同生命周期）。
+  ///
+  /// 两个调用点：`session_pool.remove`（删除）与 `session_pool.replaceLink`
+  /// （换凭证后 probeUri 的 path 可能变化，旧结果不再代表当前链接）。
+  /// 在途轮次的写回也要跳过（iter16）：标记后由本轮合并时丢弃。
   void forget(String deviceId) {
+    if (_inFlight) _forgottenInFlight.add(deviceId);
     if (!state.containsKey(deviceId)) return;
     state = Map.of(state)..remove(deviceId);
   }
 
-  void clear() => state = const {};
+  /// 擦除事务（R-04）：清空全部探测结果。在途轮次同样作废（iter16 复核
+  /// 返修）：擦除之后到达的结果不得把已删设备写回 provider。
+  void clear() {
+    if (_inFlight) _wipedInFlight = true;
+    state = const {};
+  }
 }
 
 final deviceConnectivityProvider =

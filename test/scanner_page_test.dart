@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -87,6 +89,56 @@ void main() {
 
   _replaceGroup();
   _cameraErrorGroup();
+  _writeFailureGroup();
+}
+
+/// iter7 R-1 的行为级覆盖：写失败必须复位 `_navigating` 闸门并给出提示，
+/// 否则扫码页此后对所有二维码直接 return（相机取景但"死锁"）。
+void _writeFailureGroup() {
+  testWidgets('扫码写失败复位与提示（iter7 R-1）：失败后下一次扫码仍进入写路径', (tester) async {
+    final store = _FailingDevices();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [deviceListProvider.overrideWith(() => store)],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const ScannerPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dynamic pageState = tester.state(find.byType(ScannerPage));
+
+    final pending =
+        pageState.debugAcceptCode(
+              'https://zcode.z.ai/remote/v4?sid=wfail01&hash=h1',
+            )
+            as Future<void>;
+    expect(pageState.debugNavigating, isTrue, reason: '写路径上闸门应已落下');
+    expect(store.addCalls, 1);
+
+    store.gate.complete();
+    await pending;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.text('操作失败，请重试'), findsOneWidget);
+    expect(pageState.debugNavigating, isFalse, reason: '写失败必须复位闸门');
+
+    // 复位验证：换一条链接（避开 2 秒去重窗口）必须再次走到写路径——
+    // 未复位时 `_navigating` 会挡掉它，addCalls 停在 1（真机 = 永久死锁）。
+    final second =
+        pageState.debugAcceptCode(
+              'https://zcode.z.ai/remote/v4?sid=wfail02&hash=h2',
+            )
+            as Future<void>;
+    expect(store.addCalls, 2, reason: '复位后再次扫码必须走到写路径');
+    await second;
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('操作失败，请重试'), findsOneWidget);
+  });
 }
 
 /// 相机故障（非权限）必须给出可读原因与恢复入口（F24）。
@@ -182,6 +234,25 @@ class _StubDevices extends DeviceListNotifier {
 
   @override
   List<RemoteDevice> build() => devices;
+}
+
+/// 写失败的可控设备库：`add` 在 gate 放行后抛错，用来观察扫码页的
+/// `_navigating` 闸门复位（iter7 R-1 的行为级覆盖）。
+class _FailingDevices extends DeviceListNotifier {
+  _FailingDevices() : super(seed: const []);
+
+  int addCalls = 0;
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  List<RemoteDevice> build() => const [];
+
+  @override
+  Future<void> add(RemoteDevice device) async {
+    addCalls++;
+    await gate.future;
+    throw StateError('add failed');
+  }
 }
 
 RemoteDevice _device(String id, String sid) => RemoteDevice(

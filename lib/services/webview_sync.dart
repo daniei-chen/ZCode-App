@@ -76,12 +76,12 @@ class WebViewSyncController {
       ref.read(sessionStatusProvider.notifier).report(device.id, frameStatus);
     }
 
-    final activeSession = ActiveSessionExtractor.parseRoot(root);
-    if (activeSession != null) {
-      _activeSessionId = activeSession;
-      ref.read(activeSessionProvider.notifier).report(device.id, activeSession);
-    }
-
+    // 活动会话通道（iter16）：原先这里对每个 relay 帧跑一次
+    // ActiveSessionExtractor.parseRoot（深度 6 的整树递归），再写
+    // activeSessionProvider——但该 provider 没有任何生产消费方
+    // （NotificationGate.shouldNotify 明确忽略 activeSessionId 参数），
+    // 纯属观测热路径开销。整树扫描已移除；`_activeSessionId` 仅由
+    // 轻量的 zrViewState 通道维护，供门禁参数（当前被忽略）使用。
     final states = SessionStateExtractor.parseRoot(root);
     final removedResult = BridgeMessagePipeline.parseRemoved(root);
     final removed = [
@@ -186,8 +186,9 @@ class WebViewSyncController {
   void ingestViewState(String body) {
     final result = MobileViewStateSync.parse(body);
     if (!result.valid) return;
+    // 只维护本地字段（当前门禁参数被忽略），不再写 activeSessionProvider：
+    // 该 provider 无生产消费方（iter16），保留写入只会多一条没人读的状态面。
     _activeSessionId = result.taskId;
-    ref.read(activeSessionProvider.notifier).report(device.id, result.taskId);
   }
 
   void ingestWebSocketEvent(String body) {

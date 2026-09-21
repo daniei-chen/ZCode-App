@@ -23,7 +23,10 @@ abstract final class BridgeAuthPolicy {
 abstract final class BridgeSchema {
   static const int maxThemeBytes = 256;
   static const int maxViewStateBytes = 64 * 1024;
-  static const int maxSeenBytes = 512 * 1024;
+  /// zrSeen 批次上限（iter16 预算对齐）：钩子按 [kMaxSeenBatchBytes]
+  /// （192 KiB）在页面侧分批，这里留 64 KiB 余量做传输/旧版本兜底；
+  /// 不再是旧口径的 512 KiB——那时钩子单批可达 ~1 MiB，整批被丢。
+  static const int maxSeenBytes = 256 * 1024;
   static const int maxEventBytes = 4 * 1024 * 1024;
   static const int maxWsEventBytes = 4 * 1024 * 1024;
   static const int maxStatsKeys = 32;
@@ -112,4 +115,8 @@ abstract final class BridgeSchema {
 
   /// 保持事件字节上限与 JS 钩子一致（不同步会被本测试文件锁住）。
   static bool get eventCapMatchesHook => maxEventBytes == kMaxListenBytes;
+
+  /// zrSeen 预算跨层一致（iter16）：桥侧上限必须高于钩子批次预算，
+  /// 否则整批 zrSeen 录制在桥侧被丢弃（旧实现 512 KiB < 钩子可产 ~1 MiB）。
+  static bool get seenCapMatchesHook => maxSeenBytes > kMaxSeenBatchBytes;
 }

@@ -754,6 +754,8 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
           source: BridgeTokenPolicy.injectScript(token),
         );
         if (BridgeTokenPolicy.isReady(readBack, token)) {
+          // await 之后可能已卸载/换代：不得再碰 provider（iter16）。
+          if (!mounted || _bridgeToken != token) return false;
           _markBridgeTokenReady();
           return true;
         }
@@ -786,9 +788,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       hookReady = BridgeTokenPolicy.normalize(value) ?? 'unknown';
     } catch (_) {}
     _bridgeTokenReady = false;
-    ref
-        .read(bridgeHealthProvider.notifier)
-        .report(widget.device.id, _webviewGeneration, ready: false);
+    // await 之后页面可能已被移除/换凭证：ref 已失效，写 provider 会抛
+    // StateError（iter16，与 zrEvents 的 context.mounted 守卫同口径）。
+    // 日志本身仍留痕（全局缓冲，不碰 ref）。
+    if (mounted) {
+      ref
+          .read(bridgeHealthProvider.notifier)
+          .report(widget.device.id, _webviewGeneration, ready: false);
+    }
     // release 可见：这条日志是"观测/返回为什么不动"的第一现场。
     AppLog.event(LogEvent.bridgeTokenMissing, level: LogLevel.warn, fields: {
       LogField.device: widget.device.id,
@@ -799,17 +806,30 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   }
 
   /// 在预算内等令牌到位（返回键/跳转这类需要桥的操作前调用）。
+  ///
+  /// iter16：预算判定走 [BridgeTokenPolicy.waitBudgetExhausted] 的双钟
+  /// （墙钟 + 单调钟取大），墙钟回拨不会把等待拉长；旧实现用
+  /// `DateTime.now().isAfter(deadline)`，回拨后 deadline 迟迟不到、等待被
+  /// 拉长（同类写法见 BiometricService 的双钟修复）。
   Future<bool> _ensureBridgeToken({Duration budget = BridgeTokenPolicy.backBudget}) async {
     if (_bridgeTokenReady && _bridgeToken.isNotEmpty) return true;
-    final deadline = DateTime.now().add(budget);
+    final startedWall = DateTime.now();
+    final watch = Stopwatch()..start();
+    bool expired() => BridgeTokenPolicy.waitBudgetExhausted(
+          monotonic: watch.elapsed,
+          startedWall: startedWall,
+          now: DateTime.now(),
+          budget: budget,
+        );
+
     final injected = await _injectBridgeToken();
     while (!injected || !_bridgeTokenReady) {
-      if (!mounted || DateTime.now().isAfter(deadline)) return _bridgeTokenReady;
+      if (!mounted || expired()) return _bridgeTokenReady;
       if (_bridgeTokenReady && _bridgeToken.isNotEmpty) return true;
       await Future<void>.delayed(BridgeTokenPolicy.pollInterval);
       await _injectBridgeToken();
       if (_bridgeTokenReady) return true;
-      if (DateTime.now().isAfter(deadline)) return _bridgeTokenReady;
+      if (expired()) return _bridgeTokenReady;
     }
     return _bridgeTokenReady;
   }
@@ -1742,6 +1762,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrViewState',
                           callback: (args) async {
                             if (!await _bridgeAllowed(args)) return null;
+                            // await 期间页面可能已被移除/换凭证：ref 已失效，
+                            // 继续 read 会抛 StateError（iter16，与 zrEvents
+                            // 的 context.mounted 守卫同口径）。
+                            if (!mounted) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxViewStateBytes,
@@ -1754,6 +1778,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrSeen',
                           callback: (args) async {
                             if (!await _bridgeAllowed(args)) return null;
+                            if (!mounted) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxSeenBytes,
@@ -1766,6 +1791,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrStats',
                           callback: (args) async {
                             if (!await _bridgeAllowed(args)) return null;
+                            if (!mounted) return null;
                             final body = args.isNotEmpty ? args.first : null;
                             if (body is! String) return null;
                             // 解析前先限长（F04）：遥测本身很小，超限直接丢弃，
@@ -1798,6 +1824,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           handlerName: 'zrWs',
                           callback: (args) async {
                             if (!await _bridgeAllowed(args)) return null;
+                            if (!mounted) return null;
                             final body = BridgeSchema.acceptString(
                               args.isNotEmpty ? args.first : null,
                               maxBytes: BridgeSchema.maxWsEventBytes,

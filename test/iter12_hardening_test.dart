@@ -410,18 +410,22 @@ void main() {
     test('擦除事务清掉设备库完整性计数（同生命周期口径）', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
-      container.read(deviceStoreIntegrityProvider.notifier).report(
-            const DeviceLoadResult(devices: [], skippedRecords: 1, repaired: true),
-          );
       expect(
         ProtectedStateWipe.coveredProviders,
         contains('deviceStoreIntegrityProvider'),
       );
       // 读 deviceListProvider 会触发 build→_load 的异步报告；先排空它，
-      // 否则擦除清掉后又被在途 _load 的 report 顶回来（测试编排问题，
-      // 生产中 load 只发生在启动/重试，与擦除无并发窗口）。
+      // **再**写入要擦除的读数——否则在途 _load 的 report（测试环境存储
+      // 不可用 → unavailable → 未知/null）会把断言目标提前顶成 null，
+      // 令"clear 未执行"的变异存活（iter16 复核返修：断言必须只依赖
+      // 被钉住的 clear，而不能靠 report 的排序碰巧成立）。
       container.read(deviceListProvider);
       await Future<void>.delayed(const Duration(milliseconds: 50));
+      container.read(deviceStoreIntegrityProvider.notifier).report(
+            const DeviceLoadResult(devices: [], skippedRecords: 1, repaired: true),
+          );
+      expect(container.read(deviceStoreIntegrityProvider), isNotNull,
+          reason: '前置条件：擦除前必须存在非空读数');
       final wipeResult = await ProtectedStateWipe.run(container);
       expect(wipeResult.steps.first.ok,
           isTrue, reason: 'providers 步必须成功，清 integrity 才算执行');

@@ -21,6 +21,22 @@ abstract final class BridgeTokenPolicy {
   /// 轮询间隔。
   static const Duration pollInterval = Duration(milliseconds: 150);
 
+  /// 是否已超出等待预算（iter16）。
+  ///
+  /// 双钟取大：墙钟回拨时 `now - startedWall` 变负，单看墙钟会让
+  /// `isAfter(deadline)` 迟迟不成立、把等待无限拉长；单调钟给出真实等待
+  /// 上限（深睡时单调钟冻结，墙钟补位）。两钟各有一种失真场景且方向互补，
+  /// 取大者两者同堵——与 `BiometricService.relockEvidence` 同思路。
+  static bool waitBudgetExhausted({
+    required Duration monotonic,
+    required DateTime startedWall,
+    required DateTime now,
+    required Duration budget,
+  }) {
+    final wall = now.difference(startedWall);
+    return (wall > monotonic ? wall : monotonic) >= budget;
+  }
+
   /// 规范化 read-back 结果：去引号、去空白。非字符串返回 null。
   static String? normalize(Object? raw) {
     if (raw is! String) return null;

@@ -17,7 +17,20 @@ import '../models/device.dart';
 /// 时间——同一个控制链接重新导入必须得到同一个指纹。
 abstract final class CredentialFingerprint {
   /// 参与指纹的凭证键（顺序无关，键名统一小写后排序）。
-  static const credentialKeys = {'sid', 'hash', 't', 'token', 'key', 'code'};
+  ///
+  /// `remotecontroltoken` 是应用自己在 [LinkBuilder.parse] 里认的 token 键名
+  /// （iter16）：缺了它，只带 `remoteControlToken` 的链接指纹为 null，
+  /// findDuplicateDevice 直接放弃判重（F24 残余面）。`t` 是官方链接形态，
+  /// 两者都保留。
+  static const credentialKeys = {
+    'sid',
+    'hash',
+    't',
+    'token',
+    'remotecontroltoken',
+    'key',
+    'code',
+  };
 
   /// 指纹前缀长度（用于界面/日志展示；完整摘要只用于比较）。
   static const displayLength = 8;

@@ -2,7 +2,7 @@
 
 ## 报告漏洞
 
-- 首选：通过 GitHub 的 [私有漏洞报告](https://github.com/2421873411a-rgb/ZCode-App/security/advisories/new)（Private vulnerability reporting，已开启）。
+- 首选：通过 GitHub 的 [私有漏洞报告](https://github.com/daniei-chen/ZCode-App/security/advisories/new)（Private vulnerability reporting，已开启）。
 - 也可以在仓库 Issues 提交，但**不要在公开 Issue 中粘贴任何凭证**（`sid`、`hash`、`remoteControlToken`、控制链接）。
 
 ## 支持范围

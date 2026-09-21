@@ -70,8 +70,8 @@ abstract final class DiagnosticsBundle {
     required bool biometric,
     required bool notificationsEnabled,
     required bool batteryIgnored,
-    required int storeSkippedRecords,
-    required bool storeRepaired,
+    required int? storeSkippedRecords,
+    required bool? storeRepaired,
   }) {
     return DiagnosticsInputs(
       generatedAt: DateTime.now().toUtc(),
@@ -93,8 +93,12 @@ abstract final class DiagnosticsBundle {
         'batteryUnrestricted': batteryIgnored ? 'on' : 'off',
         'webviewStorage': WebViewStorage.policySummary,
         // 设备库完整性（iter12 W-018b）：隔离计数与修复标记，只有数字/枚举。
-        'storeSkippedRecords': '$storeSkippedRecords',
-        'storeRepaired': storeRepaired ? 'yes' : 'no',
+        // iter16：null = 本次启动尚未有过加载结果（例如 seed 路径没注入），
+        // 渲染成 `unknown`，绝不把"未知"谎报成 0/no。
+        'storeSkippedRecords': storeSkippedRecords?.toString() ?? 'unknown',
+        'storeRepaired': storeRepaired == null
+            ? 'unknown'
+            : (storeRepaired ? 'yes' : 'no'),
       },
       stats: {
         for (final entry in stats.entries) entry.key: entry.value,

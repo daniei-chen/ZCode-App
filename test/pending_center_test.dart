@@ -122,6 +122,33 @@ void main() {
     expect(find.text('待处理中心'), findsNothing, reason: '面板已关闭');
   });
 
+  testWidgets('等待行历史无命中时用 feed 权威键兜底跳转（iter16：点按不再原地）', (tester) async {
+    final container = _container([_device('a', '设备A')]);
+    container.read(eventFeedProvider.notifier).ingest(
+      'id-a',
+      const ObservedEvent(type: 'permission_request', taskId: 'task-9', pendingTotal: 1),
+    );
+    // 历史里只有更早的完成事件（模拟审批请求条目被 50 条上限挤出历史）。
+    container.read(eventHistoryProvider.notifier).record(
+      'id-a',
+      const ObservedEvent(type: 'completed', taskId: 'task-old'),
+    );
+
+    await _pumpHost(tester, container);
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 项待处理'));
+    await tester.pumpAndSettle();
+
+    final jump = container.read(pendingSessionJumpProvider);
+    expect(jump?.deviceId, 'id-a');
+    expect(
+      jump?.sessionId,
+      'task-9',
+      reason: '仍在该设备 pendingByTask 里的权威键必须成为兜底目标',
+    );
+  });
+
   testWidgets('设备列表入口：有待批准时显示红点，点按打开面板', (tester) async {
     final container = _container([_device('a', '设备A')]);
     container.read(eventFeedProvider.notifier).ingest(

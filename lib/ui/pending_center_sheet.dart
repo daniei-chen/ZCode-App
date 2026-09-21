@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../models/device_label.dart';
+import '../services/session_jump.dart';
 import '../state/event_feed.dart';
 import '../state/event_history.dart';
 import '../state/session_index.dart';
@@ -200,12 +201,30 @@ class PendingCenterSheet extends ConsumerWidget {
       entries ?? const <HistoryEntry>[],
       pendingKeys,
     );
-    if (target?.taskId != null) {
+    // 历史无命中时用 feed 的权威待处理键兜底（iter16）：任务仍在
+    // pendingByTask 里就说明"有东西在等"——跳转目标不该因为它的请求条目
+    // 被挤出 50 条历史（或 prefs 未入历史）而消失，否则点按没有任何
+    // 可见导航。占位键 'unknown' 与畸形 id 不放行（taskIdWellFormed 是
+    // 跳转脚本的硬门）。
+    final sessionId = target?.taskId ?? _fallbackPendingKey(pendingKeys);
+    if (sessionId != null) {
       ref
           .read(pendingSessionJumpProvider.notifier)
-          .set(PendingSessionJump(deviceId: deviceId, sessionId: target!.taskId!));
+          .set(PendingSessionJump(deviceId: deviceId, sessionId: sessionId));
     }
     Navigator.of(context).pop();
+  }
+
+  /// feed 权威键兜底：取最后一个形态合法的 taskId（插入序最新，排除
+  /// `'unknown'` 占位键——它只是"上游缺 id"的在场标记，不可能命中会话）。
+  static String? _fallbackPendingKey(Set<String> pendingKeys) {
+    String? fallback;
+    for (final key in pendingKeys) {
+      if (key == 'unknown') continue;
+      if (!SessionJump.taskIdWellFormed(key)) continue;
+      fallback = key;
+    }
+    return fallback;
   }
 }
 

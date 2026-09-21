@@ -1353,16 +1353,36 @@ class _ScannerPageState extends ConsumerState<ScannerPage>
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_navigating) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
     final code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
+    await _acceptCode(code);
+  }
+
+  /// 去重与导航闸门（拆自 `_onDetect`，widget 测试可经 [debugAcceptCode]
+  /// 直达）：`_navigating` 期间的后续扫码一律直接 return——写失败必须复位
+  /// 它并给出反馈（iter7 R-1），否则扫码页从此对任何二维码都"死锁"。
+  Future<void> _acceptCode(String code) async {
+    if (_navigating) return;
     final now = DateTime.now();
     if (code == _lastCode && now.difference(_lastAccept).inSeconds < 2) return;
     _lastCode = code;
     _lastAccept = now;
+    await _handleCode(code);
+  }
 
+  /// 测试直达入口（相机在 widget 测试里不可驱动；R-1 写失败复位路径需要
+  /// 行为级覆盖）。
+  @visibleForTesting
+  Future<void> debugAcceptCode(String code) => _acceptCode(code);
+
+  @visibleForTesting
+  bool get debugNavigating => _navigating;
+
+  /// 扫码内容处理：解析控制链接 → 判重 → 落库；写失败必须复位
+  /// `_navigating` 并给出反馈（iter7 R-1）。
+  Future<void> _handleCode(String code) async {
     final device = LinkBuilder.parse(code);
     if (device == null) {
       if (mounted) {

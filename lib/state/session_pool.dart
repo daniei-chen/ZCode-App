@@ -5,12 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/device.dart';
 import '../services/app_log.dart';
 import '../services/device_store.dart';
+import '../services/notifier.dart';
 import '../services/structured_log.dart';
 import '../services/warmup.dart';
 import 'bridge_health.dart';
+import 'event_feed.dart';
 import 'event_history.dart';
 import '../services/device_connectivity.dart';
 import 'observer_stats.dart';
+import 'pending_session_jump.dart';
 import 'subframe_stats.dart';
 
 class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
@@ -85,6 +88,30 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
 
   Future<void> remove(String id) => _enqueue(() async {
     await DeviceStore.instance.remove(id);
+    // 通知撤销（iter16）：删除前收集该设备所有可能发过通知的任务 id
+    // （feed 的权威待处理键 + 最近事件历史的 taskId），连同设备对象一起
+    // 交给 NotifierService。payload 里带着 device/session id，凭证与设备
+    // 记录都删了，通知不能继续留在系统通知栏（R-04 同口径：点开只会是死路）。
+    final device = state.where((d) => d.id == id).firstOrNull;
+    if (device != null) {
+      final feed = ref.read(eventFeedProvider)[id];
+      final history =
+          ref.read(eventHistoryProvider)[id] ?? const <HistoryEntry>[];
+      final taskIds = <String>{
+        ...?feed?.pendingByTask.keys,
+        if (feed?.lastTaskId != null) feed!.lastTaskId!,
+        for (final entry in history)
+          if (entry.taskId != null && entry.taskId!.isNotEmpty) entry.taskId!,
+      };
+      await NotifierService.instance.cancelForDevice(device, taskIds);
+    }
+    // 以已删设备为目标的在途跳转就地作废（iter16）：消费方只认设备 id
+    // （official_remote_page 的 `next.deviceId != widget.device.id`），页面
+    // 随设备销毁后这条目标永远不会被消费，只会长驻 provider。
+    final pendingJump = ref.read(pendingSessionJumpProvider);
+    if (pendingJump != null && pendingJump.deviceId == id) {
+      ref.read(pendingSessionJumpProvider.notifier).clear();
+    }
     // 取消待写定时器并清掉内存预热记录：否则延时写入会把已删设备的
     // warmup 又写回存储（F10）。
     await ref.read(warmupMemoryProvider.notifier).forget(id);
@@ -160,6 +187,10 @@ class DeviceListNotifier extends Notifier<List<RemoteDevice>> {
     // 旧链接对应的请求签名可能指向另一台桌面端，不能在新凭证下重放。
     await DeviceStore.instance.setWarmupScript(id, null);
     if (!ref.mounted) return;
+    // 连通性探测结果随链接失效（iter16）：probeUri 跟随 baseUrl.path，
+    // 换到不同 /remote/vN 路径后旧结果语义上属于另一条路径。此前只有
+    // 设备删除会 forget，与 device_connectivity 的注释口径不符。
+    ref.read(deviceConnectivityProvider.notifier).forget(id);
     state = [
       for (final d in state)
         if (d.id == id) updated else d,
@@ -340,14 +371,26 @@ class DeviceStoreIntegrity {
 }
 
 class DeviceStoreIntegrityNotifier extends Notifier<DeviceStoreIntegrity?> {
-  @override
-  DeviceStoreIntegrity? build() => null;
+  /// 冷启动注入（iter16）：`main` 在首帧前已经拿到 [DeviceLoadResult]，
+  /// 生产路径用 seed 构造 [DeviceListNotifier] 时不会走 `_load()`，
+  /// 完整性结果必须随 override 注入，否则诊断面永远显示"从未上报"。
+  DeviceStoreIntegrityNotifier({this.initial});
 
+  final DeviceStoreIntegrity? initial;
+
+  @override
+  DeviceStoreIntegrity? build() => initial;
+
+  /// 读取失败（unavailable）时设备列表为空、完整性无从而知：上报"未知"
+  /// （null → 诊断包渲染 unknown），绝不落成 0/no 的"干净"读数
+  /// （iter16 复核返修：unavailable 是"没读到"，不是"读过且干净"）。
   void report(DeviceLoadResult result) {
-    state = DeviceStoreIntegrity(
-      skippedRecords: result.skippedRecords,
-      repaired: result.repaired,
-    );
+    state = result.unavailable
+        ? null
+        : DeviceStoreIntegrity(
+            skippedRecords: result.skippedRecords,
+            repaired: result.repaired,
+          );
   }
 
   void clear() => state = null;
