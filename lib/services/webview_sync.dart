@@ -88,6 +88,9 @@ class WebViewSyncController {
       // Completion/failure notifications come from StateDiffer below, where
       // the whole session has entered a terminal state.
       ...EventParser.parseUserActionRoot(root),
+      // V2 账号流：协议级失败信封（app-error / workspace-bridge-error），
+      // 与 StateDiffer 的终态判断互不替代——信封是即时的、带原因的失败。
+      ...EventParser.parseProtocolFailuresRoot(root),
       // The official page can publish a flat task delta for sessions that are
       // not currently open. Include that form in the same state differ so a
       // completion/approval in any conversation is monitored, not just the

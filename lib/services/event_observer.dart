@@ -556,6 +556,55 @@ abstract final class EventParser {
     return result;
   }
 
+  /// V2 账号流的协议级失败信封（2026-10，桌面端 3.16.3 schema 实证）：
+  /// `{zcode_type:'app-error', reason, error}` 与
+  /// `{zcode_type:'workspace-bridge-error', reason, error}`。
+  ///
+  /// 只认 zcode_type 字面量，不认裸 `type:'error'`——旧页面在流式过程中
+  /// 会携带嵌套的 error 节点（那类终态判断仍归 [StateDiffer]），这里放行
+  /// 会把过程噪音当成任务失败。信封是协议明面的失败，可以直接消费。
+  static List<ObservedEvent> parseProtocolFailures(String body) {
+    final dynamic root;
+    try {
+      root = jsonDecode(body);
+    } catch (_) {
+      return const [];
+    }
+    return parseProtocolFailuresRoot(root);
+  }
+
+  static List<ObservedEvent> parseProtocolFailuresRoot(dynamic root) {
+    final events = <ObservedEvent>[];
+    _walkProtocolFailures(root, 0, events);
+    return events;
+  }
+
+  static void _walkProtocolFailures(
+    dynamic node,
+    int depth,
+    List<ObservedEvent> out,
+  ) {
+    if (depth > _maxDepth || node == null) return;
+    if (node is Map) {
+      final zcodeType = node['zcode_type'];
+      if (zcodeType == 'app-error' || zcodeType == 'workspace-bridge-error') {
+        final summary = _firstEventText(
+          node,
+          const ['error', 'message', 'reason', 'description'],
+        );
+        out.add(ObservedEvent(type: 'error', summary: summary));
+        return;
+      }
+      for (final value in node.values) {
+        _walkProtocolFailures(value, depth + 1, out);
+      }
+    } else if (node is List) {
+      for (final value in node) {
+        _walkProtocolFailures(value, depth + 1, out);
+      }
+    }
+  }
+
   static void _walk(dynamic node, int depth, List<ObservedEvent> out) {
     if (depth > _maxDepth || node == null) return;
     if (node is Map) {

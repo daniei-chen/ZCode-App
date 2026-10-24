@@ -1183,4 +1183,52 @@ void main() {
       }
     });
   });
+
+  group('EventParser.parseProtocolFailures（V2 协议失败信封）', () {
+    test('app-error 信封映射为 error 事件，摘要取 error 字段', () {
+      final events = EventParser.parseProtocolFailures(
+        jsonEncode({
+          'type': 'data',
+          'payload': {
+            'zcode_type': 'app-error',
+            'reason': 'relay',
+            'error': 'Desktop disconnected this session.',
+          },
+        }),
+      );
+      expect(events, hasLength(1));
+      expect(events.single.type, 'error');
+      expect(events.single.summary, 'Desktop disconnected this session.');
+      expect(events.single.taskId, isNull);
+    });
+
+    test('workspace-bridge-error 信封同样识别', () {
+      final events = EventParser.parseProtocolFailures(
+        jsonEncode({
+          'zcode_type': 'workspace-bridge-error',
+          'reason': 'workspace-open-failed',
+          'error': 'Workspace bridge failed',
+        }),
+      );
+      expect(events, hasLength(1));
+      expect(events.single.type, 'error');
+    });
+
+    test('裸 type:error（旧页面流式噪音）不触发，避免误报', () {
+      final events = EventParser.parseProtocolFailures(
+        jsonEncode({
+          'type': 'data',
+          'payload': {
+            'frame': {'type': 'error', 'error': 'mid-stream noise'},
+          },
+        }),
+      );
+      expect(events, isEmpty);
+    });
+
+    test('垃圾输入安全返回空', () {
+      expect(EventParser.parseProtocolFailures('not json'), isEmpty);
+      expect(EventParser.parseProtocolFailures('[]'), isEmpty);
+    });
+  });
 }
