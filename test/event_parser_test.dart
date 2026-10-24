@@ -1015,7 +1015,7 @@ void main() {
     });
   });
 
-  group('NotificationGate（前台应用内、后台系统提醒）', () {
+  group('NotificationGate（v1.2.0：完成/审批/报错都要弹，仅正盯着的会话静默）', () {
     test('后台/锁屏：一律提醒（含正在看的会话）', () {
       expect(
         NotificationGate.shouldNotify(
@@ -1029,7 +1029,7 @@ void main() {
       );
     });
 
-    test('前台 + 其他设备：由应用内通知承接，不发系统通知', () {
+    test('前台 + 其他设备：照常弹系统通知', () {
       expect(
         NotificationGate.shouldNotify(
           appForeground: true,
@@ -1038,11 +1038,11 @@ void main() {
           activeSessionId: 's1',
           eventSessionId: 's1',
         ),
-        isFalse,
+        isTrue,
       );
     });
 
-    test('前台 + 同设备 + 另一个会话：由应用内通知承接，不发系统通知', () {
+    test('前台 + 同设备 + 另一个会话：照常弹系统通知', () {
       expect(
         NotificationGate.shouldNotify(
           appForeground: true,
@@ -1051,11 +1051,11 @@ void main() {
           activeSessionId: 'sB',
           eventSessionId: 'sA',
         ),
-        isFalse,
+        isTrue,
       );
     });
 
-    test('前台 + 正在看的事件会话本身：不发系统通知', () {
+    test('前台 + 正在看的事件会话本身：静默（应用内浮窗已足够）', () {
       expect(
         NotificationGate.shouldNotify(
           appForeground: true,
@@ -1068,7 +1068,7 @@ void main() {
       );
     });
 
-    test('前台事件带不上会话 ID：仍不发系统通知', () {
+    test('前台 + 设备级失败信封（无会话 ID）：照常弹系统通知', () {
       expect(
         NotificationGate.shouldNotify(
           appForeground: true,
@@ -1077,7 +1077,17 @@ void main() {
           activeSessionId: 'sA',
           eventSessionId: null,
         ),
-        isFalse,
+        isTrue,
+      );
+      expect(
+        NotificationGate.shouldNotify(
+          appForeground: true,
+          visibleDeviceId: 'd1',
+          eventDeviceId: 'd1',
+          activeSessionId: 'sA',
+          eventSessionId: '',
+        ),
+        isTrue,
       );
     });
   });

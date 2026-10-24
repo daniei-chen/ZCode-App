@@ -220,6 +220,23 @@ class MainActivity : FlutterFragmentActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "zremote/keepalive",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    MonitorKeepAliveService.start(this)
+                    result.success(null)
+                }
+                "stop" -> {
+                    MonitorKeepAliveService.stop(this)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "zremote/theme",
         ).setMethodCallHandler { call, result ->
             when (call.method) {

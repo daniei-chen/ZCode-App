@@ -42,7 +42,9 @@ enum LogEvent {
   jumpSucceeded('JP301'),
   jumpFailed('JP302'),
 
-  // 通知
+  // 通知 / 常驻
+  keepaliveStarted('NT510'),
+  keepaliveStartFailed('NT511'),
   notificationInitFailed('NT500'),
   notificationShowFailed('NT501'),
   notificationTestFailed('NT502'),

@@ -176,18 +176,49 @@ void main() {
       expect(paths.contains('path="."'), isFalse);
     });
 
-    test('KeepAlive 历史实现必须已删除，且不得复活常驻服务（K1）', () {
+    test('常驻服务只允许纯保活形态：无轮询/无业务逻辑（K1，v1.2.0 修订）', () {
+      // K1 历史语义（v1.0.1）：v1.0.0 的 KeepAliveService 自带轮询与业务
+      // 逻辑，耗电且放大观测面，被整体移除并锁定"不得复活"。
+      // v1.2.0 按用户要求对齐 DeepSeek-Harness 的常驻模型：服务回归，但
+      // 只允许"纯保活"形态——进程保活让 WebView 事件流存活，无任何轮询、
+      // 网络或业务逻辑（事件解析/通知决策都在 Dart 侧，WebView 挂掉服务
+      // 也一无所得）。本测试锁定这个新边界。
+      final manifest = read('android/app/src/main/AndroidManifest.xml');
+      expect(manifest.contains('<service'), isTrue);
+      expect(manifest.contains('.MonitorKeepAliveService'), isTrue);
       expect(
-        read('android/app/src/main/AndroidManifest.xml').contains('<service'),
-        isFalse,
+        manifest.contains('android:foregroundServiceType="dataSync"'),
+        isTrue,
       );
+      // 旧的历史实现不得以原名回归（避免新旧两套常驻并存）。
       expect(
         File(
           '$root/android/app/src/main/kotlin/com/zcode/app/KeepAliveService.kt',
         ).existsSync(),
         isFalse,
       );
-      expect(File('$root/lib/services/keepalive.dart').existsSync(), isFalse);
+      final service = read(
+        'android/app/src/main/kotlin/com/zcode/app/MonitorKeepAliveService.kt',
+      );
+      // 纯保活边界：禁止网络、定时器与 Flutter 引擎内嵌（旧类名文件已由
+      // 上面的 existsSync 单独覆盖；MonitorKeepAliveService 类名含其子串，
+      // 不能按子串禁）。
+      for (final banned in [
+        'HttpURLConnection',
+        'OkHttp',
+        'Socket',
+        'Timer',
+        'FlutterEngine',
+      ]) {
+        expect(service.contains(banned), isFalse,
+            reason: '常驻服务必须保持纯保活，禁止 $banned');
+      }
+      // Dart 侧入口存在且经主启动路径拉起。
+      expect(File('$root/lib/services/keepalive.dart').existsSync(), isTrue);
+      expect(
+        read('lib/main.dart').contains('MonitorKeepAlive.start()'),
+        isTrue,
+      );
     });
 
     test('Release 构建禁止 debug 签名回退（缺 keystore 即失败）', () {

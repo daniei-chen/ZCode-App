@@ -1551,9 +1551,14 @@ abstract final class NotificationGate {
     required String? activeSessionId,
     required String? eventSessionId,
   }) {
-    // 前台由应用内浮窗和通知中心承接；系统通知只在应用离开前台后发出，
-    // 避免同一个事件在屏幕上重复出现。保留其余参数是为了兼容调用方。
-    return !appForeground;
+    // 用户口径（v1.2.0，对齐 DeepSeek-Harness）：完成/审批/报错都要弹系统
+    // 通知。后台/锁屏一律提醒；前台时只有"正盯着这台设备的这个会话"才
+    // 静默（应用内浮窗已足够），其余设备与会话照常弹。
+    if (!appForeground) return true;
+    if (visibleDeviceId != eventDeviceId) return true;
+    // 设备级失败信封（app-error 无 taskId）：照常弹，不吞。
+    if (eventSessionId == null || eventSessionId.isEmpty) return true;
+    return activeSessionId != eventSessionId;
   }
 }
 

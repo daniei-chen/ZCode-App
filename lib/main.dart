@@ -9,6 +9,7 @@ import 'models/device_label.dart';
 import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
+import 'services/keepalive.dart';
 import 'services/notifier.dart';
 import 'services/structured_log.dart';
 import 'services/webview_storage.dart';
@@ -23,6 +24,9 @@ import 'ui/app_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final store = DeviceStore.instance;
+  // 常驻前台服务（v1.2.0）：进程保活让后台/锁屏期间事件流与任务通知不断线。
+  // 幂等且失败不阻塞启动；成功路径只会有一条 IMPORTANCE_MIN 常驻通知。
+  unawaited(MonitorKeepAlive.start());
   // Start all small persistence reads together. Android keeps the launch
   // window visible until the first Flutter frame; serial secure-storage and
   // SharedPreferences reads made that window feel like a second splash.
