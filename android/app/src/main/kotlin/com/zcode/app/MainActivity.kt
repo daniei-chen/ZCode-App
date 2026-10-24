@@ -227,6 +227,11 @@ class MainActivity : FlutterFragmentActivity() {
                     MonitorKeepAliveService.start(this)
                     result.success(null)
                 }
+                "update" -> {
+                    val name = call.argument<String>("name") ?: ""
+                    MonitorKeepAliveService.update(this, name)
+                    result.success(null)
+                }
                 "stop" -> {
                     MonitorKeepAliveService.stop(this)
                     result.success(null)

@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/app_settings.dart';
+import '../services/keepalive.dart';
+import '../models/device_label.dart';
 import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
@@ -62,6 +64,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Keep launch quiet: the check runs in the background and only a confirmed
     // newer release produces a one-time foreground prompt.
     unawaited(_checkForUpdateOnLaunch());
+    // 常驻通知初始设备名（切换/改名由 build 里的 listener 跟随）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_syncKeepAliveDeviceName());
+    });
+  }
+
+  /// 把当前设备名推给常驻通知（远程 / 已连接到 `<设备名>`）。设备显示名与
+  /// 列表页一致；没有任何设备时保持原生默认文案。
+  Future<void> _syncKeepAliveDeviceName() async {
+    final devices = ref.read(deviceListProvider);
+    if (devices.isEmpty) return;
+    final active = ref.read(activeTabProvider);
+    final index = active >= 0 && active < devices.length ? active : 0;
+    final device = devices[index];
+    final l10n = AppLocalizations.of(context);
+    unawaited(MonitorKeepAlive.updateDevice(device.displayName(l10n)));
   }
 
   Future<void> _checkForUpdateOnLaunch() async {
@@ -253,6 +271,9 @@ class _AppShellState extends ConsumerState<AppShell> {
         _consumePendingTap();
         ref.read(activeTabProvider.notifier).restoreLast();
       }
+      // 设备改名/增删都会到这里：把最新设备名同步到常驻通知
+      // （原生侧同名去重，无变化不刷新）。
+      unawaited(_syncKeepAliveDeviceName());
     });
 
     ref.listen(activeTabProvider, (_, next) {
@@ -266,6 +287,8 @@ class _AppShellState extends ConsumerState<AppShell> {
           setState(() => _launcherVisible = false);
         }
       }
+      // 切换设备：常驻通知跟随当前设备名。
+      unawaited(_syncKeepAliveDeviceName());
     });
 
     // Feed events are also collected while the official remote page is in

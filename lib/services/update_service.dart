@@ -124,7 +124,7 @@ class UpdateService {
 
   static final instance = UpdateService._();
 
-  static const repositoryUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
+  static const repositoryUrl = 'https://github.com/daniei-chen/ZCode-App';
   static final latestReleasePage = Uri.parse('$repositoryUrl/releases/latest');
 
   /// 非 Android 平台的更新入口：直接打开最新发布页。
@@ -134,7 +134,16 @@ class UpdateService {
     } catch (_) {}
   }
   static final latestReleaseApi = Uri.parse(
-    'https://api.github.com/repos/2421873411a-rgb/ZCode-App/releases/latest',
+    'https://api.github.com/repos/daniei-chen/ZCode-App/releases/latest',
+  );
+
+  /// 国内网络兜底镜像（用户自有服务器，只读反代 GitHub latest-release
+  /// API，同源 JSON）。历史教训：v1.0.6-v1.1.6 的 main 线把仓库地址写成了
+  /// 不存在的 `2421873411a-rgb/ZCode-App`，"检查更新"永远报"尚未发布正式
+  /// 版本"；加上国内直连 api.github.com 本就不稳，这里提供第三条链路。
+  /// 下载仍限定 GitHub 官方域并做 SHA-256 校验，镜像只用于读版本与资产名。
+  static final latestReleaseMirror = Uri.parse(
+    'https://zhihui.kaogong.art/zcode-release-latest',
   );
   static const _promptedVersionKey = 'zremote.update.promptedVersion';
 
@@ -191,6 +200,24 @@ class UpdateService {
       if (apiResponse.statusCode >= 200 && apiResponse.statusCode < 300) {
         final apiResult = _resultFromApi(apiResponse.body, current);
         if (apiResult != null) return apiResult;
+      }
+
+      // 国内链路兜底：自有服务器镜像（同源 GitHub API JSON）。放在发布页
+      // 之前——对 CN 网络它的可达性远高于 github.com 网页重定向。
+      try {
+        final mirrorResponse = await _get(
+          httpClient,
+          latestReleaseMirror,
+          current,
+          timeout,
+        );
+        if (mirrorResponse.statusCode >= 200 &&
+            mirrorResponse.statusCode < 300) {
+          final mirrorResult = _resultFromApi(mirrorResponse.body, current);
+          if (mirrorResult != null) return mirrorResult;
+        }
+      } catch (_) {
+        // 镜像不可用不致命：继续走发布页回退。
       }
 
       // Anonymous API requests can be rate-limited. The public page redirect
@@ -781,7 +808,7 @@ class UpdateService {
         uri.scheme.toLowerCase() != 'https' ||
         uri.host.toLowerCase() != 'github.com' ||
         !uri.path.toLowerCase().startsWith(
-          '/2421873411a-rgb/zcode-app/releases/tag/',
+          '/daniei-chen/zcode-app/releases/tag/',
         )) {
       return null;
     }
@@ -795,7 +822,7 @@ class UpdateService {
         uri.scheme.toLowerCase() != 'https' ||
         uri.host.toLowerCase() != 'github.com' ||
         !uri.path.toLowerCase().startsWith(
-          '/2421873411a-rgb/zcode-app/releases/download/',
+          '/daniei-chen/zcode-app/releases/download/',
         ) ||
         !uri.path.toLowerCase().endsWith(allowedExtension)) {
       return null;
@@ -815,7 +842,7 @@ class UpdateService {
 
   static Uri? _releaseUriFromHtml(String html) {
     final match = RegExp(
-      r'https://github\.com/2421873411a-rgb/ZCode-App/releases/tag/[^"\s<]+',
+      r'https://github\.com/daniei-chen/ZCode-App/releases/tag/[^"\s<]+',
       caseSensitive: false,
     ).firstMatch(html);
     return _safeReleaseUri(match?.group(0));

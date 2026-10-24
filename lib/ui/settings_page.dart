@@ -316,7 +316,7 @@ class _FeedbackTile extends StatelessWidget {
   const _FeedbackTile();
 
   static const _issuesUrl =
-      'https://github.com/2421873411a-rgb/ZCode-App/issues';
+      'https://github.com/daniei-chen/ZCode-App/issues';
 
   @override
   Widget build(BuildContext context) {
@@ -901,7 +901,7 @@ class VersionFooter extends StatelessWidget {
   const VersionFooter({super.key});
 
   static final _info = PackageInfo.fromPlatform();
-  static const _repoUrl = 'https://github.com/2421873411a-rgb/ZCode-App';
+  static const _repoUrl = 'https://github.com/daniei-chen/ZCode-App';
 
   Future<void> _openRepo() async {
     try {
@@ -948,7 +948,7 @@ class VersionFooter extends StatelessWidget {
                     children: [
                       Flexible(
                         child: Text(
-                          'ZCode v${info.version} · github.com/2421873411a-rgb/ZCode-App',
+                          'ZCode v${info.version} · github.com/daniei-chen/ZCode-App',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

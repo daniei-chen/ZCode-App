@@ -21,6 +21,10 @@ abstract final class OutboundUrlPolicy {
     'api.github.com',
     'objects.githubusercontent.com',
     'release-assets.githubusercontent.com',
+    // 用户自有服务器的发版检查镜像（/zcode-release-latest，只读 GET 反代
+    // GitHub latest-release API）：国内直连 api.github.com 经常失败，误报
+    // "尚未发布正式版本"。下载链路仍限定 GitHub 官方域并做摘要校验。
+    'zhihui.kaogong.art',
   };
 
   /// 单次请求允许的最大重定向跳数。
