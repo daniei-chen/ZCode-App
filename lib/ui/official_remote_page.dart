@@ -769,14 +769,13 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _sync?.forget();
       _sync = null;
       _invalidateInFlightJump();
-      // 换凭证同时是本地存储的清理触发点（PR20/F19）：旧凭证下的 DOM storage
-      // 与缓存不能留给新凭证继续使用。Cookie 保留——V2 的账号登录态就是配对
-      // 凭证（2026-10 官方协议），换链接清 Cookie 会把登录态一并抹掉。
+      // 换凭证只清 HTTP 缓存。V2 的账号登录态（Cookie + localStorage 里的
+      // zcodejwttoken/oauth:*）跨链接有效——清掉它们等于每次重扫都要重新
+      // 登录；锁定擦除走 wipeAll 全清。
       unawaited(
         WebViewStorage.clearForCredentialChange(
           controller: _controller,
           deviceId: oldWidget.device.id,
-          preserveCookies: true,
         ),
       );
       ref.read(observerStatsProvider.notifier).forget(oldWidget.device.id);

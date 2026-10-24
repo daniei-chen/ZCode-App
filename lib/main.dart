@@ -389,8 +389,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     try {
       await widget.wipeProtectedData();
       // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
-      // 旧凭证留下的 Cookie/DOM storage/缓存不能继续留在磁盘上。
-      await WebViewStorage.clearForCredentialChange();
+      // 账号登录态（Cookie/DOM storage/缓存）不能继续留在磁盘上。
+      await WebViewStorage.wipeAll();
       ref.read(observerStatsProvider.notifier).clear();
       await ref.read(biometricProvider.notifier).set(false);
       if (mounted) {
