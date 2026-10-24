@@ -88,7 +88,7 @@
   "@scannerPermBody": {"description": "Scanner permission denied error body"},
   "scannerPermOpenSettings": "去设置",
   "@scannerPermOpenSettings": {"description": "Button to open app system settings"},
-  "invalidQr": "不是有效的远程控制二维码（缺少 sid/hash）",
+  "invalidQr": "不是有效的远程控制二维码（缺少 sid）",
   "@invalidQr": {"description": "Snackbar when scanned code is not a valid control QR"},
   "importDuplicate": "「{name}」已导入过，已为你切换过去",
   "@importDuplicate": {"description": "Snack bar shown when importing an already-known device", "placeholders": {"name": {"type": "String"}}},

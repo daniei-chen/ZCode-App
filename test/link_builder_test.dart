@@ -25,9 +25,31 @@ void main() {
       expect(LinkBuilder.parse(url), isNull);
     });
 
-    test('缺 hash 拒收', () {
-      const url = 'https://zcode.z.ai/remote/v4?sid=s&t=1';
-      expect(LinkBuilder.parse(url), isNull);
+    test('V2 官方二维码：只有 sid（无 hash/t）可导入（2026-10 协议改版）', () {
+      // 桌面端 3.16.3 `buildWebRemoteControlExternalQrUrl` 的实际输出形态：
+      // sid + mid + name + app_version，hash/t 已删除。
+      const url = 'https://zcode.z.ai/remote/v4'
+          '?sid=d_V2Device0000000000'
+          '&mid=00000000-0000-4000-8000-000000000000'
+          '&name=PC-20260816OWHB&app_version=3.16.3';
+      final d = LinkBuilder.parse(url)!;
+      expect(d.sid, 'd_V2Device0000000000');
+      expect(d.params.containsKey('hash'), isFalse);
+      expect(d.label, 'PC-20260816OWHB');
+      expect(d.baseUrl, 'https://zcode.z.ai/remote/v4');
+    });
+
+    test('V2 链接 buildUrl 不注入 t，其余参数原样', () {
+      const url =
+          'https://zcode.z.ai/remote/v4?sid=v2sid&mid=m&name=n&app_version=3.16.3';
+      final d = LinkBuilder.parse(url)!;
+      final uri = LinkBuilder.buildUrl(
+        d,
+        now: DateTime.fromMillisecondsSinceEpoch(1790000000000),
+      );
+      expect(uri.queryParameters.containsKey('t'), isFalse);
+      expect(uri.queryParameters['sid'], 'v2sid');
+      expect(uri.queryParameters['mid'], 'm');
     });
 
     test('空参数值视同缺失', () {
@@ -89,6 +111,63 @@ void main() {
       )!;
       expect(d.params['remoteControlToken'], 'token-1');
       expect(d.sid, isEmpty);
+    });
+  });
+
+  group('LinkBuilder.isTrustedSignInTarget（V2 登录中转域，2026-10 实测）', () {
+    test('官方 origin 与两个登录域放行', () {
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('https://zcode.z.ai/web-remote'),
+        ),
+        isTrue,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse(
+            'https://chat.z.ai/api/oauth/authorize?client_id=c&state=s',
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('https://bigmodel.cn/login?redirect=x&appId=zcode'),
+        ),
+        isTrue,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('https://www.bigmodel.cn/login'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('外站 / 明文 http / 非默认端口 / userInfo 一律拒绝', () {
+      expect(
+        LinkBuilder.isTrustedSignInTarget(Uri.parse('https://evil.com/login')),
+        isFalse,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('http://chat.z.ai/api/oauth/authorize'),
+        ),
+        isFalse,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('https://chat.z.ai:8443/auth'),
+        ),
+        isFalse,
+      );
+      expect(
+        LinkBuilder.isTrustedSignInTarget(
+          Uri.parse('https://zcode.z.ai@evil.com/login'),
+        ),
+        isFalse,
+      );
+      expect(LinkBuilder.isTrustedSignInTarget(null), isFalse);
     });
   });
 

@@ -326,7 +326,7 @@ class _PasteDialogState extends State<_PasteDialog> {
         autofocus: true,
         style: const TextStyle(fontSize: 13),
         decoration: const InputDecoration(
-          hintText: 'https://zcode.z.ai/remote/v4?sid=...&hash=...',
+          hintText: 'https://zcode.z.ai/remote/v4?sid=...&name=...',
         ),
       ),
       actions: [

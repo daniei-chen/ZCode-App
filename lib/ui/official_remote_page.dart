@@ -434,7 +434,9 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   const composer = document.querySelector('textarea, [contenteditable="true"], [data-testid*="composer"], [data-testid*="input"]');
   const bodyText = (document.body && document.body.innerText ? document.body.innerText : '');
   const handshake = bodyText.indexOf('加载工作区') >= 0 || bodyText.indexOf('配对工作区') >= 0;
-  return JSON.stringify({ rows: rows, composer: !!composer, handshake: handshake });
+  const signin = bodyText.indexOf('登录后继续使用') >= 0 ||
+    bodyText.indexOf('Web Remote Control Sign In') >= 0;
+  return JSON.stringify({ rows: rows, composer: !!composer, handshake: handshake, signin: signin });
 })()
 ''';
 
@@ -626,13 +628,21 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       await Future<void>.delayed(const Duration(milliseconds: 300));
       if (!mounted || !_bootCover || _failed) return;
       try {
+        // V2 账号流（2026-10）：主帧离开 /remote/vN（登录中转域、官方站
+        // /web-remote 选设备页）= 用户正在登录/选电脑。这些页面没有任务行
+        // /输入区，探针只会把盖板拖满 12s deadline——离开远控页即揭盖。
+        final currentUrl = await _controller?.getUrl();
+        if (!LinkBuilder.isTrustedRemotePage(currentUrl)) break;
         final result = await _controller?.evaluateJavascript(
           source: _workspaceReadyProbeScript,
         );
         final payload = jsonDecode(result?.toString() ?? '{}');
+        // 登录页（V2 账号流首扫的必经态）也算"真实内容"：盖板必须让用户
+        // 看到登录入口，而不是盖满 12 秒 deadline。
         final ready = payload is Map &&
             ((payload['rows'] as int? ?? 0) > 0 ||
-                payload['composer'] == true);
+                payload['composer'] == true ||
+                payload['signin'] == true);
         if (ready) break;
       } catch (_) {
         // 探针失败不算失败：下一轮再试，超时兜底会揭盖。
@@ -759,12 +769,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       _sync?.forget();
       _sync = null;
       _invalidateInFlightJump();
-      // 换凭证同时是本地存储的清理触发点（PR20/F19）：旧凭证下的 Cookie、
-      // DOM storage 与缓存不能留给新凭证继续使用。
+      // 换凭证同时是本地存储的清理触发点（PR20/F19）：旧凭证下的 DOM storage
+      // 与缓存不能留给新凭证继续使用。Cookie 保留——V2 的账号登录态就是配对
+      // 凭证（2026-10 官方协议），换链接清 Cookie 会把登录态一并抹掉。
       unawaited(
         WebViewStorage.clearForCredentialChange(
           controller: _controller,
           deviceId: oldWidget.device.id,
+          preserveCookies: true,
         ),
       );
       ref.read(observerStatsProvider.notifier).forget(oldWidget.device.id);
@@ -1437,10 +1449,13 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                               ? NavigationActionPolicy.ALLOW
                               : NavigationActionPolicy.CANCEL;
                         }
-                        // W1：只有官方远控页面可以留在高权限容器里；官方站
-                        // 其他页面与外站一律拦截。只记录 path，不记录
-                        // query/fragment（凭证都在 query 里）。
-                        final trusted = LinkBuilder.isTrustedRemotePage(uri);
+                        // W1：官方 origin 任意路径可留在容器里（V2 账号流的
+                        // OAuth 回调 /web-remote 选设备页都在官方域的其他
+                        // 路径上）；登录中转域（chat.z.ai / bigmodel.cn）
+                        // 放行——不放行用户在 App 内永远无法完成登录。
+                        // 高权限 bridge 不随之下放：它由 isTrustedRemotePage
+                        // （/remote/vN 命名空间）+ 主 frame 令牌单独把守。
+                        final trusted = LinkBuilder.isTrustedSignInTarget(uri);
                         if (!trusted) {
                           // release 可见（AppLog.warn）：真机 smoke 需要靠这条
                           // 日志发现被误拦的合法导航，再把路由加进策略。

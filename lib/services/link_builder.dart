@@ -6,8 +6,16 @@ import 'package:uuid/uuid.dart';
 import '../models/device.dart';
 
 class LinkBuilder {
+  /// 官方控制链接的凭证形态（按桌面端版本演进）：
+  ///
+  /// * V2（2026-10，桌面端 3.16.3 实测）：`sid` 必带（设备注册身份），
+  ///   `hash`/`t` 已从二维码中删除，另带 `mid`/`name`/`app_version`；
+  /// * V1（旧桌面端）：`sid`+`hash`+`t`；
+  /// * 最早的 token 形态：`remoteControlToken`。
+  ///
+  /// 因此这里只要求 `sid` 或 `remoteControlToken` 其一非空；`hash` 作为
+  /// 兼容字段不参与判定。
   static const _sidKey = 'sid';
-  static const _hashKey = 'hash';
   static const _tKey = 't';
   static const _nameKey = 'name';
 
@@ -70,6 +78,25 @@ class LinkBuilder {
       }
     }
     return true;
+  }
+
+  /// V2 账号流的主帧导航域（2026-10 实测官方页 OAuth 链路）。
+  ///
+  /// 官方远控页登录后才能配对：页内"连接 Z.ai / 连接 BigModel"会主帧跳转
+  /// 到 `chat.z.ai/api/oauth/authorize`（Z.ai，实测落地 chat.z.ai/auth）或
+  /// `bigmodel.cn/login`（BigModel，实测停留 bigmodel.cn），完成后重定向
+  /// 回官方 origin（OAuth 回调落在 /remote/v4 与 /web-remote* 路径）。官方
+  /// origin 任意路径因此都在允许集内。这些页面只是登录中转，不进高权限
+  /// 容器（bridge 仍由 [isTrustedRemotePage] 把守）。
+  static bool isTrustedSignInTarget(Uri? uri) {
+    if (isTrustedOrigin(uri)) return true;
+    if (uri == null || uri.scheme.toLowerCase() != 'https') return false;
+    if (uri.userInfo.isNotEmpty) return false;
+    if (uri.port != 443) return false;
+    final host = uri.host.toLowerCase();
+    if (host == 'chat.z.ai') return true;
+    if (host == 'bigmodel.cn') return true;
+    return host.endsWith('.bigmodel.cn');
   }
 
   /// 出站端点的第二道防线：拒绝环回、私网与保留地址。
@@ -153,12 +180,17 @@ class LinkBuilder {
     });
 
     final sid = params[_sidKey];
-    final hash = params[_hashKey];
     final token = params['remoteControlToken'];
-    final hasPair =
-        sid != null && sid.isNotEmpty && hash != null && hash.isNotEmpty;
+    final hasSid = sid != null && sid.isNotEmpty;
     final hasToken = token != null && token.isNotEmpty;
-    if (!hasPair && !hasToken) return null;
+    // 凭证判定（2026-10 官方协议改版核对结论）：
+    // * V2（桌面端 3.16.3 起，`buildWebRemoteControlExternalQrUrl`）：二维码
+    //   只带 sid（设备身份）+ mid/name/app_version，**不带 hash/t**；配对
+    //   凭证由官方页的账号登录态（JWT + ws2 中继）承担。实证：sid-only
+    //   链接在 zcode.z.ai/remote/v4 上进入登录→选择电脑流程。
+    // * V1（旧桌面端）：sid+hash+t，hash 保留只为旧链接继续可用。
+    // * 更早的 token 形态：remoteControlToken。
+    if (!hasSid && !hasToken) return null;
 
     final base = uri.hasPort
         ? Uri(
@@ -187,7 +219,11 @@ class LinkBuilder {
 
   static Uri buildUrl(RemoteDevice device, {DateTime? now}) {
     final params = Map<String, String>.of(device.params);
-    params[_tKey] = (now ?? DateTime.now()).millisecondsSinceEpoch.toString();
+    // `t` 是 V1 链接的缓存击穿参数（V2 官方二维码已明确删除它）：只在链接
+    // 本来就带 `t` 时刷新，不向 V2 链接注入官方协议之外的参数。
+    if (params.containsKey(_tKey)) {
+      params[_tKey] = (now ?? DateTime.now()).millisecondsSinceEpoch.toString();
+    }
     return Uri.parse(device.baseUrl).replace(queryParameters: params);
   }
 }
