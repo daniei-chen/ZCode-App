@@ -77,3 +77,4 @@ android/key.properties
 *.apk
 *.ipa
 *.so.tmp
+.fetch/
