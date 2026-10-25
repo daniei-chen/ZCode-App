@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/device.dart';
 import '../relay/relay_monitor.dart';
 import '../services/app_log.dart';
+import '../services/device_store.dart';
 import '../services/event_observer.dart';
 import '../services/monitor_state_store.dart';
 import '../services/notifier.dart';
@@ -35,11 +36,13 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
   final _differs = <String, StateDiffer>{};
   final _gates = <String, EventDedupeGate>{};
   bool _disposed = false;
+  Timer? _reloadTimer;
 
   @override
   Map<String, RelayMonitorState> build() {
     ref.onDispose(() {
       _disposed = true;
+      _reloadTimer?.cancel();
       for (final id in _connections.keys.toSet()) {
         _connections.remove(id)?.stop();
       }
@@ -48,6 +51,16 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     });
     ref.listen(deviceListProvider, (_, next) => _sync(next));
     _sync(ref.read(deviceListProvider));
+    // 跨隔离体同步（v1.6.3）：UI 引擎增删设备写的是共享存储，本隔离体的
+    // provider 实例不会收到通知——30s 周期重读存储，登录后新设备及时被
+    // 监控（此前要重启 app 才生效）。
+    _reloadTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (_disposed) return;
+      try {
+        final result = await DeviceStore.instance.loadAllWithStatus();
+        if (_disposed || !result.unavailable) _sync(result.devices);
+      } catch (_) {}
+    });
     return const {};
   }
 

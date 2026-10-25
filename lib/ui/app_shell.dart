@@ -14,6 +14,10 @@ import '../state/app_lifecycle.dart';
 import '../state/back_stack.dart';
 import '../state/connection_status.dart';
 import '../state/device_directory.dart';
+import 'package:uuid/uuid.dart';
+import '../services/app_log.dart';
+import '../services/structured_log.dart';
+import '../models/device.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/root_tabs.dart';
@@ -82,6 +86,47 @@ class _AppShellState extends ConsumerState<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_syncKeepAliveDeviceName());
     });
+  }
+
+  /// 账号设备 → deviceList 自动同步（v1.6.3）：
+  /// * 目录里新出现的设备自动创建（标记 params['account']='1'）；
+  /// * 自动导入的设备若从目录消失（账号侧删除）则自动移除；
+  /// * 手动导入的设备（无标记）永不自动删——用户手动管理权优先。
+  void _syncAccountDevices(List<AccountDevice> dirDevices) {
+    if (!mounted) return;
+    final manual = ref.read(deviceListProvider);
+    final dirSids = {for (final d in dirDevices) d.sid};
+    var changed = false;
+    for (final d in dirDevices) {
+      if (manual.any((m) => m.sid == d.sid)) continue;
+      unawaited(
+        ref.read(deviceListProvider.notifier).add(
+              RemoteDevice(
+                id: const Uuid().v4(),
+                baseUrl: 'https://zcode.z.ai/remote/v4',
+                params: {
+                  'sid': d.sid,
+                  'mid': d.mid,
+                  'name': d.displayName,
+                  'app_version': '3.16.3',
+                  'account': '1',
+                },
+                label: d.displayName,
+                createdAt: DateTime.now(),
+              ),
+            ),
+      );
+      changed = true;
+    }
+    for (final m in manual) {
+      if (m.params['account'] != '1') continue;
+      if (dirSids.contains(m.sid)) continue;
+      unawaited(ref.read(deviceListProvider.notifier).remove(m.id));
+      changed = true;
+    }
+    if (changed) {
+      AppLog.event(LogEvent.directoryDevicesSynced, level: LogLevel.debug);
+    }
   }
 
   /// 把当前设备名推给常驻通知（远程 / 已连接到 `<设备名>`）。设备显示名与
@@ -280,8 +325,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.listen<NotificationPrefs>(notificationPrefsProvider, (_, next) {
       NotifierService.instance.setAlertMode(next.alertMode);
     });
-    // 登录过期 → 一次性通知；恢复 → 撤掉（v1.6.1）。
+    // 账号设备自动落库（v1.6.3，账号为中心的关键一步）：目录里的设备
+    // 自动进 deviceList（sid 去重），账号侧增删自动跟随——监控/命令/
+    // 通知全链复用现有管线。同时驱动过期通知（v1.6.1）。
     ref.listen<DeviceDirectoryState>(deviceDirectoryProvider, (_, next) {
+      _syncAccountDevices(next.devices);
       switch (next.status) {
         case DeviceDirectoryStatus.authExpired:
           unawaited(NotifierService.instance.showAuthExpired());
@@ -305,7 +353,9 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     ref.listen(activeTabProvider, (_, next) {
       final list = ref.read(deviceListProvider);
-      if (next < list.length) {
+      // v1.6.3：next 可能在空列表时短暂为 -1（clampTo 归零前的中间态），
+      // 必须双向夹紧，否则 list[next] 在空列表上抛 RangeError。
+      if (next >= 0 && next < list.length) {
         // Opening a device acknowledges its unread event count. Keep the
         // actual pending permission state so the session itself can still
         // show that it needs a decision.

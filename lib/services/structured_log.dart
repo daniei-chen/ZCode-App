@@ -59,6 +59,7 @@ enum LogEvent {
 
   // 账号设备目录（v1.5.0，GET /api/v1/remote/device）
   directoryFetchFailed('RL530'),
+  directoryDevicesSynced('RL531'),
 
   // 更新
   updateCheckFailed('UP600'),

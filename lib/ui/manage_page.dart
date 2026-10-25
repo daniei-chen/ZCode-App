@@ -166,7 +166,9 @@ class ManagePage extends ConsumerWidget {
                   _AccountExpiredBanner(
                     onRelogin: () => _openLogin(context),
                   ),
-                if (devices.isEmpty) ...[
+                // v1.6.3 结构修正：账号设备区不再挂在"手动设备非空"分支下
+                //（全新装机手动为 0 时账号设备永远不渲染——MuMu 实测抓到）。
+                if (directory.devices.isEmpty && devices.isEmpty) ...[
                   if (directory.status == DeviceDirectoryStatus.signedOut)
                     _AccountLoginCard(
                       onRefresh: () =>
@@ -174,8 +176,7 @@ class ManagePage extends ConsumerWidget {
                       onScan: () => _openScanner(context, ref),
                       onPaste: () => _showPasteDialog(context, ref),
                     )
-                  else if (directory.status == DeviceDirectoryStatus.ready &&
-                      directory.devices.isEmpty)
+                  else if (directory.status == DeviceDirectoryStatus.ready)
                     _NoDirectoryDevicesHint(
                       onRefresh: () =>
                           ref.read(deviceDirectoryProvider.notifier).refresh(),
@@ -202,28 +203,29 @@ class ManagePage extends ConsumerWidget {
                       ),
                     const SizedBox(height: 2),
                   ],
-                  SectionLabel(l10n.devicesCount(devices.length)),
-                  ReorderableListView(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    buildDefaultDragHandles: false,
-                    onReorderItem: (oldIndex, newIndex) => ref
-                        .read(deviceListProvider.notifier)
-                        .reorder(oldIndex, newIndex),
-                    children: [
-                      for (var i = 0; i < devices.length; i++)
-                        // 目录已按 sid 展示的设备不再重复列出手动条目
-                        //（同一台电脑只出现一次）。
-                        if (!directorySids.contains(devices[i].sid))
-                          _DeviceCard(
-                            key: ValueKey(devices[i].id),
-                            device: devices[i],
-                            index: i,
-                            onOpenDevice: onOpenDevice,
-                          ),
-                    ],
-                  ),
+                  // 手动设备：目录已展示的 sid 不重复出现。
+                  if (devices.any((d) => !directorySids.contains(d.sid))) ...[
+                    SectionLabel(l10n.devicesCount(devices.length)),
+                    ReorderableListView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      buildDefaultDragHandles: false,
+                      onReorderItem: (oldIndex, newIndex) => ref
+                          .read(deviceListProvider.notifier)
+                          .reorder(oldIndex, newIndex),
+                      children: [
+                        for (var i = 0; i < devices.length; i++)
+                          if (!directorySids.contains(devices[i].sid))
+                            _DeviceCard(
+                              key: ValueKey(devices[i].id),
+                              device: devices[i],
+                              index: i,
+                              onOpenDevice: onOpenDevice,
+                            ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   _ConnectAnotherCard(
                     onScan: () => _openScanner(context, ref),

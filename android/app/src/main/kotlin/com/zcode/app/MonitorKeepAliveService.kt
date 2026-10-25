@@ -156,9 +156,13 @@ class MonitorKeepAliveService : Service() {
                 }
             engine = created
             headlessEngine = created
+            android.util.Log.i("MonitorKeepAlive", "headless engine started")
             // UI 可能已经在前台（服务先于 Activity 起来）：补一次协调。
             pushSuspendState()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            // v1.6.3：引擎失败不再全静默——logcat 可查（此前入口缺失类
+            // 失败被吞，监控从未启动也无从发现）。
+            android.util.Log.e("MonitorKeepAlive", "headless engine failed", e)
             engine = null
         }
     }

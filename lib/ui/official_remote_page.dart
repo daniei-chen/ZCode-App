@@ -883,7 +883,14 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       if (token != null) {
         unawaited(RelayCredentials.storeJwt(token));
       }
-      final label = AccountLabel.displayNameFromToken(raw);
+      var label = AccountLabel.displayNameFromToken(raw);
+      // JWT claims 无名字字段——补读官方 user_info（v1.6.3）。
+      if (label == null) {
+        final info = await _controller?.evaluateJavascript(
+          source: AccountLabel.userInfoScript,
+        );
+        label = AccountLabel.displayNameFromUserInfo(info?.toString() ?? '');
+      }
       if (label != null) {
         ref.read(accountLabelProvider.notifier).report(label);
       }

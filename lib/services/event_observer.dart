@@ -379,7 +379,12 @@ abstract final class EventObserver {
         return false;
       }
       if (u.port !== '' && u.port !== '443') return false;
-      return u.pathname === '/ws' || u.pathname.indexOf('/ws/') === 0;
+      // v1.6.3 实测修正：V2 页面的 relay WS 是 /api/v1/remote/ws2
+      //（MuMu 抓包：WV114 route=/api/v1/remote/ws2）——旧白名单只认
+      // /ws（V1 端点），导致页面事件流整体被忽略（wsMessages 恒 0）。
+      var p = u.pathname;
+      return p === '/ws' || p.indexOf('/ws/') === 0 ||
+          p === '/api/v1/remote/ws2' || p.indexOf('/api/v1/remote/ws') === 0;
     } catch (e) { return false; }
   };
   var ssAllowed = function(urlStr) { return allowedHost(urlStr, 'https:'); };

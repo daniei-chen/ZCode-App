@@ -39,6 +39,43 @@ abstract final class AccountLabel {
 })()
 ''';
 
+  /// 账号展示名探针（v1.6.3）：官方把用户信息存 oauth:*:user_info
+  /// （JSON，含 displayName/username）——JWT claims 里没有名字字段。
+  static const userInfoScript = '''
+(function() {
+  try {
+    var keys = ['oauth:bigmodel:user_info', 'oauth:zai:user_info'];
+    for (var i = 0; i < keys.length; i++) {
+      var t = null;
+      try { t = localStorage.getItem(keys[i]); } catch (e2) {}
+      if (typeof t === 'string' && t.length > 0 && t.length < 8192) return t;
+    }
+  } catch (e) {}
+  return '';
+})()
+''';
+
+  /// 从 user_info JSON 解展示名（displayName → username → email）。
+  static String? displayNameFromUserInfo(String raw) {
+    var text = raw.trim();
+    if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) {
+      text = text.substring(1, text.length - 1);
+    }
+    if (text.isEmpty || !text.startsWith('{')) return null;
+    try {
+      final map = jsonDecode(text);
+      if (map is! Map) return null;
+      for (final key in const ['displayName', 'username', 'email', 'name']) {
+        final v = map[key];
+        if (v is String && v.trim().isNotEmpty) {
+          final clean = v.trim().replaceAll(RegExp(r'\s+'), ' ');
+          return clean.length > 64 ? '${clean.substring(0, 64)}…' : clean;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// 从探针返回值提取登录令牌本体（剥引号、限长）；解析不出返回 null。
   static String? extractToken(String raw) {
     var token = raw.trim();

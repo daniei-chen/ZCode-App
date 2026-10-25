@@ -10,6 +10,11 @@ import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/keepalive.dart';
+// 头无引擎入口的可达性锚点（v1.6.3）：AOT 只编译 main.dart 的传递导入
+// 图——不 import 本文件，monitorMain 就不在 release 快照里，服务里的
+// DartEntrypoint 永远找不到入口（v1.3.1 起后台监控从未启动的根因）。
+// ignore: unused_import
+import 'monitor_main.dart';
 import 'services/notifier.dart';
 import 'services/relay_credentials.dart';
 import 'services/structured_log.dart';

@@ -99,7 +99,10 @@ void main() {
 
     test('WS/SSE 白名单（W2）：只观察官方 relay 端点，其余透明计数', () {
       final hook = read('lib/services/event_observer.dart');
-      expect(hook.contains("u.pathname === '/ws'"), isTrue);
+      // v1.6.3 实测（MuMu WV114）：V2 页面 relay WS 为 /api/v1/remote/ws2，
+      // 旧 /ws 是 V1 端点——白名单必须同时覆盖两代端点。
+      expect(hook.contains("p === '/ws'"), isTrue);
+      expect(hook.contains("'/api/v1/remote/ws2'"), isTrue);
       expect(hook.contains('wsIgnored'), isTrue);
       expect(hook.contains('sseIgnored'), isTrue);
     });
