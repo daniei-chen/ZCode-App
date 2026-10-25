@@ -54,6 +54,7 @@ enum LogEvent {
   // 原生监控通道（v1.3.0，wss://zcode.z.ai/ws JSON 层直连）
   relayMonitorConnectFailed('RL520'),
   relayMonitorBinaryIgnored('RL521'),
+  relayMonitorPaired('RL522'),
 
   // 更新
   updateCheckFailed('UP600'),

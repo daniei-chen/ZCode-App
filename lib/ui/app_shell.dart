@@ -15,7 +15,6 @@ import '../state/back_stack.dart';
 import '../state/connection_status.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
-import '../state/relay_monitor.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
@@ -63,10 +62,10 @@ class _AppShellState extends ConsumerState<AppShell> {
     NotifierService.instance.setAlertMode(
       ref.read(notificationPrefsProvider).alertMode,
     );
-    // 原生监控通道（v1.3.0）与连接状态聚合：进程活着就常驻，不随页面
-    // 生命周期停启。provider 的 build 监听 deviceListProvider，设备增删
-    // 自动同步通道。
-    ref.read(relayMonitorProvider.notifier);
+    // 连接状态聚合（WebView 源）：只做状态与常驻文案，不发系统通知
+    // （断连/恢复通知由头无监控引擎独占，见 ConnectionStatusNotifier 标记）。
+    // 原生监控通道不在 UI 引擎里跑——MonitorKeepAliveService 宿主的头无
+    // 引擎（monitorMain）独占它，Activity 被回收后通知照常。
     ref.read(connectionStatusProvider.notifier);
     // Keep launch quiet: the check runs in the background and only a confirmed
     // newer release produces a one-time foreground prompt.
@@ -78,19 +77,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   /// 把当前设备名推给常驻通知（远程 / 已连接到 `<设备名>`）。设备显示名与
-  /// 列表页一致；没有任何设备时保持原生默认文案。连接状态一并推送
-  /// （v1.3.0 三态文案；无信号时保持乐观的"已连接"）。
+  /// 列表页一致；没有任何设备时保持原生默认文案。连接状态的断开/恢复文案
+  /// 由头无监控引擎独占（v1.3.1），UI 只推设备名（原生侧保留状态位）。
   Future<void> _syncKeepAliveDeviceName() async {
     final devices = ref.read(deviceListProvider);
     if (devices.isEmpty) return;
     final active = ref.read(activeTabProvider);
     final index = active >= 0 && active < devices.length ? active : 0;
     final device = devices[index];
-    final connected =
-        ref.read(connectionStatusProvider.notifier).liveState(device.id) ??
-        true;
     unawaited(
-      MonitorKeepAlive.updateStatus(deviceName: device.displayName(AppLocalizations.of(context)), connected: connected),
+      MonitorKeepAlive.updateDevice(device.displayName(AppLocalizations.of(context))),
     );
   }
 

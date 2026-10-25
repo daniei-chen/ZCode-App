@@ -13,6 +13,7 @@ import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../services/in_page_back.dart';
 import '../services/link_builder.dart';
+import '../services/relay_credentials.dart';
 import '../services/session_jump.dart';
 import '../services/event_observer.dart';
 import '../services/warmup.dart';
@@ -865,9 +866,10 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     } catch (_) {}
   }
 
-  /// 登录账号标签（v1.3.0）：受信任页面的 localStorage 里读登录令牌，
-  /// 解出展示名供设备中心头部显示。只在本机 UI 展示，不写日志。
-  /// 探针失败/读不到都静默——账号芯片是可选增强，绝不是功能依赖。
+  /// 登录账号标签 + 监控凭证捕获（v1.3.1）：受信任页面的 localStorage 里
+  /// 读登录令牌——解出展示名供设备中心显示，同时把令牌原文落安全存储供
+  /// 头无监控引擎连接中继（wss://…/ws?token=…&mid=…）。令牌只进安全存储，
+  /// 不写日志、不进诊断包；账号芯片是可选增强，探针失败全部静默。
   Future<void> _probeAccountLabel() async {
     try {
       final url = await _controller?.getUrl();
@@ -876,7 +878,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
         source: AccountLabel.probeScript,
       );
       if (!mounted) return;
-      final label = AccountLabel.displayNameFromToken(result?.toString() ?? '');
+      final raw = result?.toString() ?? '';
+      final token = AccountLabel.extractToken(raw);
+      if (token != null) {
+        unawaited(RelayCredentials.storeJwt(token));
+      }
+      final label = AccountLabel.displayNameFromToken(raw);
       if (label != null) {
         ref.read(accountLabelProvider.notifier).report(label);
       }

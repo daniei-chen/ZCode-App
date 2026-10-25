@@ -61,11 +61,15 @@ class MainActivity : FlutterFragmentActivity() {
         if (recentsCoverEnabled) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
+        // UI 离开前台 → 头无监控引擎 resume（v1.3.1：接管事件与通知）。
+        MonitorKeepAliveService.setUiActive(this, false)
     }
 
     override fun onResume() {
         super.onResume()
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // UI 回到前台 → 头无监控引擎 suspend（事件归 WebView 路径，避免双源）。
+        MonitorKeepAliveService.setUiActive(this, true)
     }
 
     private fun savedThemeMode(): String = getSharedPreferences(
@@ -342,38 +346,11 @@ class MainActivity : FlutterFragmentActivity() {
 
     /**
      * 预建告警渠道（v1.2.2，对齐 DeepSeek-Harness 的"通知类别"形态）：
-     * 渠道若只在首条通知时创建，用户在系统设置里永远看不到"失败/需要你的
-     * 操作"类别。同时清掉旧版本与其他提醒方式的渠道，让系统"通知类别"
-     * 列表保持五类：完成通知 / 失败 / 需要你的操作 / 连接状态 / 远程监控常驻。
+     * 渠道定义已抽出 NotificationChannels（v1.3.1）——UI 引擎与头无监控
+     * 引擎两侧必须产出完全一致的渠道集。
      */
     private fun ensureAlertChannels(mode: String) {
-        val manager = getSystemService(NotificationManager::class.java) ?: return
-        val defs = listOf(
-            Triple("zr_perm_alert_v7", "需要你的操作", NotificationManager.IMPORTANCE_HIGH),
-            Triple("zr_fail_alert_v7", "失败", NotificationManager.IMPORTANCE_HIGH),
-            Triple("zr_done_alert_v7", "完成通知", NotificationManager.IMPORTANCE_HIGH),
-        )
-        val keep = mutableSetOf("zr_keep_monitor_v8", "zr_conn_v8")
-        for ((base, name, importance) in defs) {
-            val id = "${base}_$mode"
-            keep.add(id)
-            manager.createNotificationChannel(
-                NotificationChannel(id, name, importance).apply { setShowBadge(true) },
-            )
-        }
-        // 连接状态（v1.3.0）：断连/恢复通知走静默低优先级渠道，不随提醒方式变化。
-        manager.createNotificationChannel(
-            NotificationChannel(
-                "zr_conn_v8",
-                "连接状态",
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply { setShowBadge(false) },
-        )
-        for (channel in manager.notificationChannels) {
-            if (channel.id.startsWith("zr_") && channel.id !in keep) {
-                manager.deleteNotificationChannel(channel.id)
-            }
-        }
+        NotificationChannels.ensure(this, mode)
     }
 
     private fun installApk(path: String): Boolean {

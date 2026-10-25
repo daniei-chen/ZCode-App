@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/device.dart';
 import '../relay/relay_monitor.dart';
+import '../services/app_log.dart';
 import '../services/event_observer.dart';
 import '../services/notifier.dart';
+import '../services/relay_credentials.dart';
+import '../services/structured_log.dart';
 import 'active_session.dart';
 import 'app_lifecycle.dart';
 import 'connection_status.dart';
@@ -74,7 +77,9 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     final connection = RelayMonitorConnection(
       deviceId: device.id,
       deviceSid: device.sid,
+      deviceMid: device.params['mid'] ?? '',
       appVersion: device.params['app_version'] ?? '3.16.3',
+      tokenProvider: RelayCredentials.loadJwt,
       onState: _onMonitorState,
       onSnapshot: _onSnapshot,
     );
@@ -84,9 +89,37 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     unawaited(connection.start());
   }
 
+  /// UI 前台时挂起（头无引擎协调，v1.3.1）：断开全部连接、停轮询，
+  /// 事件与提醒完全交给 UI 引擎的 WebView 路径，避免双源重复。
+  Future<void> suspend() async {
+    for (final id in _connections.keys.toSet()) {
+      await _connections.remove(id)?.stop();
+    }
+    _differs.clear();
+    _gates.clear();
+    state = const {};
+    for (final id in ref.read(deviceListProvider).map((d) => d.id)) {
+      ref.read(connectionStatusProvider.notifier).forgetMonitor(id);
+    }
+  }
+
+  /// UI 离开后恢复：重新读设备表与 JWT（可能已轮换），重建全部连接。
+  Future<void> resume() async {
+    await suspend();
+    _sync(ref.read(deviceListProvider));
+  }
+
   void _onMonitorState(String deviceId, RelayMonitorState monitorState) {
     if (_disposed) return;
     state = Map.of(state)..[deviceId] = monitorState;
+    if (monitorState == RelayMonitorState.paired) {
+      // 诊断锚点：配对成功意味着 token/mid/握手全链路通（真机排障从这里查起）。
+      AppLog.event(
+        LogEvent.relayMonitorPaired,
+        level: LogLevel.debug,
+        fields: {LogField.device: deviceId},
+      );
+    }
     ref
         .read(connectionStatusProvider.notifier)
         .reportMonitor(deviceId, monitorState);

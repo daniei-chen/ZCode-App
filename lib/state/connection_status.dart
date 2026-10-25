@@ -51,6 +51,11 @@ abstract final class ConnectionPolicy {
 }
 
 class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
+  /// 断连/恢复的系统通知只由**头无监控引擎**发出（v1.3.1，进程级唯一）
+  /// ——UI 引擎在后台同样在跑评估器，两边都发会双响；且 UI 引擎看不到
+  /// 原生监控的状态，单独判断会误报。默认关闭，monitorMain 里打开。
+  static bool emitSystemNotifications = false;
+
   final _notifiedDown = <String>{};
   final _lastLive = <String, bool>{};
   Timer? _evaluator;
@@ -188,7 +193,11 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
   }
 
   void _announce(RemoteDevice device, bool connected) {
-    unawaited(NotifierService.instance.showConnection(device: device, connected: connected));
+    if (emitSystemNotifications) {
+      unawaited(
+        NotifierService.instance.showConnection(device: device, connected: connected),
+      );
+    }
     _syncKeepAliveText(device, connected);
   }
 

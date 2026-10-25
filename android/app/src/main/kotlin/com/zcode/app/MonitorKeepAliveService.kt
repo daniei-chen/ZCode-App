@@ -10,22 +10,32 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import io.flutter.FlutterInjector
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineGroup
+import io.flutter.embedding.engine.dart.DartExecutor.DartEntrypoint
+import io.flutter.plugin.common.MethodChannel
 
 /**
  * 常驻前台服务（v1.2.0，用户要求对齐 DeepSeek-Harness 的常驻模型）。
  *
- * 职责只有一个：把进程保活。WebView 的事件流（wss://zcode.z.ai/ws 中继）
- * 活着，完成/审批/报错通知才能在后台与锁屏期间到达。服务本身不持有任何
- * 业务逻辑——事件解析、通知决策都在 Dart 侧；v1.0.0 的旧常驻实现因自带
- * 轮询与业务逻辑被移除，本类是它的纯保活替代（K1 不变量锁定该边界）。
+ * v1.2.x 的形态是"纯保活"：进程活着，但通知逻辑都在 Activity 的 Flutter
+ * 引擎里——划掉最近任务/系统回收 Activity 时引擎销毁，通知链路整体断电，
+ * 这是用户实测"后台没通知"的根因。
+ *
+ * v1.3.1 起本服务**宿主一个头无 Flutter 引擎**（入口 `monitorMain`）：
+ * 专跑原生监控通道与系统通知，Activity 不在也照常提醒；START_STICKY 重建
+ * 服务时 onCreate 重新拉起，监控自愈。原生侧仍然零业务逻辑——网络、事件
+ * 解析、通知决策全在 Dart（K1 边界修订：服务可以宿引擎，不许自己联网）。
  *
  * 展示形态（v1.2.1，仿 DeepSeek-Harness）：
- *   标题「远程」 正文「已连接到 <当前设备名>」 动作「断开连接」。
- * Dart 侧在设备切换/改名时经 zremote/keepalive 的 update 方法推送新名字；
- * 「断开连接」= 停止常驻监控（下次打开 App 自动恢复）。
+ *   标题「远程」 正文三态（已连接到 X / 连接已断开…） 动作「断开连接」。
  *
- * 生存策略：START_STICKY（系统杀死后重建）；用户划掉最近任务不算停止监控。
- * MIUI 等厂商 ROM 的"自启动/无限制省电"仍需用户在系统设置里放行。
+ * 前后台协调：Activity onResume/onPause 经 setUiActive 推送 UI 是否在前台；
+ * 前台时向头无引擎发 suspend（事件归 WebView 路径），离开时发 resume。
+ *
+ * 生存策略：START_STICKY（系统杀死后重建）；MIUI 等厂商 ROM 的
+ * "自启动/无限制省电"仍需用户在系统设置里放行。
  */
 class MonitorKeepAliveService : Service() {
 
@@ -37,11 +47,19 @@ class MonitorKeepAliveService : Service() {
     @Volatile
     private var connected: Boolean = true
 
+    // v1.3.1：头无监控引擎与 UI 前台标记。
+    @Volatile
+    private var engine: FlutterEngine? = null
+
+    @Volatile
+    private var uiActive: Boolean = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         startInForeground()
+        ensureMonitorEngine()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -57,9 +75,91 @@ class MonitorKeepAliveService : Service() {
         if (intent?.hasExtra(EXTRA_CONNECTED) == true) {
             connected = intent.getBooleanExtra(EXTRA_CONNECTED, true)
         }
+        if (intent?.hasExtra(EXTRA_UI_ACTIVE) == true) {
+            uiActive = intent.getBooleanExtra(EXTRA_UI_ACTIVE, false)
+            pushSuspendState()
+        }
         // 已在前台时 startForeground 就是刷新内容的最短路径。
         startInForeground()
         return START_STICKY
+    }
+
+    override fun onDestroy() {
+        engine?.let { e ->
+            try {
+                e.destroy()
+            } catch (_: Exception) {}
+        }
+        engine = null
+        super.onDestroy()
+    }
+
+    /**
+     * 拉起头无监控引擎（幂等）。创建失败（个别 ROM/老机型）静默退化：
+     * 前台服务继续保活 WebView 路径，行为等同 v1.2.x。
+     */
+    private fun ensureMonitorEngine() {
+        if (engine != null) return
+        try {
+            val loader = FlutterInjector.instance().flutterLoader()
+            loader.startInitialization(applicationContext)
+            val entrypoint = DartEntrypoint(loader.findAppBundlePath(), "monitorMain")
+            val created = FlutterEngineGroup(this).createAndRunEngine(this, entrypoint)
+            // 头无引擎不经过 Activity 的 configureFlutterEngine，插件与
+            // 通道处理器都要在这里手工挂上。
+            GeneratedPluginRegistrant.registerWith(created)
+            val messenger = created.dartExecutor.binaryMessenger
+            MethodChannel(messenger, "zremote/keepalive").setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        start(this)
+                        result.success(null)
+                    }
+                    "update" -> {
+                        update(this, call.argument<String>("name") ?: "")
+                        result.success(null)
+                    }
+                    "status" -> {
+                        status(
+                            this,
+                            call.argument<String>("name") ?: "",
+                            call.argument<Boolean>("connected") ?: true,
+                        )
+                        result.success(null)
+                    }
+                    "stop" -> {
+                        stop(this)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+            MethodChannel(messenger, "zremote/notification_channels")
+                .setMethodCallHandler { call, result ->
+                    if (call.method == "ensureChannels") {
+                        NotificationChannels.ensure(this, call.argument<String>("mode") ?: "sound")
+                        result.success(null)
+                    } else {
+                        result.notImplemented()
+                    }
+                }
+            engine = created
+            // UI 可能已经在前台（服务先于 Activity 起来）：补一次协调。
+            pushSuspendState()
+        } catch (_: Exception) {
+            engine = null
+        }
+    }
+
+    private fun pushSuspendState() {
+        val e = engine ?: return
+        try {
+            MethodChannel(e.dartExecutor.binaryMessenger, "zremote/monitor_control")
+                .invokeMethod(if (uiActive) "suspend" else "resume", null)
+        } catch (_: Exception) {
+            // Dart 侧 handler 尚未注册（引擎刚起）时会失败；下一条
+            // setUiActive/onStartCommand 会再推。
+        }
     }
 
     private fun startInForeground() {
@@ -144,14 +244,11 @@ class MonitorKeepAliveService : Service() {
         private const val ACTION_DISCONNECT = "com.zcode.app.keepalive.DISCONNECT"
         const val EXTRA_DEVICE_NAME = "device_name"
         const val EXTRA_CONNECTED = "connected"
+        const val EXTRA_UI_ACTIVE = "ui_active"
 
         fun start(context: Context) {
             val intent = Intent(context, MonitorKeepAliveService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            dispatch(context, intent)
         }
 
         fun update(context: Context, deviceName: String) {
@@ -161,11 +258,19 @@ class MonitorKeepAliveService : Service() {
             dispatch(context, intent)
         }
 
-        /** v1.3.0：同步连接状态（文案三态见 [connectedText] 的构建处）。 */
+        /** v1.3.0：同步连接状态（文案三态见构建通知处）。 */
         fun status(context: Context, deviceName: String, connected: Boolean) {
             val intent = Intent(context, MonitorKeepAliveService::class.java).apply {
                 putExtra(EXTRA_DEVICE_NAME, deviceName)
                 putExtra(EXTRA_CONNECTED, connected)
+            }
+            dispatch(context, intent)
+        }
+
+        /** v1.3.1：UI 是否前台（Activity onResume/onPause 推送），驱动头无引擎 suspend/resume。 */
+        fun setUiActive(context: Context, active: Boolean) {
+            val intent = Intent(context, MonitorKeepAliveService::class.java).apply {
+                putExtra(EXTRA_UI_ACTIVE, active)
             }
             dispatch(context, intent)
         }

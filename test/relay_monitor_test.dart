@@ -10,6 +10,7 @@ class FakeSocket implements RelaySocket {
 
   final bool failConnect;
   final sent = <String>[];
+  final connectUrls = <String>[];
   final _messages = StreamController<String>.broadcast();
   bool closed = false;
 
@@ -20,6 +21,7 @@ class FakeSocket implements RelaySocket {
 
   @override
   Future<void> connect(Uri uri, Duration timeout) async {
+    connectUrls.add(uri.toString());
     if (failConnect) throw const SocketException('offline');
   }
 
@@ -130,7 +132,9 @@ void main() {
         final connection = RelayMonitorConnection(
           deviceId: 'dev12345678',
           deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
           appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -143,8 +147,10 @@ void main() {
         unawaited(connection.start());
         async.elapse(const Duration(milliseconds: 10));
         expect(states, contains(RelayMonitorState.authenticating));
-        // 握手报文已发出且 sid 正确。
+        // 握手报文已发出且 sid 正确；连接 URL 带 token+mid（V2 配方）。
         expect(sockets.first.sent.join(), contains('d_ABC'));
+        expect(sockets.first.connectUrls.single, contains('token=jwt-token-1'));
+        expect(sockets.first.connectUrls.single, contains('mid=mid-1234'));
 
         sockets.first.serverSends(
           '{"type":"auth_ack","device_sid":"d_ABC","pair_status":"matched"}',
@@ -185,7 +191,9 @@ void main() {
         final connection = RelayMonitorConnection(
           deviceId: 'dev12345678',
           deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
           appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -220,7 +228,9 @@ void main() {
         final connection = RelayMonitorConnection(
           deviceId: 'dev12345678',
           deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
           appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -248,7 +258,9 @@ void main() {
         final connection = RelayMonitorConnection(
           deviceId: 'dev12345678',
           deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
           appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
           socketFactory: () => FakeSocket(true),
           onState: (_, state) => states.add(state),
         );
@@ -263,13 +275,57 @@ void main() {
         final connection = RelayMonitorConnection(
           deviceId: 'dev12345678',
           deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
           appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
           socketFactory: () => FakeSocket(false),
           onState: (_, _) {},
         );
         unawaited(connection.start());
         async.elapse(const Duration(seconds: 13));
         expect(connection.state, RelayMonitorState.disconnected);
+      });
+    });
+
+    test('wsUrlFor：token 必带、mid 非空才带（与官方 searchParams 逐参对齐）', () {
+      final url = RelayMonitorConnection.wsUrlFor(token: 't0 k', deviceMid: 'mid-9');
+      expect(url.toString(), 'wss://zcode.z.ai/ws?token=t0+k&mid=mid-9');
+      final noMid = RelayMonitorConnection.wsUrlFor(token: 't', deviceMid: '  ');
+      expect(noMid.toString(), 'wss://zcode.z.ai/ws?token=t');
+    });
+
+    test('无 token：不建连，60s 后重读 token 再连（v1.3.1）', () {
+      fakeAsync((async) {
+        var reads = 0;
+        var token = '';
+        final sockets = <FakeSocket>[];
+        final connection = RelayMonitorConnection(
+          deviceId: 'dev12345678',
+          deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
+          appVersion: '3.16.3',
+          tokenProvider: () async {
+            reads += 1;
+            return token.isEmpty ? null : token;
+          },
+          socketFactory: () {
+            final socket = FakeSocket(false);
+            sockets.add(socket);
+            return socket;
+          },
+          onState: (_, _) {},
+        );
+        unawaited(connection.start());
+        async.elapse(const Duration(milliseconds: 10));
+        expect(sockets, isEmpty, reason: '没有 JWT 绝不裸连');
+        expect(reads, 1);
+
+        token = 'late-token';
+        async.elapse(const Duration(seconds: 61));
+        expect(reads, 2);
+        expect(sockets, hasLength(1));
+        expect(sockets.first.connectUrls.single, contains('token=late-token'));
+        expect(sockets.first.connectUrls.single, contains('mid=mid-1234'));
       });
     });
   });

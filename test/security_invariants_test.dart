@@ -176,13 +176,14 @@ void main() {
       expect(paths.contains('path="."'), isFalse);
     });
 
-    test('常驻服务只允许纯保活形态：无轮询/无业务逻辑（K1，v1.2.0 修订）', () {
+    test('常驻服务允许宿头无监控引擎，但原生侧仍禁止直连网络（K1，v1.3.1 修订）', () {
       // K1 历史语义（v1.0.1）：v1.0.0 的 KeepAliveService 自带轮询与业务
       // 逻辑，耗电且放大观测面，被整体移除并锁定"不得复活"。
-      // v1.2.0 按用户要求对齐 DeepSeek-Harness 的常驻模型：服务回归，但
-      // 只允许"纯保活"形态——进程保活让 WebView 事件流存活，无任何轮询、
-      // 网络或业务逻辑（事件解析/通知决策都在 Dart 侧，WebView 挂掉服务
-      // 也一无所得）。本测试锁定这个新边界。
+      // v1.2.0 服务回归为"纯保活"；v1.3.1 修订：Activity 的 Flutter 引擎
+      // 被回收时通知链路整体断电（用户实测根因），服务开始**宿主头无
+      // Flutter 引擎**（monitorMain）跑监控与通知。边界从"纯保活"放宽为
+      // "可宿引擎"，但**原生侧仍然零业务逻辑**：禁任何直接联网（网络、
+      // 事件解析、通知决策全部留在 Dart 侧；宿主引擎≠原生联网）。
       final manifest = read('android/app/src/main/AndroidManifest.xml');
       expect(manifest.contains('<service'), isTrue);
       expect(manifest.contains('.MonitorKeepAliveService'), isTrue);
@@ -200,25 +201,26 @@ void main() {
       final service = read(
         'android/app/src/main/kotlin/com/zcode/app/MonitorKeepAliveService.kt',
       );
-      // 纯保活边界：禁止网络、定时器与 Flutter 引擎内嵌（旧类名文件已由
-      // 上面的 existsSync 单独覆盖；MonitorKeepAliveService 类名含其子串，
-      // 不能按子串禁）。
       for (final banned in [
         'HttpURLConnection',
         'OkHttp',
-        'Socket',
-        'Timer',
-        'FlutterEngine',
+        'Socket(',
+        'java.net.',
       ]) {
         expect(service.contains(banned), isFalse,
-            reason: '常驻服务必须保持纯保活，禁止 $banned');
+            reason: '监控必须在 Dart 侧（头无引擎），原生禁止直接联网：$banned');
       }
+      // 头无引擎边界：入口必须是 monitorMain（只读监控 + 通知），
+      // 不得把主 UI 入口挂进服务。
+      expect(service.contains('"monitorMain"'), isTrue);
       // Dart 侧入口存在且经主启动路径拉起。
       expect(File('$root/lib/services/keepalive.dart').existsSync(), isTrue);
       expect(
         read('lib/main.dart').contains('MonitorKeepAlive.start()'),
         isTrue,
       );
+      // 头无隔离体入口存在。
+      expect(File('$root/lib/monitor_main.dart').existsSync(), isTrue);
     });
 
     test('Release 构建禁止 debug 签名回退（缺 keystore 即失败）', () {

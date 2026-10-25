@@ -238,6 +238,11 @@ class IoRelaySocket implements RelaySocket {
 
 /// 单台设备的一条监控连接：连接 → 握手 → 心跳 + 轮询 → 断线退避重连。
 ///
+/// V2 终端连接的完整配方（官方 3.16.3 bundle 实证）：
+/// `wss://zcode.z.ai/ws?token=<账号JWT>&mid=<设备mid>`——账号 JWT 由
+/// [tokenProvider] 每次建连时现读（页面探针捕获，登录刷新后自然轮换）；
+/// 没有 token 时不连（60s 后重试），绝不裸连（服务端以 WRONG_PARAM 拒绝）。
+///
 /// 所有 UI 无关的状态迁移都通过 [onState] 上报；`workspace-list-response`
 /// 的 `result` 对象通过 [onSnapshot] 交给上层（通知管线）。本类不持有
 /// 设备名等展示信息，也不直接发通知——那是上层 service 的职责。
@@ -245,18 +250,25 @@ class RelayMonitorConnection {
   RelayMonitorConnection({
     required this.deviceId,
     required this.deviceSid,
+    required this.deviceMid,
     required this.appVersion,
+    required this.tokenProvider,
     RelaySocket Function()? socketFactory,
     DateTime Function()? now,
     this.onState,
     this.onSnapshot,
-    this.wsOrigin = 'https://zcode.z.ai',
   }) : _socketFactory = socketFactory ?? IoRelaySocket.new,
        _now = now ?? DateTime.now;
 
   final String deviceId;
   final String deviceSid;
+
+  /// 设备 mid：V2 连接的必带 query 参数（V1 同）。
+  final String deviceMid;
   final String appVersion;
+
+  /// 每次建连现读账号 JWT；null/空 = 尚未捕获（用户没打开过远控页）。
+  final Future<String?> Function() tokenProvider;
   final RelaySocket Function() _socketFactory;
   final DateTime Function() _now;
 
@@ -267,9 +279,6 @@ class RelayMonitorConnection {
   final void Function(String deviceId, Map<dynamic, dynamic> result)?
   onSnapshot;
 
-  /// WS 升级请求携带的 Origin（与服务端信任的页面 origin 一致）。
-  final String wsOrigin;
-
   RelayMonitorState _state = RelayMonitorState.idle;
   RelaySocket? _socket;
   StreamSubscription<String>? _subscription;
@@ -277,13 +286,26 @@ class RelayMonitorConnection {
   Timer? _poll;
   Timer? _reconnect;
   Timer? _waitingWatch;
+  Timer? _authRetry;
   int _attempt = 0;
   bool _running = false;
   int _requestSeq = 0;
 
   RelayMonitorState get state => _state;
 
-  static final Uri wsUri = Uri.parse('wss://zcode.z.ai/ws');
+  /// WS 端点基址（query 逐次构建：token 可能已轮换）。
+  static final Uri wsBase = Uri.parse('wss://zcode.z.ai/ws');
+
+  /// 没有 JWT 时的静默重试间隔。
+  static const authRetryDelay = Duration(seconds: 60);
+
+  /// 组装带 token/mid 的连接地址（与官方页面 `searchParams.set` 逐参对齐）。
+  static Uri wsUrlFor({required String token, required String deviceMid}) {
+    final query = <String, String>{'token': token};
+    final mid = deviceMid.trim();
+    if (mid.isNotEmpty) query['mid'] = mid;
+    return wsBase.replace(queryParameters: query);
+  }
 
   Future<void> start() async {
     if (_running) return;
@@ -317,6 +339,8 @@ class RelayMonitorConnection {
     _reconnect = null;
     _waitingWatch?.cancel();
     _waitingWatch = null;
+    _authRetry?.cancel();
+    _authRetry = null;
   }
 
   Future<void> _closeSocket() async {
@@ -332,10 +356,22 @@ class RelayMonitorConnection {
   Future<void> _connect() async {
     if (!_running) return;
     _teardownTimers();
+    // V2 需要账号 JWT（探针实证：无 token 一律 WRONG_PARAM）。未捕获时不
+    // 裸连，静默等 60s 后再读——用户打开一次远控页后令牌就有了。
+    final token = await tokenProvider();
+    if (!_running) return;
+    if (token == null || token.isEmpty) {
+      _setState(RelayMonitorState.disconnected);
+      _authRetry = Timer(authRetryDelay, _connect);
+      return;
+    }
     _setState(RelayMonitorState.connecting);
     final socket = _socketFactory();
     try {
-      await socket.connect(wsUri, RelayMonitorPolicy.connectTimeout);
+      await socket.connect(
+        wsUrlFor(token: token, deviceMid: deviceMid),
+        RelayMonitorPolicy.connectTimeout,
+      );
     } catch (e) {
       AppLog.failure(LogEvent.relayMonitorConnectFailed, e, fields: {
         LogField.device: deviceId.substring(

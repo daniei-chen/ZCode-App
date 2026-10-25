@@ -39,13 +39,20 @@ abstract final class AccountLabel {
 })()
 ''';
 
-  /// 从探针返回值解出账号展示名；解析不出返回 null，绝不显示原始令牌。
-  static String? displayNameFromToken(String raw) {
+  /// 从探针返回值提取登录令牌本体（剥引号、限长）；解析不出返回 null。
+  static String? extractToken(String raw) {
     var token = raw.trim();
     if (token.length >= 2 && token.startsWith('"') && token.endsWith('"')) {
       token = token.substring(1, token.length - 1);
     }
     if (token.isEmpty || token.length > 8192) return null;
+    return token;
+  }
+
+  /// 从探针返回值解出账号展示名；解析不出返回 null，绝不显示原始令牌。
+  static String? displayNameFromToken(String raw) {
+    final token = extractToken(raw);
+    if (token == null) return null;
     if (token.startsWith('{')) {
       try {
         final map = jsonDecode(token);

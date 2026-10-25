@@ -11,6 +11,7 @@ import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/keepalive.dart';
 import 'services/notifier.dart';
+import 'services/relay_credentials.dart';
 import 'services/structured_log.dart';
 import 'services/webview_storage.dart';
 import 'state/app_lifecycle.dart';
@@ -395,6 +396,8 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
       // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
       // 账号登录态（Cookie/DOM storage/缓存）不能继续留在磁盘上。
       await WebViewStorage.wipeAll();
+      // 原生监控通道的账号令牌（v1.3.1）同属受保护数据，一并清除。
+      await RelayCredentials.wipe();
       ref.read(observerStatsProvider.notifier).clear();
       await ref.read(biometricProvider.notifier).set(false);
       if (mounted) {
