@@ -211,7 +211,18 @@ class BiometricNotifier extends Notifier<bool> {
   }
 
   Future<void> set(bool value) async {
-    await DeviceStore.instance.setBiometricEnabled(value);
+    // 持久化失败不阻断状态更新（v1.6.1 修复）：锁定擦除路径的"关门禁"
+    // 必须生效——磁盘满/存储损坏时若在这里抛出，用户会被锁在门外。
+    // 下次冷启动 _load 读到的仍是旧值（fail-closed 回到锁定），安全。
+    try {
+      await DeviceStore.instance.setBiometricEnabled(value);
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.deviceLastUsedPersistFailed,
+        e,
+        fields: {LogField.reason: 'biometric_pref'},
+      );
+    }
     if (!ref.mounted) return;
     state = value;
   }

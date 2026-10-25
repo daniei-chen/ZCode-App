@@ -13,6 +13,7 @@ import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/back_stack.dart';
 import '../state/connection_status.dart';
+import '../state/device_directory.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/root_tabs.dart';
@@ -57,6 +58,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.initState();
     _launcherVisible = widget.startAtLauncher;
     NotificationTap.bind((payload) => _jumpTo(payload));
+    // 登录过期通知点按：回设备中心（横幅/登录卡就在那里）。
+    NotificationTap.bindAuthExpired(() {
+      if (!mounted) return;
+      ref.read(deviceDirectoryProvider.notifier).refresh();
+      if (_launcherVisible) return;
+      setState(() => _launcherVisible = true);
+    });
     NotifierService.instance.setLockScreenRedact(ref.read(biometricProvider));
     AppSettings.setRecentsCover(ref.read(biometricProvider));
     NotifierService.instance.setAlertMode(
@@ -271,6 +279,17 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
     ref.listen<NotificationPrefs>(notificationPrefsProvider, (_, next) {
       NotifierService.instance.setAlertMode(next.alertMode);
+    });
+    // 登录过期 → 一次性通知；恢复 → 撤掉（v1.6.1）。
+    ref.listen<DeviceDirectoryState>(deviceDirectoryProvider, (_, next) {
+      switch (next.status) {
+        case DeviceDirectoryStatus.authExpired:
+          unawaited(NotifierService.instance.showAuthExpired());
+        case DeviceDirectoryStatus.ready:
+          unawaited(NotifierService.instance.cancelAuthExpired());
+        default:
+          break;
+      }
     });
 
     ref.listen(deviceListProvider, (prev, next) {

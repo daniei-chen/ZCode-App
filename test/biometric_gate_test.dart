@@ -334,6 +334,10 @@ void main() {
     await tester.tap(find.text('清除并关闭'));
     await tester.pumpAndSettle();
     expect(wipeCalls, 1);
+    // v1.6.1 擦除改为后台执行（不阻塞关门禁）：provider 更新经
+    // pumpAndSettle 的微任务传播；后台擦除带 5s 超时预算，把 fake 时钟
+    // 推过它，既让断言看到最终态也不留 pending timer。
+    await tester.pump(const Duration(seconds: 6));
     expect(mutable._value, isFalse);
     expect(visibleSecret, findsOneWidget);
   });

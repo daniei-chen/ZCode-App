@@ -220,11 +220,22 @@ String actionPayload(RemoteDevice device, ObservedEvent event) => [
 abstract final class NotificationTap {
   static String? _pending;
   static void Function(String deviceId)? _onTap;
+  static void Function()? _onAuthExpired;
 
   static void bind(void Function(String deviceId)? onTap) => _onTap = onTap;
 
+  /// 登录过期通知的点按路由（与设备深链分开，v1.6.1）。
+  static void bindAuthExpired(void Function()? onTap) => _onAuthExpired = onTap;
+
   static void route(String? payload) {
     if (payload == null || payload.isEmpty) return;
+    if (payload == 'auth-expired') {
+      final handler = _onAuthExpired;
+      if (handler != null) {
+        handler();
+      }
+      return;
+    }
     final onTap = _onTap;
     if (onTap != null) {
       onTap(payload);
@@ -422,6 +433,42 @@ class NotifierService {
   }
 
   static String _groupId(String deviceId) => 'zr_dev_$deviceId';
+
+  /// 登录过期一次性通知（v1.6.1）：JWT 失效后监控/命令/目录全部静默
+  /// 死亡——这条通知是链路最后一次发声。固定 id（重复过期只替换，
+  /// 不堆叠）；重新登录成功后由 UI 侧撤掉。
+  Future<void> showAuthExpired() async {
+    try {
+      await ensurePermission();
+      await _plugin.show(
+        id: 0x5A455850, // 'ZEXP'
+        title: l10nZh.authExpiredNotifTitle,
+        body: l10nZh.authExpiredNotifBody,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            kConnectionChannel,
+            l10nZh.notifChannelConn,
+            icon: 'ic_notification',
+            importance: Importance.high,
+            priority: Priority.high,
+            channelShowBadge: true,
+            playSound: false,
+            enableVibration: false,
+            onlyAlertOnce: true,
+            ongoing: true,
+          ),
+        ),
+        // 深链到设备中心：首页的过期横幅/登录卡就是重新登录入口。
+        payload: 'auth-expired',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> cancelAuthExpired() async {
+    try {
+      await _plugin.cancel(id: 0x5A455850);
+    } catch (_) {}
+  }
 
   /// 组摘要通知（v1.6.0）：折叠态显示设备名；低调（同渠道、无声、
   /// onlyAlertOnce）——真正的提醒永远来自具体事件通知。

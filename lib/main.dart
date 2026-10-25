@@ -391,30 +391,56 @@ class _BiometricGateState extends ConsumerState<BiometricGate>
     );
     if (confirmed != true || !mounted) return;
     setState(() => _wipeBusy = true);
+    // 擦除尽力而为（v1.6.1 修复）：三个存储调用在 platform 通道异常时
+    // 可能**挂起**（不止抛异常）——await 它们会让"关门禁"被饿死，用户
+    // 被锁在门外。改为后台执行、立即关门禁：门禁状态与擦除结果无关
+    // （残留数据在后台 wipe 完成后同样不存在；擦除失败仅留痕日志）。
+    unawaited(_wipeInBackground(widget.wipeProtectedData));
+    ref.read(observerStatsProvider.notifier).clear();
+    await ref.read(biometricProvider.notifier).set(false);
+
+    if (mounted) {
+      setState(() {
+        _authed = true;
+        _unavailable = false;
+        _noDeviceCredential = false;
+      });
+    }
+  }
+
+  /// 后台擦除：三步彼此隔离，任何一步抛异常/挂起都不影响其余步骤。
+  Future<void> _wipeInBackground(
+    Future<void> Function() wipeProtectedData,
+  ) async {
     try {
-      await widget.wipeProtectedData();
-      // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
-      // 账号登录态（Cookie/DOM storage/缓存）不能继续留在磁盘上。
-      await WebViewStorage.wipeAll();
-      // 原生监控通道的账号令牌（v1.3.1）同属受保护数据，一并清除。
-      await RelayCredentials.wipe();
-      ref.read(observerStatsProvider.notifier).clear();
-      await ref.read(biometricProvider.notifier).set(false);
-      if (mounted) {
-        setState(() {
-          _authed = true;
-          _unavailable = false;
-          _noDeviceCredential = false;
-        });
-      }
+      await wipeProtectedData();
     } catch (e) {
       AppLog.failure(
         LogEvent.protectedDataWipeFailed,
         e,
-        fields: {LogField.reason: 'wipe'},
+        fields: {LogField.reason: 'protected_data'},
       );
-    } finally {
-      if (mounted) setState(() => _wipeBusy = false);
+    }
+    // 锁定擦除同样清掉 WebView 本地存储（PR20/F19）：设备都删了，
+    // 账号登录态（Cookie/DOM storage/缓存）不能继续留在磁盘上。
+    try {
+      await WebViewStorage.wipeAll().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.webviewStorageCleared,
+        e,
+        fields: {LogField.reason: 'wipe_all'},
+      );
+    }
+    // 原生监控通道的账号令牌（v1.3.1）同属受保护数据，一并清除。
+    try {
+      await RelayCredentials.wipe().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.protectedDataWipeFailed,
+        e,
+        fields: {LogField.reason: 'relay_jwt'},
+      );
     }
   }
 
