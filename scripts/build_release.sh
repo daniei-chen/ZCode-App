@@ -34,7 +34,7 @@ cd "$ROOT"
 step() { echo ""; echo "==== [$1] ===="; }
 
 step "1/5 前置检查"
-[[ -f "docs/releases/${VERSION}.md" ]] || { echo "缺少 docs/releases/${VERSION}.md"; exit 1; }
+[[ -f "docs/releases/v${VERSION}.md" ]] || { echo "缺少 docs/releases/${VERSION}.md"; exit 1; }
 if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
   echo "tag ${TAG} 已存在（先 git tag -d 并删远端，或换版本号）"; exit 1
 fi
