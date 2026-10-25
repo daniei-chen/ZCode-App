@@ -12,6 +12,7 @@ import '../services/app_settings.dart';
 import '../services/device_import.dart';
 import '../services/link_builder.dart';
 import '../services/structured_log.dart';
+import '../state/account_label.dart';
 import '../state/back_stack.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -36,6 +37,10 @@ class ManagePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final devices = ref.watch(deviceListProvider);
     final l10n = AppLocalizations.of(context)!;
+    // 登录账号芯片（v1.3.0，账号中心化第一片）：V2 账号流里所有设备
+    // 同属一个已登录账号，在设备中心头部把它亮出来。探针没读到（还没
+    // 进过远控页）时不占位。
+    final account = ref.watch(accountLabelProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -94,6 +99,31 @@ class ManagePage extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (account.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: context.zt.textLo,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            l10n.accountSignedInAs(account),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: context.zt.textLo,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 22),
                 if (devices.isEmpty)
                   _EmptyHint(

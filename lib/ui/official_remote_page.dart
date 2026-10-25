@@ -17,6 +17,7 @@ import '../services/session_jump.dart';
 import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
+import '../state/account_label.dart';
 import '../state/bridge_health.dart';
 import '../state/back_stack.dart';
 import '../state/observer_stats.dart';
@@ -864,6 +865,24 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     } catch (_) {}
   }
 
+  /// 登录账号标签（v1.3.0）：受信任页面的 localStorage 里读登录令牌，
+  /// 解出展示名供设备中心头部显示。只在本机 UI 展示，不写日志。
+  /// 探针失败/读不到都静默——账号芯片是可选增强，绝不是功能依赖。
+  Future<void> _probeAccountLabel() async {
+    try {
+      final url = await _controller?.getUrl();
+      if (!LinkBuilder.isTrustedRemotePage(url)) return;
+      final result = await _controller?.evaluateJavascript(
+        source: AccountLabel.probeScript,
+      );
+      if (!mounted) return;
+      final label = AccountLabel.displayNameFromToken(result?.toString() ?? '');
+      if (label != null) {
+        ref.read(accountLabelProvider.notifier).report(label);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _applyWebTheme(bool dark) async {
     try {
       await _controller?.evaluateJavascript(source: _themeSyncScript(dark));
@@ -1438,6 +1457,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
                           _applyPendingJump();
                           unawaited(_verifyFirstPaint());
                         }
+                        unawaited(_probeAccountLabel());
                       },
                       shouldOverrideUrlLoading: (_, action) async {
                         final uri = action.request.url;

@@ -12,8 +12,10 @@ import '../services/notifier.dart';
 import '../services/update_service.dart';
 import '../state/app_lifecycle.dart';
 import '../state/back_stack.dart';
+import '../state/connection_status.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
+import '../state/relay_monitor.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
 import '../theme.dart';
@@ -61,6 +63,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     NotifierService.instance.setAlertMode(
       ref.read(notificationPrefsProvider).alertMode,
     );
+    // 原生监控通道（v1.3.0）与连接状态聚合：进程活着就常驻，不随页面
+    // 生命周期停启。provider 的 build 监听 deviceListProvider，设备增删
+    // 自动同步通道。
+    ref.read(relayMonitorProvider.notifier);
+    ref.read(connectionStatusProvider.notifier);
     // Keep launch quiet: the check runs in the background and only a confirmed
     // newer release produces a one-time foreground prompt.
     unawaited(_checkForUpdateOnLaunch());
@@ -71,15 +78,20 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   /// 把当前设备名推给常驻通知（远程 / 已连接到 `<设备名>`）。设备显示名与
-  /// 列表页一致；没有任何设备时保持原生默认文案。
+  /// 列表页一致；没有任何设备时保持原生默认文案。连接状态一并推送
+  /// （v1.3.0 三态文案；无信号时保持乐观的"已连接"）。
   Future<void> _syncKeepAliveDeviceName() async {
     final devices = ref.read(deviceListProvider);
     if (devices.isEmpty) return;
     final active = ref.read(activeTabProvider);
     final index = active >= 0 && active < devices.length ? active : 0;
     final device = devices[index];
-    final l10n = AppLocalizations.of(context);
-    unawaited(MonitorKeepAlive.updateDevice(device.displayName(l10n)));
+    final connected =
+        ref.read(connectionStatusProvider.notifier).liveState(device.id) ??
+        true;
+    unawaited(
+      MonitorKeepAlive.updateStatus(deviceName: device.displayName(AppLocalizations.of(context)), connected: connected),
+    );
   }
 
   Future<void> _checkForUpdateOnLaunch() async {

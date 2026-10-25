@@ -147,7 +147,9 @@ class MainActivity : FlutterFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isIgnoringBatteryOptimizations" -> result.success(isBatteryIgnored())
-                "isVendorBlocked" -> result.success(false)
+                // 厂商 ROM 且未进电池白名单 = 需要引导（v1.3.0 前恒 false，
+                // 设置页的红色警示从未生效过）。
+                "isVendorBlocked" -> result.success(isVendorRestrictive() && !isBatteryIgnored())
                 "requestIgnoreBatteryOptimizations" -> {
                     if (requestBatteryIgnore()) result.success(null)
                     else result.error("battery_ignore_failed", null, null)
@@ -246,6 +248,12 @@ class MainActivity : FlutterFragmentActivity() {
                     MonitorKeepAliveService.update(this, name)
                     result.success(null)
                 }
+                "status" -> {
+                    val name = call.argument<String>("name") ?: ""
+                    val connected = call.argument<Boolean>("connected") ?: true
+                    MonitorKeepAliveService.status(this, name, connected)
+                    result.success(null)
+                }
                 "stop" -> {
                     MonitorKeepAliveService.stop(this)
                     result.success(null)
@@ -336,7 +344,7 @@ class MainActivity : FlutterFragmentActivity() {
      * 预建告警渠道（v1.2.2，对齐 DeepSeek-Harness 的"通知类别"形态）：
      * 渠道若只在首条通知时创建，用户在系统设置里永远看不到"失败/需要你的
      * 操作"类别。同时清掉旧版本与其他提醒方式的渠道，让系统"通知类别"
-     * 列表保持四类：完成通知 / 失败 / 需要你的操作 / 远程监控常驻。
+     * 列表保持五类：完成通知 / 失败 / 需要你的操作 / 连接状态 / 远程监控常驻。
      */
     private fun ensureAlertChannels(mode: String) {
         val manager = getSystemService(NotificationManager::class.java) ?: return
@@ -345,7 +353,7 @@ class MainActivity : FlutterFragmentActivity() {
             Triple("zr_fail_alert_v7", "失败", NotificationManager.IMPORTANCE_HIGH),
             Triple("zr_done_alert_v7", "完成通知", NotificationManager.IMPORTANCE_HIGH),
         )
-        val keep = mutableSetOf("zr_keep_monitor_v8")
+        val keep = mutableSetOf("zr_keep_monitor_v8", "zr_conn_v8")
         for ((base, name, importance) in defs) {
             val id = "${base}_$mode"
             keep.add(id)
@@ -353,6 +361,14 @@ class MainActivity : FlutterFragmentActivity() {
                 NotificationChannel(id, name, importance).apply { setShowBadge(true) },
             )
         }
+        // 连接状态（v1.3.0）：断连/恢复通知走静默低优先级渠道，不随提醒方式变化。
+        manager.createNotificationChannel(
+            NotificationChannel(
+                "zr_conn_v8",
+                "连接状态",
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply { setShowBadge(false) },
+        )
         for (channel in manager.notificationChannels) {
             if (channel.id.startsWith("zr_") && channel.id !in keep) {
                 manager.deleteNotificationChannel(channel.id)
@@ -495,6 +511,22 @@ class MainActivity : FlutterFragmentActivity() {
         (getSystemService(Context.POWER_SERVICE) as PowerManager)
             .isIgnoringBatteryOptimizations(packageName)
 
+    // v1.3.0：真实厂商检测。这些 ROM 对后台进程/自启动有额外限制，
+    // 白名单之外时常驻服务会被静默回收——设置页据此把保活入口染红并
+    // 直接跳厂商专属页面，而不是让用户对着标准 Android 白名单以为万事大吉。
+    private fun isVendorRestrictive(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase().replace("\\s".toRegex(), "")
+        return manufacturer in setOf(
+            "xiaomi", "redmi", "poco",        // MIUI / HyperOS
+            "huawei",                         // EMUI / HarmonyOS
+            "honor",                          // Magic OS
+            "oppo", "realme", "oneplus",      // ColorOS
+            "vivo", "iqoo",                   // OriginOS / FuntouchOS
+            "meizu",                          // Flyme
+            "samsung",                        // One UI 的休眠应用
+        )
+    }
+
     private fun requestBatteryIgnore(): Boolean = try {
         startActivity(
             Intent(
@@ -508,27 +540,90 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun requestVendorExemption(): Boolean {
-        val miuiCandidates = listOf(
-            Intent().setClassName(
-                "com.miui.powerkeeper",
-                "com.miui.powerkeeper.powersettings.PowerSettingsActivity",
-            ),
-            Intent().setClassName(
-                "com.miui.powerkeeper",
-                "com.miui.powerkeeper.ui.HiddenAppsConfigActivity",
-            )
-                .putExtra("package_name", packageName)
-                .putExtra("power_keeper_activity", "PowerKeeperActivityCustom"),
-            Intent().setClassName(
-                "com.miui.securitycenter",
-                "com.miui.permcenter.autostart.AutoStartManagementActivity",
-            ),
-        )
-        for (intent in miuiCandidates) {
+        // 候选按厂商分组，命中哪个厂商就先试哪组；所有组件名来自各 ROM 的
+        // 公开设置页，缺失/改名时逐个回退，最终兜底应用详情页。
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val candidates = mutableListOf<Intent>()
+        when {
+            manufacturer.contains("xiaomi") || manufacturer.contains("redmi") ||
+                manufacturer.contains("poco") -> {
+                candidates += listOf(
+                    Intent().setClassName(
+                        "com.miui.powerkeeper",
+                        "com.miui.powerkeeper.powersettings.PowerSettingsActivity",
+                    ),
+                    Intent().setClassName(
+                        "com.miui.powerkeeper",
+                        "com.miui.powerkeeper.ui.HiddenAppsConfigActivity",
+                    )
+                        .putExtra("package_name", packageName)
+                        .putExtra("power_keeper_activity", "PowerKeeperActivityCustom"),
+                    Intent().setClassName(
+                        "com.miui.securitycenter",
+                        "com.miui.permcenter.autostart.AutoStartManagementActivity",
+                    ),
+                )
+            }
+            manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
+                candidates += listOf(
+                    Intent().setClassName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+                    ),
+                    Intent().setClassName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.optimize.process.ProtectActivity",
+                    ),
+                    Intent().setClassName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity",
+                    ),
+                )
+            }
+            manufacturer.contains("oppo") || manufacturer.contains("realme") ||
+                manufacturer.contains("oneplus") -> {
+                candidates += listOf(
+                    Intent().setClassName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+                    ),
+                    Intent().setClassName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.startupapp.StartupAppListActivity",
+                    ),
+                    Intent().setClassName(
+                        "com.oplus.battery",
+                        "com.oplus.battery.OplusBatteryActivity",
+                    ),
+                )
+            }
+            manufacturer.contains("vivo") || manufacturer.contains("iqoo") -> {
+                candidates += listOf(
+                    Intent().setClassName(
+                        "com.iqoo.secure",
+                        "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager",
+                    ),
+                    Intent().setClassName(
+                        "com.iqoo.secure",
+                        "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
+                    ),
+                )
+            }
+            manufacturer.contains("meizu") -> {
+                candidates += Intent().setClassName(
+                    "com.meizu.safe",
+                    "com.meizu.safe.security.SHOW_APPSEC",
+                ).putExtra("packageName", packageName)
+            }
+            else -> {
+                // 三星等：直接进应用详情页，让用户手动关"让应用休眠"。
+            }
+        }
+        for (intent in candidates) {
             try {
                 startActivity(intent)
                 return true
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Try the next vendor-specific settings screen.
             }
         }
@@ -540,7 +635,7 @@ class MainActivity : FlutterFragmentActivity() {
                 ),
             )
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

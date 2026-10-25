@@ -32,6 +32,11 @@ class MonitorKeepAliveService : Service() {
     @Volatile
     private var deviceName: String = ""
 
+    // v1.3.0：常驻通知文案三态（在线/断连/无设备），由 Dart 侧经
+    // zremote/keepalive 的 status 方法推送；断连时提示恢复后自动继续。
+    @Volatile
+    private var connected: Boolean = true
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -45,14 +50,14 @@ class MonitorKeepAliveService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        intent?.getStringExtra(EXTRA_DEVICE_NAME)?.let { name ->
-            if (name != deviceName) {
-                deviceName = name
-                // 已在前台时 startForeground 就是刷新内容的最短路径。
-                startInForeground()
-                return START_STICKY
-            }
+        val name = intent?.getStringExtra(EXTRA_DEVICE_NAME)
+        if (name != null && name != deviceName) {
+            deviceName = name
         }
+        if (intent?.hasExtra(EXTRA_CONNECTED) == true) {
+            connected = intent.getBooleanExtra(EXTRA_CONNECTED, true)
+        }
+        // 已在前台时 startForeground 就是刷新内容的最短路径。
         startInForeground()
         return START_STICKY
     }
@@ -87,10 +92,13 @@ class MonitorKeepAliveService : Service() {
         } else {
             @Suppress("DEPRECATION") Notification.Builder(this)
         }
-        val connected = if (deviceName.isBlank()) "保持连接以接收任务通知"
-        else "已连接到 $deviceName"
+        val connectedText = when {
+            !connected -> "连接已断开，恢复后自动继续"
+            deviceName.isNotBlank() -> "已连接到 $deviceName"
+            else -> "保持连接以接收任务通知"
+        }
         builder.setContentTitle(TITLE)
-            .setContentText(connected)
+            .setContentText(connectedText)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -135,6 +143,7 @@ class MonitorKeepAliveService : Service() {
         const val ACTION_DISCONNECT_LABEL = "断开连接"
         private const val ACTION_DISCONNECT = "com.zcode.app.keepalive.DISCONNECT"
         const val EXTRA_DEVICE_NAME = "device_name"
+        const val EXTRA_CONNECTED = "connected"
 
         fun start(context: Context) {
             val intent = Intent(context, MonitorKeepAliveService::class.java)
@@ -149,6 +158,19 @@ class MonitorKeepAliveService : Service() {
             val intent = Intent(context, MonitorKeepAliveService::class.java).apply {
                 putExtra(EXTRA_DEVICE_NAME, deviceName)
             }
+            dispatch(context, intent)
+        }
+
+        /** v1.3.0：同步连接状态（文案三态见 [connectedText] 的构建处）。 */
+        fun status(context: Context, deviceName: String, connected: Boolean) {
+            val intent = Intent(context, MonitorKeepAliveService::class.java).apply {
+                putExtra(EXTRA_DEVICE_NAME, deviceName)
+                putExtra(EXTRA_CONNECTED, connected)
+            }
+            dispatch(context, intent)
+        }
+
+        private fun dispatch(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

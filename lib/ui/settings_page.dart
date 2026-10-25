@@ -21,6 +21,7 @@ import '../state/startup_target.dart';
 import '../state/theme_mode.dart';
 import '../theme.dart';
 import 'diagnostics_page.dart';
+import 'notification_history_page.dart';
 import 'section_label.dart';
 import 'update_download_dialog.dart';
 
@@ -750,6 +751,35 @@ class _NotificationCardState extends ConsumerState<_NotificationCard> {
             prefs.fail,
             (v) => notifier.set(prefs.copyWith(fail: v)),
             Icons.error_outline,
+          ),
+          const Divider(indent: 66, endIndent: 14, height: 1),
+          SizedBox(
+            height: _settingsRowHeight,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+              leading: const _SettingsIcon(Icons.history_outlined),
+              title: Text(
+                l10n.notifHistoryTitle,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                l10n.notifHistorySubtitle,
+                style: TextStyle(fontSize: 12, color: context.zt.textLo),
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: context.zt.textLo,
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationHistoryPage(),
+                ),
+              ),
+            ),
           ),
           const Divider(indent: 66, endIndent: 14, height: 1),
           SizedBox(

@@ -11,7 +11,15 @@ import '../models/device_label.dart';
 import '../models/notification_prefs.dart';
 import 'event_observer.dart';
 import 'app_log.dart';
+import 'notification_history.dart';
 import 'structured_log.dart';
+
+/// 通知动作按钮 id（v1.3.0）：与点按通知体同语义（深链直达会话）。
+const String kOpenActionId = 'zr_open';
+
+/// 连接状态渠道（v1.3.0，仿 DeepSeek-Harness 的"连接状态"类别）：
+/// 断连/恢复通知走这条 IMPORTANCE_LOW 静默渠道，不随提醒方式变化。
+const String kConnectionChannel = 'zr_conn_v8';
 
 class NotificationSpec {
   const NotificationSpec({
@@ -299,6 +307,23 @@ class NotifierService {
     // default notification sound. Custom sound choices are not stored.
     final spec = NotificationSpec.from(device, event, l10n);
     if (spec == null) return;
+    final effectiveL10n = l10n ?? l10nZh;
+    // 系统通知的本地留底（v1.3.0）：投递前记录，错过弹窗可在"通知历史"
+    // 回看。历史只含展示文本与深链载荷，与通知内容同源，无新增敏感面。
+    unawaited(
+      NotificationHistory.record(
+        NotificationHistoryEntry(
+          id: NotificationSpec.stableId(device, event),
+          at: DateTime.now(),
+          deviceId: device.id,
+          deviceName: device.displayName(effectiveL10n),
+          type: event.type,
+          title: spec.title,
+          body: spec.body,
+          payload: spec.payload,
+        ),
+      ),
+    );
     try {
       await ensurePermission();
       final id = NotificationSpec.stableId(device, event);
@@ -322,6 +347,11 @@ class NotifierService {
             // stable device/type/session notification id.
             onlyAlertOnce: false,
             visibility: lockScreenVisibility(lockEnabled: _lockScreenRedact),
+            // "打开会话"动作按钮（v1.3.0）。审批/回复按钮需要原生写路径
+            // （二进制 RPC 的 resolveInteraction/sendText），留给 v1.4。
+            actions: [
+              AndroidNotificationAction(kOpenActionId, effectiveL10n.notifActionOpen),
+            ],
           ),
         ),
         payload: spec.payload,
@@ -335,6 +365,58 @@ class NotifierService {
     }
   }
 
+  /// 连接状态通知（v1.3.0）：断连/恢复用 IMPORTANCE_LOW 静默渠道，
+  /// 不打扰但要留痕。恢复通知与断连通知共用每设备稳定 id，互相替换不堆叠。
+  Future<void> showConnection({
+    required RemoteDevice device,
+    required bool connected,
+    AppLocalizations? l10n,
+  }) async {
+    final effectiveL10n = l10n ?? l10nZh;
+    final title = device.displayName(effectiveL10n);
+    final body = connected
+        ? effectiveL10n.notifConnRestored
+        : effectiveL10n.notifConnDisconnected;
+    try {
+      await ensurePermission();
+      await _plugin.show(
+        id: 0x5A4301 + (stableDeviceKey(device.id) & 0xFF),
+        title: title,
+        body: body,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            kConnectionChannel,
+            effectiveL10n.notifChannelConn,
+            icon: 'ic_notification',
+            importance: Importance.low,
+            priority: Priority.low,
+            channelShowBadge: false,
+            playSound: false,
+            enableVibration: false,
+            onlyAlertOnce: true,
+          ),
+        ),
+        payload: device.id,
+      );
+      AppLog.event(
+        LogEvent.connectionStateNotified,
+        level: LogLevel.debug,
+        fields: {LogField.ok: connected},
+      );
+    } catch (_) {}
+  }
+
+  /// 跨进程稳定的设备通知键（Dart hashCode 重启后不保证一致，见
+  /// [NotificationSpec.stableId] 的同一约束）。
+  static int stableDeviceKey(String deviceId) {
+    final digest = sha256.convert(utf8.encode(deviceId)).bytes;
+    return ((digest[0] << 24) |
+            (digest[1] << 16) |
+            (digest[2] << 8) |
+            digest[3]) &
+        0x7FFFFFFF;
+  }
+
   Future<bool> showTest() async {
     try {
       await ensurePermission();
@@ -344,8 +426,9 @@ class NotifierService {
         body: l10nZh.notifTestBody,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
-            // 测试按钮模拟的是真实告警路径，同样跟随提醒方式。
-            _channelId('zr_done_alert_v6'),
+            // 测试按钮模拟的是真实告警路径，同样跟随提醒方式。渠道基名必须
+            // 与 NotificationSpec 的常量一致（v6 已被渠道清理删除）。
+            _channelId('zr_done_alert_v7'),
             l10nZh.notifChannelDone,
             icon: 'ic_notification',
             importance: Importance.high,

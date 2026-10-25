@@ -8,6 +8,7 @@ import '../l10n/app_localizations.dart';
 import '../models/device.dart';
 import '../state/active_session.dart';
 import '../state/app_lifecycle.dart';
+import '../state/connection_status.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/session_index.dart';
@@ -42,6 +43,12 @@ class WebViewSyncController {
     // 单次 decode：面板、状态、任务索引与事件提取共用同一 root（评审 A2）。
     final root = BridgeMessagePipeline.decode(body);
     if (root == null) return;
+
+    // 页面还在推数据 = relay 链路活着（连接状态聚合的生命迹象之一）。
+    ref.read(connectionStatusProvider.notifier).markAlive(
+          device.id,
+          LinkSignal.webview,
+        );
 
     final frameStatus = RelayLedPolicy.onFrameRoot(root);
     if (frameStatus != null) {
@@ -166,6 +173,18 @@ class WebViewSyncController {
         final status = RelayLedPolicy.onWsEvent(event);
         if (status != null) {
           ref.read(sessionStatusProvider.notifier).report(device.id, status);
+        }
+        // 连接状态聚合（v1.3.0）：页面 relay socket 的开/关是设备在线的
+        // 直接信号；断连是否播报由聚合器的沉寂宽限判定，这里只上报事实。
+        switch (event['s']) {
+          case 'open':
+            ref
+                .read(connectionStatusProvider.notifier)
+                .reportWebview(device.id, open: true);
+          case 'closed':
+            ref
+                .read(connectionStatusProvider.notifier)
+                .reportWebview(device.id, open: false);
         }
       }
     } catch (_) {

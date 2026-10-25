@@ -1,0 +1,197 @@
+import 'dart:async';
+import 'dart:ui' show AppLifecycleState;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/device.dart';
+import '../relay/relay_monitor.dart';
+import '../services/event_observer.dart';
+import '../services/notifier.dart';
+import 'active_session.dart';
+import 'app_lifecycle.dart';
+import 'connection_status.dart';
+import 'event_feed.dart';
+import 'notification_prefs.dart';
+import 'session_index.dart';
+import 'session_pool.dart';
+
+/// 原生监控通道服务（v1.3.0）。
+///
+/// 每台有 sid 的设备维护一条 [RelayMonitorConnection]，绕过 WebView 直连
+/// 中继拉任务快照。目的只有一个：**WebView 不在时（进程被杀后重启、页面
+/// 加载失败、后台被冻结）完成/失败事件仍然有第二条来源**——这是"24 小时
+/// 都能收到通知"的兜底链路。
+///
+/// 事件判定与 WebView 路径共用同一套提取器/差分器/闸门（[StateDiffer]、
+/// [EventDedupeGate]、[NotificationGate]），并读取同一批共享状态
+/// （可见设备、前台状态、活跃会话），因此两条来源对同一条事件的提醒
+/// 决策一致；系统通知 id 也相同（stableId），极端重复也只是替换不堆叠。
+class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
+  final _connections = <String, RelayMonitorConnection>{};
+  final _differs = <String, StateDiffer>{};
+  final _gates = <String, EventDedupeGate>{};
+  bool _disposed = false;
+
+  @override
+  Map<String, RelayMonitorState> build() {
+    ref.onDispose(() {
+      _disposed = true;
+      for (final id in _connections.keys.toSet()) {
+        _connections.remove(id)?.stop();
+      }
+      _differs.clear();
+      _gates.clear();
+    });
+    ref.listen(deviceListProvider, (_, next) => _sync(next));
+    _sync(ref.read(deviceListProvider));
+    return const {};
+  }
+
+  void _sync(List<RemoteDevice> devices) {
+    final wanted = {
+      for (final device in devices)
+        if (device.sid.isNotEmpty) device.id: device,
+    };
+    for (final id in _connections.keys.toSet()) {
+      if (wanted.containsKey(id)) continue;
+      _teardown(id);
+    }
+    for (final entry in wanted.entries) {
+      _ensureConnection(entry.value);
+    }
+  }
+
+  void _teardown(String deviceId) {
+    _connections.remove(deviceId)?.stop();
+    _differs.remove(deviceId);
+    _gates.remove(deviceId);
+    state = Map.of(state)..remove(deviceId);
+    ref.read(connectionStatusProvider.notifier).forgetMonitor(deviceId);
+  }
+
+  void _ensureConnection(RemoteDevice device) {
+    if (_connections.containsKey(device.id)) return;
+    final connection = RelayMonitorConnection(
+      deviceId: device.id,
+      deviceSid: device.sid,
+      appVersion: device.params['app_version'] ?? '3.16.3',
+      onState: _onMonitorState,
+      onSnapshot: _onSnapshot,
+    );
+    _connections[device.id] = connection;
+    _differs[device.id] = StateDiffer();
+    _gates[device.id] = EventDedupeGate();
+    unawaited(connection.start());
+  }
+
+  void _onMonitorState(String deviceId, RelayMonitorState monitorState) {
+    if (_disposed) return;
+    state = Map.of(state)..[deviceId] = monitorState;
+    ref
+        .read(connectionStatusProvider.notifier)
+        .reportMonitor(deviceId, monitorState);
+  }
+
+  void _onSnapshot(String deviceId, Map<dynamic, dynamic> result) {
+    if (_disposed) return;
+    ref
+        .read(connectionStatusProvider.notifier)
+        .markAlive(deviceId, LinkSignal.monitor);
+    final devices = ref.read(deviceListProvider);
+    final device = devices.where((d) => d.id == deviceId).firstOrNull;
+    if (device == null) return;
+
+    // workspace-list-response.result.tasks 与 WebView 侧
+    // TaskIndexExtractor 认识的形状一致（docs/RELAY-PROTOCOL-VERIFIED.md §4）。
+    final flat =
+        TaskIndexExtractor.parseResultTasksRoot({'result': result}) ??
+        const <SessionState>[];
+    // 会话索引只做**字段级合并**：快照任务不带审批/输入计数，绝不能把
+    // WebView 侧已经写入的 pendingInteraction 状态覆盖清零，否则会把
+    // "等待审批"差分成"已解决"、提前撤掉审批通知。
+    final merged = [
+      for (final item in flat)
+        _mergeFlat(
+          ref.read(sessionIndexProvider)[deviceId]?[item.sessionId],
+          item,
+        ),
+    ];
+    ref.read(sessionIndexProvider.notifier).upsertTasks(deviceId, merged);
+
+    final differ = _differs.putIfAbsent(deviceId, StateDiffer.new);
+    final gate = _gates.putIfAbsent(deviceId, EventDedupeGate.new);
+    // 快照是全量列表：差分前先对齐基线（终态出表即剪掉），避免长期增长。
+    differ.pruneOnSnapshot(merged);
+    final events = EventParser.dedupe(differ.apply(merged));
+    if (events.isEmpty) return;
+
+    final active = ref.read(activeTabProvider);
+    final visibleDeviceId = active >= 0 && active < devices.length
+        ? devices[active].id
+        : null;
+    final foreground =
+        ref.read(appLifecycleProvider) == AppLifecycleState.resumed;
+    final prefs = ref.read(notificationPrefsProvider);
+    final feed = ref.read(eventFeedProvider.notifier);
+    final index = ref.read(sessionIndexProvider);
+
+    for (final event in events) {
+      if (!gate.allow(event)) continue;
+      final session = event.taskId == null ? null : index[deviceId]?[event.taskId];
+      final enriched = event.copyWith(
+        sessionTitle: event.sessionTitle ?? session?.title,
+        summary: event.summary ?? session?.preview ?? session?.description,
+      );
+      if (enriched.type == 'resolved') {
+        final taskId = enriched.taskId;
+        if (taskId != null) {
+          NotifierService.instance.cancelPending(device, taskId);
+        }
+        feed.ingest(deviceId, enriched);
+        continue;
+      }
+      if (!prefs.enabled(enriched.type)) continue;
+      feed.ingest(deviceId, enriched);
+      final shouldNotify = NotificationGate.shouldNotify(
+        appForeground: foreground,
+        visibleDeviceId: visibleDeviceId,
+        eventDeviceId: device.id,
+        activeSessionId: ref.read(activeSessionProvider)[device.id],
+        eventSessionId: enriched.taskId,
+      );
+      if (!shouldNotify) continue;
+      unawaited(NotifierService.instance.notifyFrom(device, enriched));
+    }
+  }
+
+  /// 快照扁平任务 + 已有完整状态 → 合并状态。
+  ///
+  /// 扁平字段（title/preview/phase/时间/工作区）以快照为准（来自服务端、
+  /// 更新）；交互计数类字段（permissionCount/userInputCount/interactionKind/
+  /// toolName/description/pinned）只在已有状态里存在，原样保留。
+  static SessionState _mergeFlat(SessionState? prev, SessionState flat) {
+    if (prev == null) return flat;
+    return SessionState(
+      sessionId: flat.sessionId,
+      title: flat.title ?? prev.title,
+      phase: flat.phase ?? prev.phase,
+      sessionEnded: flat.sessionEnded ?? prev.sessionEnded,
+      permissionCount: prev.permissionCount,
+      userInputCount: prev.userInputCount,
+      interactionKind: prev.interactionKind,
+      toolName: prev.toolName,
+      description: prev.description,
+      preview: flat.preview ?? prev.preview,
+      lastActivityAt: flat.lastActivityAt ?? prev.lastActivityAt,
+      createdAt: flat.createdAt ?? prev.createdAt,
+      workspace: flat.workspace ?? prev.workspace,
+      workspacePath: flat.workspacePath ?? prev.workspacePath,
+      pinned: prev.pinned,
+    );
+  }
+}
+
+final relayMonitorProvider =
+    NotifierProvider<RelayMonitorNotifier, Map<String, RelayMonitorState>>(
+      RelayMonitorNotifier.new,
+    );

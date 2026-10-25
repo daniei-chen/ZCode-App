@@ -41,6 +41,22 @@ abstract final class MonitorKeepAlive {
     } catch (_) {}
   }
 
+  /// 同步连接状态到常驻通知文案（v1.3.0）：
+  /// 在线 →「已连接到 <设备名>」，断连 →「连接已断开，恢复后自动继续」。
+  /// 设备名与状态一起推（原生侧组合成最终文案并去重）。
+  static Future<void> updateStatus({
+    required String deviceName,
+    required bool connected,
+  }) async {
+    if (!_started) return;
+    try {
+      await _channel.invokeMethod<void>('status', {
+        'name': deviceName.trim(),
+        'connected': connected,
+      });
+    } catch (_) {}
+  }
+
   static Future<void> stop() async {
     _started = false;
     _lastName = '';
