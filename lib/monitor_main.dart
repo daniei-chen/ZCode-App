@@ -42,6 +42,21 @@ Future<void> monitorMain() async {
         await monitor.suspend();
       case 'resume':
         await monitor.resume();
+      case 'syncDevices':
+        // UI 引擎推送的权威设备清单（v1.6.3）：args = [ {id,sid,mid,name,app_version} ]
+        final raw = call.arguments;
+        final specs = <Map<String, String>>[];
+        if (raw is List) {
+          for (final item in raw) {
+            if (item is Map) {
+              specs.add({
+                for (final e in item.entries)
+                  if (e.value is String) '${e.key}': e.value as String,
+              });
+            }
+          }
+        }
+        monitor.applyDevices(specs);
     }
     return null;
   });

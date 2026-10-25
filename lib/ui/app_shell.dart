@@ -349,6 +349,17 @@ class _AppShellState extends ConsumerState<AppShell> {
       // 设备改名/增删都会到这里：把最新设备名同步到常驻通知
       // （原生侧同名去重，无变化不刷新）。
       unawaited(_syncKeepAliveDeviceName());
+      // 推送权威设备清单给头无监控引擎（v1.6.3 跨隔离体显式同步）。
+      unawaited(MonitorKeepAlive.syncDevices([
+        for (final d in next)
+          (
+            id: d.id,
+            sid: d.sid,
+            mid: d.params['mid'] ?? '',
+            name: d.label,
+            appVersion: d.params['app_version'] ?? '3.16.3',
+          ),
+      ]));
     });
 
     ref.listen(activeTabProvider, (_, next) {

@@ -10,11 +10,7 @@ import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
 import 'services/keepalive.dart';
-// 头无引擎入口的可达性锚点（v1.6.3）：AOT 只编译 main.dart 的传递导入
-// 图——不 import 本文件，monitorMain 就不在 release 快照里，服务里的
-// DartEntrypoint 永远找不到入口（v1.3.1 起后台监控从未启动的根因）。
-// ignore: unused_import
-import 'monitor_main.dart';
+import 'monitor_main.dart' as monitor;
 import 'services/notifier.dart';
 import 'services/relay_credentials.dart';
 import 'services/structured_log.dart';
@@ -26,6 +22,13 @@ import 'state/startup_target.dart';
 import 'state/theme_mode.dart';
 import 'theme.dart';
 import 'ui/app_shell.dart';
+
+// 头无引擎入口（v1.6.3）：DartEntrypoint 的入口名只在**快照根库
+// （main.dart）**里查找——定义在别的文件里即使带 vm:entry-point pragma
+// 也"Could not resolve main entrypoint function"（MuMu 实测红字实锤，
+// v1.3.1 起后台监控从未启动的最终根因）。这里放同名包装转发。
+@pragma('vm:entry-point')
+Future<void> monitorMain() => monitor.monitorMain();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

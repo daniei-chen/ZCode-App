@@ -157,6 +157,9 @@ class MonitorKeepAliveService : Service() {
             engine = created
             headlessEngine = created
             android.util.Log.i("MonitorKeepAlive", "headless engine started")
+            // 转发 UI 引擎积压的设备清单（服务先于 UI 引擎的 handler 时缓存）
+            MonitorKeepAliveService.pendingDevices?.let { MonitorKeepAliveService.pushDevices(it) }
+
             // UI 可能已经在前台（服务先于 Activity 起来）：补一次协调。
             pushSuspendState()
         } catch (e: Exception) {
@@ -253,6 +256,28 @@ class MonitorKeepAliveService : Service() {
         @Volatile
         var headlessEngine: io.flutter.embedding.engine.FlutterEngine? = null
             private set
+
+        /** UI 引擎推送的最新设备清单（引擎未就绪时缓存，就绪即转发）。 */
+        @Volatile
+        private var pendingDevices: List<Map<String, String>>? = null
+
+        /** UI → 头无引擎的设备清单转发（MainActivity 的 keepalive 通道调用）。 */
+        fun pushDevices(devices: List<Map<String, String>>) {
+            val e = headlessEngine
+            if (e == null) {
+                pendingDevices = devices
+                android.util.Log.w("MonitorKeepAlive", "pushDevices: engine not ready, cached " + devices.size)
+                return
+            }
+            try {
+                MethodChannel(e.dartExecutor.binaryMessenger, "zremote/monitor_control")
+                    .invokeMethod("syncDevices", devices)
+                pendingDevices = null
+                android.util.Log.i("MonitorKeepAlive", "pushed devices: " + devices.size)
+            } catch (e2: Exception) {
+                android.util.Log.e("MonitorKeepAlive", "pushDevices failed", e2)
+            }
+        }
 
         private const val CHANNEL_ID = "zr_keep_monitor_v8"
 

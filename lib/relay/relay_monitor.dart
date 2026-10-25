@@ -257,6 +257,7 @@ class RelayMonitorConnection {
     required this.deviceMid,
     required this.appVersion,
     required this.tokenProvider,
+    this.relayTokenExchange = exchangeRelayToken,
     RelaySocket Function()? socketFactory,
     DateTime Function()? now,
     this.onState,
@@ -273,6 +274,9 @@ class RelayMonitorConnection {
 
   /// 每次建连现读账号 JWT；null/空 = 尚未捕获（用户没打开过远控页）。
   final Future<String?> Function() tokenProvider;
+
+  /// JWT → 短效 relay token（可注入；生产走 HTTP 交换端点）。
+  final Future<String?> Function(String jwt) relayTokenExchange;
   final RelaySocket Function() _socketFactory;
   final DateTime Function() _now;
 
@@ -297,11 +301,45 @@ class RelayMonitorConnection {
 
   RelayMonitorState get state => _state;
 
-  /// WS 端点基址（query 逐次构建：token 可能已轮换）。
-  static final Uri wsBase = Uri.parse('wss://zcode.z.ai/ws');
+  /// WS 端点基址（query 逐次构建：relay token 每次交换，60s 有效）。
+  /// v1.6.3 PC 实测全链验证：POST /api/v1/remote/token {role:'terminal'}
+  /// （Bearer JWT）→ token/expires_in (Map) → ws2?token=relay-token&mid=mid
+  /// → auth_init → auth_ack matched → 快照。/ws 是 V1 老端点（V2 令牌 401）。
+  static final Uri wsBase = Uri.parse('wss://zcode.z.ai/api/v1/remote/ws2');
+
+  /// 短效 relay 令牌交换端点（60s 有效，每次建连前现换）。
+  static final Uri tokenExchangeUrl =
+      Uri.parse('https://zcode.z.ai/api/v1/remote/token');
 
   /// 没有 JWT 时的静默重试间隔。
   static const authRetryDelay = Duration(seconds: 60);
+
+  /// JWT → 短效 relay token（POST /api/v1/remote/token {role:'terminal'}，
+  /// PC 实测 200：{code:0, data:{token, expires_in:60}}）。失败返回 null。
+  static Future<String?> exchangeRelayToken(String jwt) async {
+    try {
+      final client = HttpClient();
+      final request = await client.postUrl(tokenExchangeUrl);
+      request.headers.set('Authorization', 'Bearer $jwt');
+      request.headers.set('Content-Type', 'application/json');
+      request.add(utf8.encode(jsonEncode({'role': 'terminal'})));
+      final response = await request.close().timeout(
+        RelayMonitorPolicy.connectTimeout,
+      );
+      final body = await response.transform(utf8.decoder).join();
+      client.close();
+      if (response.statusCode != 200) return null;
+      final root = jsonDecode(body);
+      if (root is! Map || root['code'] != 0) return null;
+      final data = root['data'];
+      if (data is! Map) return null;
+      final token = data['token'];
+      if (token is! String || token.isEmpty) return null;
+      return token;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// 组装带 token/mid 的连接地址（与官方页面 `searchParams.set` 逐参对齐）。
   static Uri wsUrlFor({required String token, required String deviceMid}) {
@@ -362,9 +400,18 @@ class RelayMonitorConnection {
     _teardownTimers();
     // V2 需要账号 JWT（探针实证：无 token 一律 WRONG_PARAM）。未捕获时不
     // 裸连，静默等 60s 后再读——用户打开一次远控页后令牌就有了。
-    final token = await tokenProvider();
+    final jwt = await tokenProvider();
     if (!_running) return;
-    if (token == null || token.isEmpty) {
+    if (jwt == null || jwt.isEmpty) {
+      _setState(RelayMonitorState.authMissing);
+      _authRetry = Timer(authRetryDelay, _connect);
+      return;
+    }
+    // V2 令牌链（PC 实测）：JWT 换 60s 短效 relay token，ws2 只认后者。
+    final relayToken = await relayTokenExchange(jwt);
+    if (!_running) return;
+    if (relayToken == null) {
+      // 交换失败（401=JWT 过期 → 提示重登；网络抖动 → 退避重试）。
       _setState(RelayMonitorState.authMissing);
       _authRetry = Timer(authRetryDelay, _connect);
       return;
@@ -373,7 +420,7 @@ class RelayMonitorConnection {
     final socket = _socketFactory();
     try {
       await socket.connect(
-        wsUrlFor(token: token, deviceMid: deviceMid),
+        wsUrlFor(token: relayToken, deviceMid: deviceMid),
         RelayMonitorPolicy.connectTimeout,
       );
     } catch (e) {

@@ -135,6 +135,7 @@ void main() {
           deviceMid: 'mid-1234',
           appVersion: '3.16.3',
           tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -149,7 +150,7 @@ void main() {
         expect(states, contains(RelayMonitorState.authenticating));
         // 握手报文已发出且 sid 正确；连接 URL 带 token+mid（V2 配方）。
         expect(sockets.first.sent.join(), contains('d_ABC'));
-        expect(sockets.first.connectUrls.single, contains('token=jwt-token-1'));
+        expect(sockets.first.connectUrls.single, contains('token=relay-from-jwt-token-1'));
         expect(sockets.first.connectUrls.single, contains('mid=mid-1234'));
 
         sockets.first.serverSends(
@@ -194,6 +195,7 @@ void main() {
           deviceMid: 'mid-1234',
           appVersion: '3.16.3',
           tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -231,6 +233,7 @@ void main() {
           deviceMid: 'mid-1234',
           appVersion: '3.16.3',
           tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -261,6 +264,7 @@ void main() {
           deviceMid: 'mid-1234',
           appVersion: '3.16.3',
           tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () => FakeSocket(true),
           onState: (_, state) => states.add(state),
         );
@@ -278,6 +282,7 @@ void main() {
           deviceMid: 'mid-1234',
           appVersion: '3.16.3',
           tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () => FakeSocket(false),
           onState: (_, _) {},
         );
@@ -289,9 +294,9 @@ void main() {
 
     test('wsUrlFor：token 必带、mid 非空才带（与官方 searchParams 逐参对齐）', () {
       final url = RelayMonitorConnection.wsUrlFor(token: 't0 k', deviceMid: 'mid-9');
-      expect(url.toString(), 'wss://zcode.z.ai/ws?token=t0+k&mid=mid-9');
+      expect(url.toString(), 'wss://zcode.z.ai/api/v1/remote/ws2?token=t0+k&mid=mid-9');
       final noMid = RelayMonitorConnection.wsUrlFor(token: 't', deviceMid: '  ');
-      expect(noMid.toString(), 'wss://zcode.z.ai/ws?token=t');
+      expect(noMid.toString(), 'wss://zcode.z.ai/api/v1/remote/ws2?token=t');
     });
 
     test('无 token：不建连，60s 后重读 token 再连（v1.3.1）', () {
@@ -308,6 +313,7 @@ void main() {
             reads += 1;
             return token.isEmpty ? null : token;
           },
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
           socketFactory: () {
             final socket = FakeSocket(false);
             sockets.add(socket);
@@ -326,7 +332,7 @@ void main() {
         async.elapse(const Duration(seconds: 61));
         expect(reads, 2);
         expect(sockets, hasLength(1));
-        expect(sockets.first.connectUrls.single, contains('token=late-token'));
+        expect(sockets.first.connectUrls.single, contains('token=relay-from-late-token'));
         expect(sockets.first.connectUrls.single, contains('mid=mid-1234'));
       });
     });

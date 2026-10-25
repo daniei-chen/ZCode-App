@@ -41,6 +41,28 @@ abstract final class MonitorKeepAlive {
     } catch (_) {}
   }
 
+  /// 推送权威设备清单给头无监控引擎（v1.6.3）：跨隔离体的存储读取在
+  /// 部分环境不可靠，UI 引擎把 deviceList 显式推过去（id/sid/mid/name）。
+  static Future<void> syncDevices(List<({String id, String sid, String mid, String name, String appVersion})> devices) async {
+    // ignore: avoid_print
+    print('ZRDIAG syncDevices started=$_started n=${devices.length}');
+    if (!_started || devices.isEmpty) return;
+    try {
+      await _channel.invokeMethod<void>('pushDevices', {
+        'devices': [
+          for (final d in devices)
+            {
+              'id': d.id,
+              'sid': d.sid,
+              'mid': d.mid,
+              'name': d.name,
+              'app_version': d.appVersion,
+            },
+        ],
+      });
+    } catch (_) {}
+  }
+
   /// 同步连接状态到常驻通知文案（v1.3.0）：
   /// 在线 →「已连接到 <设备名>」，断连 →「连接已断开，恢复后自动继续」。
   /// 设备名与状态一起推（原生侧组合成最终文案并去重）。

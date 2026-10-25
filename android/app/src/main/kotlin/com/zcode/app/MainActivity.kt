@@ -258,6 +258,14 @@ class MainActivity : FlutterFragmentActivity() {
                     MonitorKeepAliveService.status(this, name, connected)
                     result.success(null)
                 }
+                "pushDevices" -> {
+                    // UI 引擎推送权威设备清单（v1.6.3）：转发给头无监控引擎。
+                    @Suppress("UNCHECKED_CAST")
+                    val devices = call.argument<List<Map<String, String>>>("devices")
+                        ?: emptyList()
+                    MonitorKeepAliveService.pushDevices(devices)
+                    result.success(null)
+                }
                 "stop" -> {
                     MonitorKeepAliveService.stop(this)
                     result.success(null)

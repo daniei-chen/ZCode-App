@@ -96,15 +96,21 @@ class RelayAgentChannel {
   }
 
   Future<void> _connectOnce() async {
-    final token = await tokenProvider();
-    if (!_running || token == null || token.isEmpty) {
+    final jwt = await tokenProvider();
+    if (!_running || jwt == null || jwt.isEmpty) {
       // 没有令牌：等一分钟再试（与监控连接同节奏）。
+      await Future<void>.delayed(RelayMonitorConnection.authRetryDelay);
+      return;
+    }
+    // V2 令牌链（与监控一致）：JWT 换 60s 短效 relay token。
+    final relayToken = await RelayMonitorConnection.exchangeRelayToken(jwt);
+    if (!_running || relayToken == null) {
       await Future<void>.delayed(RelayMonitorConnection.authRetryDelay);
       return;
     }
     final socket = _socketFactory();
     await socket.connect(
-      RelayMonitorConnection.wsUrlFor(token: token, deviceMid: deviceMid),
+      RelayMonitorConnection.wsUrlFor(token: relayToken, deviceMid: deviceMid),
       RelayMonitorPolicy.connectTimeout,
     );
     if (!_running) {

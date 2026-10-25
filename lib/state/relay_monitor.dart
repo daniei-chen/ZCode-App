@@ -124,6 +124,28 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     _sync(ref.read(deviceListProvider));
   }
 
+  /// UI 引擎推送的设备清单（v1.6.3，跨隔离体显式同步）：头无引擎自身的
+  /// DeviceStore 读取在部分环境下不可靠（实测 MuMu：30s 轮询始终拿空表），
+  /// 改为 UI 引擎把权威清单推过来。键仍为设备 id；推空 = 全部拆除。
+  void applyDevices(List<Map<String, String>> specs) {
+    if (_disposed) return;
+    final devices = [
+      for (final spec in specs)
+        RemoteDevice(
+          id: spec['id'] ?? '',
+          baseUrl: 'https://zcode.z.ai/remote/v4',
+          params: {
+            'sid': spec['sid'] ?? '',
+            'mid': spec['mid'] ?? '',
+            'app_version': spec['app_version'] ?? '3.16.3',
+          },
+          label: spec['name'] ?? '',
+          createdAt: DateTime.now(),
+        ),
+    ].where((d) => d.id.isNotEmpty && d.sid.isNotEmpty).toList();
+    _sync(devices);
+  }
+
   void _onMonitorState(String deviceId, RelayMonitorState monitorState) {
     if (_disposed) return;
     state = Map.of(state)..[deviceId] = monitorState;
