@@ -220,6 +220,19 @@ class MainActivity : FlutterFragmentActivity() {
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
+            "zremote/notification_channels",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "ensureChannels" -> {
+                    ensureAlertChannels(call.argument<String>("mode") ?: "sound")
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
             "zremote/keepalive",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -314,6 +327,34 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    /**
+     * 预建告警渠道（v1.2.2，对齐 DeepSeek-Harness 的"通知类别"形态）：
+     * 渠道若只在首条通知时创建，用户在系统设置里永远看不到"失败/需要你的
+     * 操作"类别。同时清掉旧版本与其他提醒方式的渠道，让系统"通知类别"
+     * 列表保持四类：完成通知 / 失败 / 需要你的操作 / 远程监控常驻。
+     */
+    private fun ensureAlertChannels(mode: String) {
+        val manager = getSystemService(NotificationManager::class.java) ?: return
+        val defs = listOf(
+            Triple("zr_perm_alert_v7", "需要你的操作", NotificationManager.IMPORTANCE_HIGH),
+            Triple("zr_fail_alert_v7", "失败", NotificationManager.IMPORTANCE_HIGH),
+            Triple("zr_done_alert_v7", "完成通知", NotificationManager.IMPORTANCE_HIGH),
+        )
+        val keep = mutableSetOf("zr_keep_monitor_v8")
+        for ((base, name, importance) in defs) {
+            val id = "${base}_$mode"
+            keep.add(id)
+            manager.createNotificationChannel(
+                NotificationChannel(id, name, importance).apply { setShowBadge(true) },
+            )
+        }
+        for (channel in manager.notificationChannels) {
+            if (channel.id.startsWith("zr_") && channel.id !in keep) {
+                manager.deleteNotificationChannel(channel.id)
             }
         }
     }

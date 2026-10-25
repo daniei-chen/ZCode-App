@@ -200,7 +200,7 @@ void main() {
           summary: '创建文件 zz-test.txt',
         ),
       )!;
-      expect(spec.channelId, 'zr_perm_alert_v6');
+      expect(spec.channelId, 'zr_perm_alert_v7');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, '修复登录页');
@@ -213,7 +213,7 @@ void main() {
         _device('公司MBP'),
         const ObservedEvent(type: 'error', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelId, 'zr_fail_alert_v6');
+      expect(spec.channelId, 'zr_fail_alert_v7');
       expect(spec.importance, Importance.high);
       expect(spec.priority, Priority.high);
       expect(spec.title, 'hi');
@@ -225,7 +225,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(done.channelId, 'zr_done_alert_v6');
+      expect(done.channelId, 'zr_done_alert_v7');
       expect(done.importance, Importance.high);
       expect(done.priority, Priority.high);
       expect(done.title, 'hi');
@@ -252,7 +252,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelName, '任务完成');
+      expect(spec.channelName, '完成通知');
       expect(spec.title, 'hi');
     });
 
@@ -263,7 +263,7 @@ void main() {
         const ObservedEvent(type: 'permission_request', sessionTitle: 'hi'),
         l10n,
       )!;
-      expect(spec.channelName, '审批请求');
+      expect(spec.channelName, '需要你的操作');
       expect(spec.title, 'hi');
       expect(spec.body, '需要你的批准，点击打开对话');
     });
@@ -273,7 +273,7 @@ void main() {
         _device('x'),
         const ObservedEvent(type: 'completed', sessionTitle: 'hi'),
       )!;
-      expect(spec.channelId, 'zr_done_alert_v6');
+      expect(spec.channelId, 'zr_done_alert_v7');
     });
   });
 

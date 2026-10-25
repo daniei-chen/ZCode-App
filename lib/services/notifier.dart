@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -48,9 +49,9 @@ class NotificationSpec {
   // Android persists a channel's sound choice forever. Bump the channel ids so
   // upgrades from the old silent/custom-sound experiments get a fresh channel
   // whose `sound: null` + `playSound: true` resolves to the system default.
-  static const _approvalChannel = 'zr_perm_alert_v6';
-  static const _failureChannel = 'zr_fail_alert_v6';
-  static const _completeChannel = 'zr_done_alert_v6';
+  static const _approvalChannel = 'zr_perm_alert_v7';
+  static const _failureChannel = 'zr_fail_alert_v7';
+  static const _completeChannel = 'zr_done_alert_v7';
 
   static Set<int> cancellableIds(RemoteDevice device, String taskId) => {
     stableId(device, ObservedEvent(type: 'permission_request', taskId: taskId)),
@@ -204,9 +205,29 @@ class NotifierService {
 
   void setLockScreenRedact(bool value) => _lockScreenRedact = value;
 
+  static const MethodChannel _channelsChannel = MethodChannel(
+    'zremote/notification_channels',
+  );
+
   /// 提醒方式（声音/仅振动/静音）。Android 渠道创建后声音不可再改，
   /// 因此通知按模式投递到不同的渠道族（见 [_channelId]）。
-  void setAlertMode(String mode) => _alertMode = mode;
+  void setAlertMode(String mode) {
+    _alertMode = mode;
+    // 模式切换即重建渠道族并清掉旧渠道，系统"通知类别"列表保持干净
+    // （对齐 DeepSeek-Harness 的分类形态）；失败静默，不影响功能。
+    unawaited(_ensureNativeChannels(mode));
+  }
+
+  /// 启动时预建全部告警渠道（v1.2.2，对齐 DSH）：渠道只在首条通知时创建
+  /// 的话，用户在系统设置里永远看不到"失败/需要你的操作"这两个类别。
+  /// 预建让三个类别装好即可见、可单独调。
+  Future<void> _ensureNativeChannels(String mode) async {
+    try {
+      await _channelsChannel.invokeMethod<void>('ensureChannels', {
+        'mode': mode,
+      });
+    } catch (_) {}
+  }
 
   // ignore: avoid_shadowing_type_parameters
   String _channelId(String base) => '${base}_$_alertMode';
@@ -245,6 +266,7 @@ class NotifierService {
       if (details?.didNotificationLaunchApp ?? false) {
         NotificationTap.route(details?.notificationResponse?.payload);
       }
+      await _ensureNativeChannels(_alertMode);
     } catch (e) {
       AppLog.failure(
         LogEvent.notificationInitFailed,
