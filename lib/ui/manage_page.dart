@@ -102,7 +102,7 @@ class ManagePage extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: l10n.diagnosticsTitle,
+                        tooltip: l10n.commonRefresh,
                         onPressed: () =>
                             ref.read(deviceListProvider.notifier).reload(),
                         icon: Icon(
@@ -176,24 +176,39 @@ class ManagePage extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: 14),
-                // 账号登录 CTA / 过期横幅（v1.5.0）。
-                if (directory.status == DeviceDirectoryStatus.signedOut)
-                  _AccountLoginCard(onRefresh: () => ref.read(deviceDirectoryProvider.notifier).refresh())
-                else if (directory.status == DeviceDirectoryStatus.authExpired)
+                // 账号优先的空态（v1.5.1）：没登录 = 整个空态就是"添加账号"，
+                // 扫码/粘贴收进卡内次要行；登录后无设备 = 官方口径引导。
+                if (directory.status == DeviceDirectoryStatus.authExpired)
                   _AccountExpiredBanner(
                     onRelogin: () => _openLogin(context),
                   ),
-                if (devices.isEmpty)
-                  _EmptyHint(
-                    storageUnavailable: ref.watch(
-                      deviceStoreUnavailableProvider,
+                if (devices.isEmpty) ...[
+                  if (directory.status == DeviceDirectoryStatus.signedOut)
+                    _AccountLoginCard(
+                      onRefresh: () =>
+                          ref.read(deviceDirectoryProvider.notifier).refresh(),
+                      onScan: () => _openScanner(context, ref),
+                      onPaste: () => _showPasteDialog(context, ref),
+                    )
+                  else if (directory.status == DeviceDirectoryStatus.ready &&
+                      directory.devices.isEmpty)
+                    _NoDirectoryDevicesHint(
+                      onRefresh: () =>
+                          ref.read(deviceDirectoryProvider.notifier).refresh(),
+                      onScan: () => _openScanner(context, ref),
+                      onPaste: () => _showPasteDialog(context, ref),
+                    )
+                  else
+                    _EmptyHint(
+                      storageUnavailable: ref.watch(
+                        deviceStoreUnavailableProvider,
+                      ),
+                      onRetry: () =>
+                          ref.read(deviceListProvider.notifier).reload(),
+                      onScan: () => _openScanner(context, ref),
+                      onPaste: () => _showPasteDialog(context, ref),
                     ),
-                    onRetry: () =>
-                        ref.read(deviceListProvider.notifier).reload(),
-                    onScan: () => _openScanner(context, ref),
-                    onPaste: () => _showPasteDialog(context, ref),
-                  )
-                else ...[
+                ] else ...[
                   if (directory.devices.isNotEmpty) ...[
                     SectionLabel(l10n.accountDevicesSection),
                     for (final entry in directory.devices)
@@ -1692,9 +1707,15 @@ class _ZLogoBadge extends StatelessWidget {
 /// 账号登录 CTA（v1.5.0）：黑白主按钮 + 说明；点击进官方登录流，
 /// 登录完成后设备目录自动刷新出设备列表。
 class _AccountLoginCard extends StatelessWidget {
-  const _AccountLoginCard({required this.onRefresh});
+  const _AccountLoginCard({
+    required this.onRefresh,
+    this.onScan,
+    this.onPaste,
+  });
 
   final Future<void> Function() onRefresh;
+  final VoidCallback? onScan;
+  final VoidCallback? onPaste;
 
   @override
   Widget build(BuildContext context) {
@@ -1760,6 +1781,89 @@ class _AccountLoginCard extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+            // 手动方式收进次要行：账号是主路，扫码/粘贴只是兜底。
+            if (onScan != null || onPaste != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: onScan,
+                    child: Text(l10n.accountManualAdd),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 已登录但账号下还没有设备（v1.5.1）：官方口径引导 + 刷新 + 手动兜底。
+class _NoDirectoryDevicesHint extends StatelessWidget {
+  const _NoDirectoryDevicesHint({
+    required this.onRefresh,
+    this.onScan,
+    this.onPaste,
+  });
+
+  final Future<void> Function() onRefresh;
+  final VoidCallback? onScan;
+  final VoidCallback? onPaste;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.accountNoDevicesTitle,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: context.zt.textHi,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              l10n.accountNoDevicesHint,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.5,
+                color: context.zt.textLo,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: context.zt.surfaceHi,
+                    foregroundColor: context.zt.textHi,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => onRefresh(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.refresh, size: 16),
+                      const SizedBox(width: 5),
+                      Text(l10n.commonRefresh),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                TextButton(onPressed: onScan, child: Text(l10n.accountManualAdd)),
+              ],
             ),
           ],
         ),
