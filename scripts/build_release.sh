@@ -47,11 +47,16 @@ FLUTTER="${SDK_DIR}/bin/flutter"
 "$FLUTTER" test
 
 step "2/5 构建"
-# 引擎 maven（storage.googleapis.com/download.flutter.io）国内间歇不可达，
-# floating version 元数据查询抖动即失败——gradle 自带重试不够，这里整轮
-# 重试（最多 3 次，间隔 10s）。注意：引擎产物只存在于官方仓，不能用
-# FLUTTER_STORAGE_BASE_URL 指到阿里云（它没有 io.flutter 组）。
+# 版本注入：flutter build 负责把 pubspec 版本写进 local.properties
+# （之后 sed 修 SDK 路径）。flutter build 在本机常因路径乱码失败——
+# 属预期，失败后由 gradlew 接管完成构建。
+"$FLUTTER" build apk --release >/dev/null 2>&1 || true
 sed -i 's|^flutter.sdk=.*|flutter.sdk=D:/flutter-sdk|' android/local.properties
+grep -q "flutter.versionName=${VERSION}" android/local.properties || {
+  echo "警告：local.properties 版本字段不是 ${VERSION}（flutter build 未写入？）"
+}
+# 引擎 maven（storage.googleapis.com/download.flutter.io）国内间歇不可达，
+# floating version 元数据查询抖动即失败——整轮重试（最多 3 次，间隔 10s）。
 BUILD_OK=0
 for attempt in 1 2 3; do
   echo "构建尝试 $attempt/3"
@@ -93,7 +98,7 @@ git tag "$TAG"
 git push origin "$TAG"
 gh release create "$TAG" \
   --title "${TAG}" \
-  --notes-file "docs/releases/${VERSION}.md" \
+  --notes-file "docs/releases/v${VERSION}.md" \
   "$APK" "${APK}.sha256"
 
 echo ""
