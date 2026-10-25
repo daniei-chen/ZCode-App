@@ -140,11 +140,16 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
     );
   }
 
-  /// 常驻通知文案用：null = 还没有任何信号（保持乐观的"已连接"展示，
-  /// 避免启动瞬间闪"断开"）。
+  /// 常驻通知文案用。v1.6.2 去乐观化：无任何信号 ≠ 在线——令牌过期时
+  /// 页面与监控同时静默，乐观展示会掩盖"其实已经死了"的事实。返回
+  /// null（完全无踪迹，比如刚启动）仍按在线处理避免闪断；有踪迹但
+  /// 沉寂超宽限则如实报告离线。
   bool? liveState(String deviceId) {
     final track = state[deviceId];
     if (track == null) return null;
+    final hasAnySignal =
+        track.webviewOpen || track.monitorPaired || track.lastAliveAt != null;
+    if (!hasAnySignal) return null;
     return ConnectionPolicy.isLive(
       webviewOpen: track.webviewOpen,
       monitorPaired: track.monitorPaired,

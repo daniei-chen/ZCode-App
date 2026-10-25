@@ -9,6 +9,7 @@ import '../models/device.dart';
 import '../state/active_session.dart';
 import '../state/app_lifecycle.dart';
 import '../state/connection_status.dart';
+import '../state/device_directory.dart';
 import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/session_index.dart';
@@ -173,6 +174,21 @@ class WebViewSyncController {
         final status = RelayLedPolicy.onWsEvent(event);
         if (status != null) {
           ref.read(sessionStatusProvider.notifier).report(device.id, status);
+        }
+        // 终态失败（含 invalid-mobile-connection=令牌失效被拒，v1.6.2）：
+        // 页面不再重连，webview 侧信号清零——连接聚合据此如实转离线，
+        // 目录的 401 链路随后发"登录已过期"通知。
+        if (status == SessionStatus.error) {
+          ref
+              .read(connectionStatusProvider.notifier)
+              .reportWebview(device.id, open: false);
+          // 令牌类终态：主动触发一次目录刷新——401 证实后"登录已过期"
+          // 通知与首页横幅随之出现，引导用户重登。
+          final reason = '${event['r'] ?? ''}';
+          if (reason.contains('invalid-mobile-connection') ||
+              reason.contains('device-not-owned')) {
+            unawaited(ref.read(deviceDirectoryProvider.notifier).refresh());
+          }
         }
         // 连接状态聚合（v1.3.0）：页面 relay socket 的开/关是设备在线的
         // 直接信号；断连是否播报由聚合器的沉寂宽限判定，这里只上报事实。
