@@ -113,7 +113,7 @@ class MonitorKeepAliveService : Service() {
             // 完成初始化再取 bundle 路径，否则 findAppBundlePath 返回空、
             // 引擎起不来且永不重试。
             loader.startInitialization(applicationContext)
-            loader.ensureInitialization()
+            loader.ensureInitializationComplete(applicationContext, null)
             val entrypoint = DartEntrypoint(loader.findAppBundlePath(), "monitorMain")
             val created = FlutterEngineGroup(this).createAndRunEngine(this, entrypoint)
             // 头无引擎不经过 Activity 的 configureFlutterEngine，插件与
