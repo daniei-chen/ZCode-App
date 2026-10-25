@@ -7,6 +7,7 @@ import '../models/device.dart';
 import '../relay/relay_monitor.dart';
 import '../services/app_log.dart';
 import '../services/event_observer.dart';
+import '../services/monitor_state_store.dart';
 import '../services/notifier.dart';
 import '../services/relay_credentials.dart';
 import '../services/structured_log.dart';
@@ -70,6 +71,7 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     _gates.remove(deviceId);
     state = Map.of(state)..remove(deviceId);
     ref.read(connectionStatusProvider.notifier).forgetMonitor(deviceId);
+    unawaited(MonitorStateStore.removeDevice(deviceId));
   }
 
   void _ensureConnection(RemoteDevice device) {
@@ -120,6 +122,8 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
         fields: {LogField.device: deviceId},
       );
     }
+    // 跨隔离体外存（v1.4.0）：UI 引擎的诊断页要能看到监控引擎的状态。
+    unawaited(MonitorStateStore.writeDevice(deviceId, monitorState.name));
     ref
         .read(connectionStatusProvider.notifier)
         .reportMonitor(deviceId, monitorState);

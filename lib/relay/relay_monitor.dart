@@ -35,6 +35,10 @@ enum RelayMonitorState {
   /// 已发 auth_init，等待 auth_ack。
   authenticating,
 
+  /// 账号令牌未捕获（用户还没打开过远控页）——静默等 60s 重读。
+  /// 诊断口径：这是"装好后没打开过页面"的专属状态，与网络故障区分。
+  authMissing,
+
   /// 服务端已确认但 pair_status=waiting_terminal（桌面端没在等终端）。
   waiting,
 
@@ -361,7 +365,7 @@ class RelayMonitorConnection {
     final token = await tokenProvider();
     if (!_running) return;
     if (token == null || token.isEmpty) {
-      _setState(RelayMonitorState.disconnected);
+      _setState(RelayMonitorState.authMissing);
       _authRetry = Timer(authRetryDelay, _connect);
       return;
     }

@@ -163,7 +163,9 @@ void main() {
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(SettingsPage), findsOneWidget);
@@ -178,7 +180,9 @@ void main() {
     testWidgets('从设置里进诊断页：返回只回设置，再返回回设备页', (tester) async {
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.tap(find.text('诊断信息'));
@@ -220,7 +224,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(SettingsPage), findsOneWidget);
@@ -241,7 +247,9 @@ void main() {
       var calls = 0;
       await _pumpLauncher(tester, () => calls++);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await _pressSystemBack(tester);
@@ -255,7 +263,9 @@ void main() {
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.byType(SettingsPage), findsOneWidget);
@@ -271,7 +281,9 @@ void main() {
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await tester.tap(find.text('诊断信息'));
@@ -291,7 +303,9 @@ void main() {
     testWidgets('设置页返回时不会触发远控页/启动器的额外跳转', (tester) async {
       await _pumpLauncher(tester);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设置'));
+      await tester.ensureVisible(find.text('设置'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设置'), warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 

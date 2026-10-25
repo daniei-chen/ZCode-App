@@ -103,6 +103,7 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
       case RelayMonitorState.waiting:
       case RelayMonitorState.authenticating:
       case RelayMonitorState.connecting:
+      case RelayMonitorState.authMissing:
         track.monitorPaired = false;
       case RelayMonitorState.disconnected:
       case RelayMonitorState.idle:

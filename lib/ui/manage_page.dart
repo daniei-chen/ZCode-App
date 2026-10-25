@@ -13,6 +13,7 @@ import '../services/device_import.dart';
 import '../services/link_builder.dart';
 import '../services/structured_log.dart';
 import '../state/account_label.dart';
+import '../state/connection_status.dart';
 import '../state/back_stack.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -53,23 +54,19 @@ class ManagePage extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
+                  padding: const EdgeInsets.fromLTRB(2, 6, 2, 0),
                   child: Row(
                     children: [
-                      Image.asset(
-                        'assets/brand/mark.png',
-                        width: 46,
-                        height: 46,
-                      ),
-                      const SizedBox(width: 12),
+                      _ZLogoBadge(size: 42, radius: 13),
+                      const SizedBox(width: 11),
                       Flexible(
                         child: Text(
                           'ZCode',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w700,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
                             letterSpacing: -0.4,
                             color: context.zt.textHi,
                           ),
@@ -79,52 +76,98 @@ class ManagePage extends ConsumerWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 10, 2, 0),
+                  padding: const EdgeInsets.fromLTRB(2, 14, 2, 0),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Text(
-                          l10n.manageTitle,
+                          devices.isEmpty
+                              ? l10n.launcherTitleSelectComputer
+                              : l10n.launcherTitleSelectComputer,
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: -0.2,
+                            fontSize: 27,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
                             color: context.zt.textHi,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      const Flexible(child: _TimeGreeting()),
+                      IconButton(
+                        tooltip: l10n.diagnosticsTitle,
+                        onPressed: () =>
+                            ref.read(deviceListProvider.notifier).reload(),
+                        icon: Icon(
+                          Icons.refresh,
+                          size: 22,
+                          color: context.zt.textLo,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 if (account.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(2, 8, 2, 0),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: context.zt.textLo,
+                    padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: devices.isEmpty
+                          ? null
+                          : () {
+                              final open = onOpenDevice;
+                              if (open != null) {
+                                open(0);
+                              } else {
+                                ref.read(activeTabProvider.notifier).set(0);
+                              }
+                            },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 6,
                         ),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(
-                            l10n.accountSignedInAs(account),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.zt.textLo,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: context.zt.surfaceHi,
+                              ),
+                              child: Icon(
+                                Icons.person_outline,
+                                size: 17,
+                                color: context.zt.accent,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                account,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.zt.textHi,
+                                ),
+                              ),
+                            ),
+                            if (devices.isNotEmpty)
+                              Text(
+                                l10n.launcherSwitchAccount,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: context.zt.accent,
+                                ),
+                              ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 14),
                 if (devices.isEmpty)
                   _EmptyHint(
                     storageUnavailable: ref.watch(
@@ -136,7 +179,20 @@ class ManagePage extends ConsumerWidget {
                     onPaste: () => _showPasteDialog(context, ref),
                   )
                 else ...[
-                  SectionLabel(l10n.devicesCount(devices.length)),
+                  Builder(builder: (context) {
+                    final live = devices
+                        .where(
+                          (d) =>
+                              ref.read(connectionStatusProvider.notifier).liveState(d.id) ==
+                              true,
+                        )
+                        .length;
+                    return SectionLabel(
+                      live == devices.length
+                          ? l10n.launcherGroupOnline(live)
+                          : '${l10n.launcherGroupOnline(live)} · ${l10n.launcherGroupOffline} ${devices.length - live}',
+                    );
+                  }),
                   ReorderableListView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -721,23 +777,53 @@ class _DeviceCard extends ConsumerWidget {
           }
         },
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: context.zt.surfaceHi,
-                ),
-                child: Icon(
-                  Icons.desktop_windows,
-                  size: 20,
-                  color: context.zt.accent,
+              // 官方「选择电脑」风格（v1.4.0）：56px 圆角图标 + 左下角状态点
+              //（在线=live 绿、连接中=黄、异常=红，白描边圆点叠在图标角上）。
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(17),
+                        color: context.zt.surfaceHi,
+                      ),
+                      child: Icon(
+                        Icons.desktop_windows,
+                        size: 27,
+                        color: context.zt.accent,
+                      ),
+                    ),
+                    Positioned(
+                      left: -3,
+                      bottom: -3,
+                      child: Container(
+                        width: 15,
+                        height: 15,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: context.zt.bg,
+                          border: Border.all(color: context.zt.bg, width: 3),
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: context.zt.statusColor(status),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -747,39 +833,27 @@ class _DeviceCard extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                         color: context.zt.textHi,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      l10n.deviceAddedOn(
-                        '${device.createdAt.month}/${device.createdAt.day}',
-                      ),
+                      '${switch (status) {
+                        SessionStatus.live => l10n.statusLive,
+                        SessionStatus.error => l10n.statusError,
+                        SessionStatus.loading || null => l10n.statusConnecting,
+                      }} · ${l10n.deviceAddedOn('${device.createdAt.month}/${device.createdAt.day}')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(fontSize: 12, color: context.zt.textLo),
                     ),
                   ],
                 ),
               ),
               UnreadBadge(feed: feed),
-              Tooltip(
-                message: switch (status) {
-                  SessionStatus.live => l10n.statusLive,
-                  SessionStatus.error => l10n.statusError,
-                  SessionStatus.loading || null => l10n.statusConnecting,
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: context.zt.statusColor(status),
-                  ),
-                ),
-              ),
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 iconSize: 20,
@@ -1505,4 +1579,38 @@ class _ScannerOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// ZCode 官方风格的黑色 Z 徽章（v1.4.0 首页改版）：圆角方块 + 白色粗体 Z，
+/// 暗色模式反色为白底黑字。
+class _ZLogoBadge extends StatelessWidget {
+  const _ZLogoBadge({this.size = 44, this.radius = 14});
+
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = context.zt.isDark;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        color: dark ? Colors.white : Colors.black,
+      ),
+      child: Center(
+        child: Text(
+          'Z',
+          style: TextStyle(
+            fontSize: size * 0.55,
+            height: 1.0,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+            color: dark ? Colors.black : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -319,6 +319,8 @@ void main() {
         async.elapse(const Duration(milliseconds: 10));
         expect(sockets, isEmpty, reason: '没有 JWT 绝不裸连');
         expect(reads, 1);
+        expect(connection.state, RelayMonitorState.authMissing,
+            reason: '缺令牌是独立诊断态（区别于网络故障）');
 
         token = 'late-token';
         async.elapse(const Duration(seconds: 61));

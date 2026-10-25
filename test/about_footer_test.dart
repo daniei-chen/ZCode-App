@@ -67,7 +67,9 @@ void main() {
     final repoLink = find.text(
       'ZCode v1.4.0 · github.com/daniei-chen/ZCode-App',
     );
-    await tester.tap(repoLink);
+    await tester.ensureVisible(repoLink);
+    await tester.pumpAndSettle();
+    await tester.tap(repoLink, warnIfMissed: false);
     await tester.pump();
 
     expect(launches, hasLength(1));
@@ -83,7 +85,9 @@ void main() {
           urlLauncherChannel,
           (call) async => throw PlatformException(code: 'no_activity'),
         );
-    await tester.tap(repoLink);
+    await tester.ensureVisible(repoLink);
+    await tester.pumpAndSettle();
+    await tester.tap(repoLink, warnIfMissed: false);
     await tester.pump();
 
     expect(tester.takeException(), isNull);

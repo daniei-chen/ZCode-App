@@ -488,6 +488,9 @@ class ObservedEvent {
     this.taskId,
     this.sessionTitle,
     this.summary,
+    this.interactionId,
+    this.allowOptionId,
+    this.denyOptionId,
   });
 
   final String type;
@@ -498,13 +501,29 @@ class ObservedEvent {
 
   final String? summary;
 
-  ObservedEvent copyWith({String? sessionTitle, String? summary}) =>
-      ObservedEvent(
-        type: type,
-        taskId: taskId,
-        sessionTitle: sessionTitle ?? this.sessionTitle,
-        summary: summary ?? this.summary,
-      );
+  /// 审批/输入请求的交互 id（v1.4.0）：resolveInteraction 命令的定位键。
+  final String? interactionId;
+
+  /// 权限选项 id（来自会话快照的 options，bundle 实证 answer={optionId}）。
+  /// 为空 = 没拿到选项，通知栏不挂"允许/拒绝"按钮（退化为"打开会话"）。
+  final String? allowOptionId;
+  final String? denyOptionId;
+
+  ObservedEvent copyWith({
+    String? sessionTitle,
+    String? summary,
+    String? interactionId,
+    String? allowOptionId,
+    String? denyOptionId,
+  }) => ObservedEvent(
+    type: type,
+    taskId: taskId,
+    sessionTitle: sessionTitle ?? this.sessionTitle,
+    summary: summary ?? this.summary,
+    interactionId: interactionId ?? this.interactionId,
+    allowOptionId: allowOptionId ?? this.allowOptionId,
+    denyOptionId: denyOptionId ?? this.denyOptionId,
+  );
 }
 
 abstract final class EventParser {

@@ -80,6 +80,10 @@ class MonitorKeepAliveService : Service() {
             uiActive = intent.getBooleanExtra(EXTRA_UI_ACTIVE, false)
             pushSuspendState()
         }
+        // 引擎失败重试（v1.4.0）：onCreate 时的创建可能因 FlutterLoader 未就绪
+        // 失败（开机自启先于任何 Activity），此后每次 onStartCommand（状态
+        // 推送/自启重建）都尝试补建，成功即止。
+        ensureMonitorEngine()
         // 已在前台时 startForeground 就是刷新内容的最短路径。
         startInForeground()
         return START_STICKY
@@ -92,18 +96,24 @@ class MonitorKeepAliveService : Service() {
             } catch (_: Exception) {}
         }
         engine = null
+        headlessEngine = null
         super.onDestroy()
     }
 
     /**
-     * 拉起头无监控引擎（幂等）。创建失败（个别 ROM/老机型）静默退化：
-     * 前台服务继续保活 WebView 路径，行为等同 v1.2.x。
+     * 拉起头无监控引擎（幂等）。创建失败（个别 ROM/老机型/loader 未就绪）
+     * 静默退化并在下次 onStartCommand 重试：前台服务继续保活 WebView 路径，
+     * 行为等同 v1.2.x。
      */
     private fun ensureMonitorEngine() {
         if (engine != null) return
         try {
             val loader = FlutterInjector.instance().flutterLoader()
+            // loader 可能尚未初始化（开机自启先于任何 Activity）：这里同步
+            // 完成初始化再取 bundle 路径，否则 findAppBundlePath 返回空、
+            // 引擎起不来且永不重试。
             loader.startInitialization(applicationContext)
+            loader.ensureInitialization()
             val entrypoint = DartEntrypoint(loader.findAppBundlePath(), "monitorMain")
             val created = FlutterEngineGroup(this).createAndRunEngine(this, entrypoint)
             // 头无引擎不经过 Activity 的 configureFlutterEngine，插件与
@@ -145,6 +155,7 @@ class MonitorKeepAliveService : Service() {
                     }
                 }
             engine = created
+            headlessEngine = created
             // UI 可能已经在前台（服务先于 Activity 起来）：补一次协调。
             pushSuspendState()
         } catch (_: Exception) {
@@ -234,6 +245,11 @@ class MonitorKeepAliveService : Service() {
     }
 
     companion object {
+        /** 头无引擎的全局只读引用（诊断/调试用；v1.4.0）。 */
+        @Volatile
+        var headlessEngine: io.flutter.embedding.engine.FlutterEngine? = null
+            private set
+
         private const val CHANNEL_ID = "zr_keep_monitor_v8"
 
         // 901 是 v1.0.0 遗留通知的 id（MainActivity 启动时会清一次），

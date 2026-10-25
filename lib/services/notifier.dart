@@ -13,6 +13,7 @@ import 'event_observer.dart';
 import 'app_log.dart';
 import 'notification_history.dart';
 import 'structured_log.dart';
+import '../state/relay_agent.dart' show notificationActionDispatcher;
 
 /// 通知动作按钮 id（v1.3.0）：与点按通知体同语义（深链直达会话）。
 const String kOpenActionId = 'zr_open';
@@ -20,6 +21,53 @@ const String kOpenActionId = 'zr_open';
 /// 连接状态渠道（v1.3.0，仿 DeepSeek-Harness 的"连接状态"类别）：
 /// 断连/恢复通知走这条 IMPORTANCE_LOW 静默渠道，不随提醒方式变化。
 const String kConnectionChannel = 'zr_conn_v8';
+
+/// 通知动作按钮 id（v1.4.0）：原生接收器按 id 分派允许/拒绝/回复。
+const String kAllowActionId = 'zr_allow';
+const String kDenyActionId = 'zr_deny';
+const String kReplyActionId = 'zr_reply';
+
+/// 按事件类型挂动作按钮（v1.4.0）：
+/// * 审批：拿到选项 id 才挂"允许/拒绝"（answer={optionId}，bundle 实证）；
+///   没拿到选项时退化为"打开会话"——宁可少按钮，不可点了报错；
+/// * 提问/完成：直接回复（RemoteInput → freeText / sendText）。
+List<AndroidNotificationAction> _actionsFor(
+  ObservedEvent event,
+  AppLocalizations l10n,
+) {
+  final open = AndroidNotificationAction(kOpenActionId, l10n.notifActionOpen);
+  AndroidNotificationAction reply() => AndroidNotificationAction(
+    kReplyActionId,
+    l10n.notifActionReply,
+    showsUserInterface: false,
+    inputs: [
+      AndroidNotificationActionInput(
+        label: l10n.notifActionReplyHint,
+        allowFreeFormInput: true,
+      ),
+    ],
+  );
+  switch (event.type) {
+    case 'permission_request':
+      final allow = event.allowOptionId;
+      final deny = event.denyOptionId;
+      if (allow != null &&
+          allow.isNotEmpty &&
+          deny != null &&
+          deny.isNotEmpty) {
+        return [
+          AndroidNotificationAction(kAllowActionId, l10n.notifActionAllow),
+          AndroidNotificationAction(kDenyActionId, l10n.notifActionDeny),
+        ];
+      }
+      return [open];
+    case 'elicitation_request':
+    case 'completed':
+      return [reply(), open];
+    default:
+      return [open];
+  }
+}
 
 class NotificationSpec {
   const NotificationSpec({
@@ -115,15 +163,6 @@ class NotificationSpec {
     final body = bodyFor(event.type, event.summary, l);
     switch (event.type) {
       case 'permission_request':
-        return NotificationSpec(
-          channelId: _approvalChannel,
-          channelName: l.notifChannelApproval,
-          importance: Importance.high,
-          priority: Priority.high,
-          title: title,
-          body: body,
-          payload: _payload(device, event.taskId),
-        );
       case 'elicitation_request':
         return NotificationSpec(
           channelId: _approvalChannel,
@@ -132,7 +171,7 @@ class NotificationSpec {
           priority: Priority.high,
           title: title,
           body: body,
-          payload: _payload(device, event.taskId),
+          payload: actionPayload(device, event),
         );
       case 'error':
         return NotificationSpec(
@@ -165,6 +204,18 @@ class NotificationSpec {
 /// that session (backward compatible with the plain device id).
 String _payload(RemoteDevice device, String? taskId) =>
     taskId == null || taskId.isEmpty ? device.id : '${device.id}|$taskId';
+
+/// v1.4.0 审批/回复事件的扩展载荷：
+/// 'deviceId|sessionId|interactionId|allowOptionId|denyOptionId'——前缀
+/// 向后兼容（点按深链只取前两段），后段供通知动作按钮执行
+/// resolveInteraction（允许/拒绝）与 sendText（回复）。
+String actionPayload(RemoteDevice device, ObservedEvent event) => [
+  device.id,
+  if (event.taskId?.isNotEmpty == true) event.taskId,
+  if (event.interactionId?.isNotEmpty == true) event.interactionId,
+  if (event.allowOptionId?.isNotEmpty == true) event.allowOptionId,
+  if (event.denyOptionId?.isNotEmpty == true) event.denyOptionId,
+].join('|');
 
 abstract final class NotificationTap {
   static String? _pending;
@@ -269,6 +320,10 @@ class NotifierService {
         ),
         onDidReceiveNotificationResponse: (response) =>
             NotificationTap.route(response.payload),
+        // 动作按钮（允许/拒绝/回复，v1.4.0）：插件在独立后台 isolate 里
+        // 分发——不依赖两个引擎谁活着，`@pragma('vm:entry-point')` 保底。
+        onDidReceiveBackgroundNotificationResponse:
+            notificationActionDispatcher,
       );
       final details = await _plugin.getNotificationAppLaunchDetails();
       if (details?.didNotificationLaunchApp ?? false) {
@@ -347,11 +402,9 @@ class NotifierService {
             // stable device/type/session notification id.
             onlyAlertOnce: false,
             visibility: lockScreenVisibility(lockEnabled: _lockScreenRedact),
-            // "打开会话"动作按钮（v1.3.0）。审批/回复按钮需要原生写路径
-            // （二进制 RPC 的 resolveInteraction/sendText），留给 v1.4。
-            actions: [
-              AndroidNotificationAction(kOpenActionId, effectiveL10n.notifActionOpen),
-            ],
+            // 动作按钮（v1.4.0）：审批=允许/拒绝（有选项时）、完成/提问=
+            // 直接回复，其余=打开会话。见 [_actionsFor]。
+            actions: _actionsFor(event, effectiveL10n),
           ),
         ),
         payload: spec.payload,

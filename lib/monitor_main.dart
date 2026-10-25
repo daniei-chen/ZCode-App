@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'services/notifier.dart';
 import 'state/app_lifecycle.dart';
 import 'state/connection_status.dart';
+import 'state/relay_agent.dart';
 import 'state/relay_monitor.dart';
 
 /// 头无监控隔离体的入口（v1.3.1，由 MonitorKeepAliveService 宿主）。
@@ -45,8 +46,10 @@ Future<void> monitorMain() async {
     return null;
   });
   // 设备表无 seed 构建 = 从存储异步加载；relayMonitorProvider 监听它，
-  // 载入完成后自动为每台设备建连。
+  // 载入完成后自动为每台设备建连。agent 通道（v1.4.0 审批/回复写路径）
+  // 同样常驻：通道独立于监控连接，失败只是通知栏没有按钮。
   container.read(relayMonitorProvider.notifier);
+  container.read(relayAgentProvider.notifier);
   // 服务持有引擎即持有隔离体；这里永不返回作为双保险。
   await Completer<void>().future;
 }

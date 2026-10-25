@@ -9,6 +9,7 @@ import '../services/app_settings.dart';
 import '../services/battery_optimization.dart';
 import '../services/bridge_schema.dart';
 import '../services/diagnostics_bundle.dart';
+import '../services/monitor_state_store.dart';
 import '../services/structured_log.dart';
 import '../services/update_service.dart';
 import '../services/webview_storage.dart';
@@ -33,6 +34,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   String _version = '';
   String _buildNumber = '';
   Map<String, Object?> _android = const {};
+  Map<String, String> _monitorStates = const {};
   bool? _notifEnabled;
   bool? _batteryIgnored;
   String? _updateStatus;
@@ -54,11 +56,14 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final notif = await AppSettings.notificationsEnabled();
     final battery =
         await BatteryOptimizationService.isIgnoringBatteryOptimizations();
+    // 头无监控引擎的状态经 SharedPreferences 跨隔离体共享（v1.4.0）。
+    final monitor = await MonitorStateStore.readDevices();
     if (!mounted) return;
     setState(() {
       _android = android;
       _notifEnabled = notif;
       _batteryIgnored = battery;
+      _monitorStates = monitor;
     });
   }
 
@@ -127,6 +132,16 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       batteryIgnored: _batteryIgnored ?? false,
     );
   }
+
+  String _monitorStateLabel(AppLocalizations l10n, String raw) =>
+      switch (raw) {
+        'paired' => l10n.diagnosticsMonitorPaired,
+        'waiting' => l10n.diagnosticsMonitorWaiting,
+        'authMissing' => l10n.diagnosticsMonitorAuthMissing,
+        'connecting' || 'authenticating' => l10n.diagnosticsMonitorConnecting,
+        'disconnected' => l10n.diagnosticsMonitorDisconnected,
+        _ => raw,
+      };
 
   String _statusLabel(AppLocalizations l10n, SessionStatus? status) =>
       switch (status) {
@@ -204,6 +219,15 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               '${_statusLabel(l10n, statuses[d.id])}'
                   '${bridge[d.id] != null ? ' · bridge=${bridge[d.id]!.ready ? 'ok' : 'missing'}' : ''}',
             ),
+          _section(palette, l10n.diagnosticsSectionMonitor),
+          for (final entry in _monitorStates.entries)
+            _row(
+              palette,
+              LogRedactor.shortId(entry.key),
+              _monitorStateLabel(l10n, entry.value),
+            ),
+          if (_monitorStates.isEmpty)
+            _row(palette, l10n.diagnosticsMonitorNone, '—'),
           _section(palette, l10n.diagnosticsSectionNotifications),
           _row(
             palette,
