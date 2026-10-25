@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../l10n/app_localizations.dart';
@@ -14,12 +15,14 @@ import '../services/link_builder.dart';
 import '../services/structured_log.dart';
 import '../state/account_label.dart';
 import '../state/connection_status.dart';
+import '../state/device_directory.dart';
 import '../state/back_stack.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
 import '../state/event_feed.dart';
 import '../theme.dart';
 import '../models/device_label.dart';
+import 'account_login_page.dart';
 import 'section_label.dart';
 import 'settings_page.dart';
 import 'unread_badge.dart';
@@ -42,6 +45,11 @@ class ManagePage extends ConsumerWidget {
     // 同属一个已登录账号，在设备中心头部把它亮出来。探针没读到（还没
     // 进过远控页）时不占位。
     final account = ref.watch(accountLabelProvider);
+    // 账号设备目录（v1.5.0）：官方"选择电脑"页的同款数据源，30s 探活。
+    final directory = ref.watch(deviceDirectoryProvider);
+    final directorySids = {
+      for (final d in directory.devices) d.sid,
+    };
 
     return Scaffold(
       body: SafeArea(
@@ -168,6 +176,13 @@ class ManagePage extends ConsumerWidget {
                     ),
                   ),
                 const SizedBox(height: 14),
+                // 账号登录 CTA / 过期横幅（v1.5.0）。
+                if (directory.status == DeviceDirectoryStatus.signedOut)
+                  _AccountLoginCard(onRefresh: () => ref.read(deviceDirectoryProvider.notifier).refresh())
+                else if (directory.status == DeviceDirectoryStatus.authExpired)
+                  _AccountExpiredBanner(
+                    onRelogin: () => _openLogin(context),
+                  ),
                 if (devices.isEmpty)
                   _EmptyHint(
                     storageUnavailable: ref.watch(
@@ -179,6 +194,15 @@ class ManagePage extends ConsumerWidget {
                     onPaste: () => _showPasteDialog(context, ref),
                   )
                 else ...[
+                  if (directory.devices.isNotEmpty) ...[
+                    SectionLabel(l10n.accountDevicesSection),
+                    for (final entry in directory.devices)
+                      _AccountDeviceCard(
+                        device: entry,
+                        onOpen: () => _openAccountDevice(context, ref, entry),
+                      ),
+                    const SizedBox(height: 2),
+                  ],
                   Builder(builder: (context) {
                     final live = devices
                         .where(
@@ -203,12 +227,15 @@ class ManagePage extends ConsumerWidget {
                         .reorder(oldIndex, newIndex),
                     children: [
                       for (var i = 0; i < devices.length; i++)
-                        _DeviceCard(
-                          key: ValueKey(devices[i].id),
-                          device: devices[i],
-                          index: i,
-                          onOpenDevice: onOpenDevice,
-                        ),
+                        // 目录已按 sid 展示的设备不再重复列出手动条目
+                        //（同一台电脑只出现一次）。
+                        if (!directorySids.contains(devices[i].sid))
+                          _DeviceCard(
+                            key: ValueKey(devices[i].id),
+                            device: devices[i],
+                            index: i,
+                            onOpenDevice: onOpenDevice,
+                          ),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -230,6 +257,53 @@ class ManagePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _openLogin(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<bool>(builder: (_) => const AccountLoginPage()),
+    );
+  }
+
+  /// 打开账号设备：sid 已导入则直达，否则按目录信息创建并打开。
+  /// 连接 URL 与扫码导入完全同构（sid+mid+name），登录态已在 WebView
+  /// 存储里，打开远控页即自动配对。
+  Future<void> _openAccountDevice(
+    BuildContext context,
+    WidgetRef ref,
+    AccountDevice device,
+  ) async {
+    var index = ref
+        .read(deviceListProvider)
+        .indexWhere((d) => d.sid == device.sid);
+    if (index < 0) {
+      const uuid = Uuid();
+      final remote = RemoteDevice(
+        id: uuid.v4(),
+        baseUrl: 'https://zcode.z.ai/remote/v4',
+        params: {
+          'sid': device.sid,
+          'mid': device.mid,
+          'name': device.displayName,
+          'app_version': '3.16.3',
+        },
+        label: device.displayName,
+        createdAt: DateTime.now(),
+      );
+      await ref.read(deviceListProvider.notifier).add(remote);
+      index = ref
+          .read(deviceListProvider)
+          .indexWhere((d) => d.sid == device.sid);
+    }
+    if (index < 0) return;
+    ref.read(eventFeedProvider.notifier).markRead(
+          ref.read(deviceListProvider)[index].id,
+        );
+    ref.read(activeTabProvider.notifier).set(index);
+    final open = onOpenDevice;
+    if (open != null) {
+      open(index);
+    }
   }
 
   Future<void> _openScanner(BuildContext context, WidgetRef ref) async {
@@ -1608,6 +1682,230 @@ class _ZLogoBadge extends StatelessWidget {
             fontWeight: FontWeight.w900,
             letterSpacing: -0.5,
             color: dark ? Colors.black : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 账号登录 CTA（v1.5.0）：黑白主按钮 + 说明；点击进官方登录流，
+/// 登录完成后设备目录自动刷新出设备列表。
+class _AccountLoginCard extends StatelessWidget {
+  const _AccountLoginCard({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.laptop_mac_outlined,
+                  size: 22,
+                  color: context.zt.textHi,
+                ),
+                const SizedBox(width: 9),
+                Text(
+                  l10n.accountLoginCta,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: context.zt.textHi,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Text(
+              l10n.accountLoginHint,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.5,
+                color: context.zt.textLo,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: context.zt.accent,
+                  foregroundColor: context.zt.onAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                onPressed: () async {
+                  final ok = await Navigator.of(context).push(
+                    MaterialPageRoute<bool>(
+                      builder: (_) => const AccountLoginPage(),
+                    ),
+                  );
+                  if (ok == true) await onRefresh();
+                },
+                child: Text(
+                  l10n.accountLoginTitle,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 登录过期横幅（v1.5.0）：点按重新进入登录流。
+class _AccountExpiredBanner extends StatelessWidget {
+  const _AccountExpiredBanner({required this.onRelogin});
+
+  final VoidCallback onRelogin;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: context.zt.surfaceHi,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onRelogin,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            child: Row(
+              children: [
+                Icon(Icons.lock_clock, size: 17, color: context.zt.textHi),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    l10n.accountExpiredBanner,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: context.zt.textHi,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 18, color: context.zt.textLo),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 账号设备行（v1.5.0）：官方"选择电脑"形态——大图标 + 左下角探活点
+///（在线=绿、离线=灰）+ 名称/状态副标题 + chevron，点按即连。
+class _AccountDeviceCard extends StatelessWidget {
+  const _AccountDeviceCard({required this.device, required this.onOpen});
+
+  final AccountDevice device;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final online = device.online;
+    return Card(
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(17),
+                        color: context.zt.surfaceHi,
+                      ),
+                      child: Icon(
+                        Icons.desktop_windows,
+                        size: 27,
+                        color: context.zt.textHi,
+                      ),
+                    ),
+                    Positioned(
+                      left: -3,
+                      bottom: -3,
+                      child: Container(
+                        width: 15,
+                        height: 15,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: context.zt.bg,
+                          border: Border.all(color: context.zt.bg, width: 3),
+                        ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: online
+                                ? context.zt.live
+                                : context.zt.hairline,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        color: context.zt.textHi,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${online ? l10n.accountDeviceOnline : l10n.accountDeviceOffline}'
+                      '${device.platform != null && device.platform!.isNotEmpty ? ' · ${device.platform}' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.zt.textLo,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 21, color: context.zt.textLo),
+            ],
           ),
         ),
       ),

@@ -76,7 +76,7 @@ class ZTPalette extends ThemeExtension<ZTPalette> {
     surfaceHi: Color(0xFF2B2B2B),
     field: Color(0xFF2B2B2B),
     hairline: Color(0xFF373737),
-    accent: Color(0xFF4099FF),
+    accent: Color(0xFFF8F8F8),
     onAccent: Color(0xFF000000),
     live: Color(0xFF46BF72),
     warn: Color(0xFFFF8A30),
@@ -92,12 +92,12 @@ class ZTPalette extends ThemeExtension<ZTPalette> {
   static const ZTPalette light = ZTPalette(
     brightness: Brightness.light,
     // Values mirror the installed ZCode 3.11.2 light renderer tokens.
-    bg: Color(0xFFF8F8F8),
+    bg: Color(0xFFF6F5F4),
     surface: Color(0xFFFFFFFF),
-    surfaceHi: Color(0xFFF0F0F0),
+    surfaceHi: Color(0xFFEFEEEC),
     field: Color(0xFFFFFFFF),
-    hairline: Color(0xFFD9D9D9),
-    accent: Color(0xFF0B7FFF),
+    hairline: Color(0xFFEBEAE8),
+    accent: Color(0xFF000000),
     onAccent: Color(0xFFFFFFFF),
     live: Color(0xFF1E8A3E),
     // Slightly darker than the renderer token so the app's 3:1 light-mode
