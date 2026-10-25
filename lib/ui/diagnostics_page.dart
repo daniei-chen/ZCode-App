@@ -102,7 +102,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   /// 内容由 `DiagnosticsBundle` 组装，只接受归一化字段，并在渲染时再过一次脱敏。
   Future<void> _copyBundle() async {
     final l10n = AppLocalizations.of(context)!;
-    final bundle = DiagnosticsBundle.render(_buildBundle());
+    final bundle = DiagnosticsBundle.render(await _buildBundle());
     await Clipboard.setData(ClipboardData(text: bundle));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -110,7 +110,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     );
   }
 
-  DiagnosticsInputs _buildBundle() {
+  Future<DiagnosticsInputs> _buildBundle() async {
     final devices = ref.read(deviceListProvider);
     final statuses = ref.read(sessionStatusProvider);
     final stats = ref.read(observerStatsProvider);
@@ -132,6 +132,17 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       biometric: ref.read(biometricProvider),
       notificationsEnabled: _notifEnabled ?? false,
       batteryIgnored: _batteryIgnored ?? false,
+      // 监控引擎/命令通道/目录状态（v1.6.3）：头无隔离体的观测盲区补齐，
+      // 诊断包不再只有 UI 引擎视角。
+      monitorStates: {
+        for (final e in (await MonitorStateStore.readDevices()).entries)
+          LogRedactor.shortId(e.key): e.value,
+      },
+      agentReady: {
+        for (final e in (await MonitorStateStore.readAgentReady()).entries)
+          LogRedactor.shortId(e.key): e.value,
+      },
+      directoryStatus: ref.read(deviceDirectoryProvider).status.name,
     );
   }
 

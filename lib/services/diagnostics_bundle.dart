@@ -29,6 +29,9 @@ class DiagnosticsInputs {
     required this.droppedMessages,
     required this.droppedDebugLines,
     required this.logs,
+    this.monitorStates = const {},
+    this.agentReady = const {},
+    this.directoryStatus = '',
   });
 
   final DateTime generatedAt;
@@ -47,6 +50,15 @@ class DiagnosticsInputs {
   final int droppedMessages;
   final int droppedDebugLines;
   final List<String> logs;
+
+  /// 设备短 id → 监控引擎状态枚举名（跨隔离体共享存储，v1.6.3 入包）。
+  final Map<String, String> monitorStates;
+
+  /// 设备短 id → 命令通道就绪（通知栏按钮的后端）。
+  final Map<String, bool> agentReady;
+
+  /// 设备目录状态（登录令牌有效性的权威口径）。
+  final String directoryStatus;
 }
 
 /// 脱敏诊断包（PR20 / F19）。
@@ -69,6 +81,9 @@ abstract final class DiagnosticsBundle {
     required bool biometric,
     required bool notificationsEnabled,
     required bool batteryIgnored,
+    Map<String, String> monitorStates = const {},
+    Map<String, bool> agentReady = const {},
+    String directoryStatus = '',
   }) {
     return DiagnosticsInputs(
       generatedAt: DateTime.now().toUtc(),
@@ -99,6 +114,9 @@ abstract final class DiagnosticsBundle {
       droppedMessages: BridgeSchema.droppedMessages,
       droppedDebugLines: AppLog.droppedInRelease,
       logs: AppLog.snapshot(),
+      monitorStates: monitorStates,
+      agentReady: agentReady,
+      directoryStatus: directoryStatus,
     );
   }
 
@@ -129,6 +147,16 @@ abstract final class DiagnosticsBundle {
                 '${_bridgeSuffix(inputs, id)}',
           ),
       ]),
+      if (inputs.monitorStates.isNotEmpty ||
+          inputs.agentReady.isNotEmpty ||
+          inputs.directoryStatus.isNotEmpty)
+        DiagnosticsSection('monitor', [
+          MapEntry('directory', inputs.directoryStatus),
+          for (final e in inputs.monitorStates.entries)
+            MapEntry('${e.key}.monitor', e.value),
+          for (final e in inputs.agentReady.entries)
+            MapEntry('${e.key}.agent', e.value ? 'ready' : 'down'),
+        ]),
       DiagnosticsSection('observer', [
         MapEntry('bridgeDroppedMessages', '${inputs.droppedMessages}'),
         MapEntry('debugLinesDroppedInRelease', '${inputs.droppedDebugLines}'),

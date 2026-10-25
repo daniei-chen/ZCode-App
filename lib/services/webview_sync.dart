@@ -15,9 +15,11 @@ import '../state/notification_prefs.dart';
 import '../state/session_index.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
+import 'app_log.dart';
 import 'bridge_message_pipeline.dart';
 import 'event_observer.dart';
 import 'notifier.dart';
+import 'structured_log.dart';
 import 'warmup.dart';
 
 /// Keeps the official WebView as the source of truth while feeding the
@@ -201,6 +203,17 @@ class WebViewSyncController {
             ref
                 .read(connectionStatusProvider.notifier)
                 .reportWebview(device.id, open: false);
+          case 'ignored':
+            // 被白名单忽略的 WS：pathname（无 query，脱敏安全）进日志，
+            // 诊断包可判读"relay 实际连接路径 vs 白名单"。
+            AppLog.event(
+              LogEvent.webviewWsIgnored,
+              level: LogLevel.warn,
+              fields: {
+                LogField.device: LogRedactor.shortId(device.id),
+                LogField.route: event['p'] is String ? event['p'] as String : null,
+              },
+            );
         }
       }
     } catch (_) {

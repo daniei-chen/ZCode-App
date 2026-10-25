@@ -91,6 +91,7 @@ abstract final class EventObserver {
   var stats = window.__zrStats = window.__zrStats || {
     fetch200: 0, fetchCloned: 0, fetchSkipped: 0,
     sseMessages: 0, sseIgnored: 0, wsMessages: 0, wsIgnored: 0,
+    wsOpened: 0, wsIgnoredZcodeHost: 0, wsIgnoredOtherHost: 0,
     wsSkippedSize: 0, fetchSkippedSize: 0,
     framesDecoded: 0, invalidFragments: 0, expiredFragments: 0,
     queueDropped: 0, seenDropped: 0
@@ -418,11 +419,23 @@ abstract final class EventObserver {
       try {
         var urlStr = (url && url.href) ? url.href : String(url);
         // W2：非官方 relay 的 WS 一律透明（不挂监听、不读正文）。
+        // v1.6.3：按 host 分类计数 + 留痕 pathname（无 query，脱敏安全）——
+        // "relay 到底连的什么路径"从此在诊断包里可见。
         if (!wsAllowed(urlStr)) {
           bump('wsIgnored');
+          try {
+            var iu = new URL(urlStr, location.href);
+            if (iu.hostname.toLowerCase() === 'zcode.z.ai') {
+              bump('wsIgnoredZcodeHost');
+            } else {
+              bump('wsIgnoredOtherHost');
+            }
+            post('zrWs', JSON.stringify({s: 'ignored', p: iu.pathname}));
+          } catch (e3) {}
           return ws;
         }
         ws.addEventListener('open', function() {
+          bump('wsOpened');
           wsSend(JSON.stringify({s: 'open', u: urlStr}));
         });
         ws.addEventListener('close', function(ev) {

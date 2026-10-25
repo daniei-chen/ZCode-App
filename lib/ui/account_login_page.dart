@@ -31,7 +31,17 @@ class _AccountLoginPageState extends ConsumerState<AccountLoginPage> {
   bool _done = false;
   int _progress = 0;
 
-  static const _loginUrl = 'https://zcode.z.ai/remote/v4';
+  /// 登录页加载地址（v1.6.3 修复）：官方页的逻辑是**先查 JWT（无 →
+  /// 登录视图），再解析参数（解析失败 → 直接进失败卡，不进登录）**。
+  /// 裸地址会让官方页直接显示"手机连接已失效"——必须带上设备参数。
+  /// 有设备时用第一台的真参数（登录后页面顺带完成配对），没有用占位
+  /// （捕获到令牌即 pop，不会走到配对）。
+  static String loginUrl(String? sid, String? mid) {
+    final s = (sid == null || sid.isEmpty) ? 'login' : sid;
+    final m = (mid == null || mid.isEmpty) ? 'login' : mid;
+    return 'https://zcode.z.ai/remote/v4'
+        '?sid=$s&mid=$m&app_version=3.16.3';
+  }
 
   @override
   void dispose() {
@@ -102,7 +112,9 @@ class _AccountLoginPageState extends ConsumerState<AccountLoginPage> {
               ),
             Expanded(
               child: InAppWebView(
-                initialUrlRequest: URLRequest(url: WebUri(_loginUrl)),
+                initialUrlRequest: URLRequest(
+                  url: WebUri(loginUrl(null, null)),
+                ),
                 initialSettings: InAppWebViewSettings(
                   useShouldOverrideUrlLoading: true,
                   javaScriptEnabled: true,
