@@ -34,6 +34,80 @@ abstract final class MonitorStateStore {
     } catch (_) {}
   }
 
+  // ---- 任务摘要（v1.6.0 首页工作台）----
+  // 键是 sid（目录设备与导入设备共用同一身份），值是最新的任务状态摘要。
+  static const _summaryKey = 'zremote.monitor_summary_v1';
+
+  /// 监控引擎每轮快照后写入：sid → {title, phase, pending, updatedAt}。
+  /// phase: running | completed | error；pending=true 表示有等待审批/输入。
+  static Future<void> writeSummary(String sid, Map<String, Object?> summary) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _readMapOf(prefs.getString(_summaryKey));
+      map[sid] = summary;
+      await prefs.setString(_summaryKey, jsonEncode(map));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, Map<String, Object?>>> readSummaries() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_summaryKey);
+      if (raw == null) return const {};
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      return {
+        for (final e in decoded.entries)
+          if (e.value is Map)
+            '${e.key}': Map<String, Object?>.from(e.value as Map),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// 键：sid → agentReady（命令通道就绪态，v1.6.0 诊断用）。
+  static const _agentKey = 'zremote.monitor_agent_v1';
+
+  static Future<void> writeAgentReady(String sid, bool ready) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _readMapOf(prefs.getString(_agentKey));
+      map[sid] = ready;
+      await prefs.setString(_agentKey, jsonEncode(map));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, bool>> readAgentReady() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_agentKey);
+      if (raw == null) return const {};
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      return {
+        for (final e in decoded.entries)
+          if (e.value is bool) '${e.key}': e.value as bool,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static Map<String, dynamic> _readMapOf(String? raw) {
+    if (raw == null || raw.isEmpty) return <String, dynamic>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return {
+          for (final e in decoded.entries) '${e.key}': e.value,
+        };
+      }
+    } catch (_) {}
+    return <String, dynamic>{}
+      ..clear();
+  }
+
   /// 诊断页/诊断包读取：设备短 id → 状态枚举名。
   static Future<Map<String, String>> readDevices() async {
     try {

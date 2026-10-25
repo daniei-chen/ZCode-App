@@ -155,6 +155,15 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     ];
     ref.read(sessionIndexProvider.notifier).upsertTasks(deviceId, merged);
 
+    // 首页工作台（v1.6.0）：跨隔离体写出本设备当前任务摘要，首页设备卡
+    // 直接画"在干什么"。键用 sid（目录设备与导入设备同身份）。
+    final sid = device.sid;
+    if (sid.isNotEmpty) {
+      unawaited(
+        MonitorStateStore.writeSummary(sid, summaryOfTasks(merged)),
+      );
+    }
+
     final differ = _differs.putIfAbsent(deviceId, StateDiffer.new);
     final gate = _gates.putIfAbsent(deviceId, EventDedupeGate.new);
     // 快照是全量列表：差分前先对齐基线（终态出表即剪掉），避免长期增长。
@@ -226,6 +235,46 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
       pinned: prev.pinned,
     );
   }
+}
+
+/// 任务列表 → 首页摘要（纯函数，可单测）。
+///
+/// 优先级：等待审批/输入的任务 > 最近活跃的任务；phase 取
+/// running/completed/error 三态；pending=true 时首页挂审批红点。
+Map<String, Object?> summaryOfTasks(List<SessionState> tasks) {
+  SessionState? pendingTask;
+  int pendingAt = -1;
+  SessionState? latest;
+  int latestAt = -1;
+  for (final task in tasks) {
+    final at = task.lastActivityAt ?? task.createdAt ?? 0;
+    if ((task.permissionCount > 0 || task.userInputCount > 0) && at > pendingAt) {
+      pendingTask = task;
+      pendingAt = at;
+    }
+    if (at > latestAt) {
+      latest = task;
+      latestAt = at;
+    }
+  }
+  final chosen = pendingTask ?? latest;
+  if (chosen == null) return const {};
+  final phase = (pendingTask != null)
+      ? 'pending'
+      : switch (chosen.phase) {
+          'error' => 'error',
+          'completedSuccess' || 'completedInterrupted' => 'completed',
+          _ => 'running',
+        };
+  final title = (chosen.title ?? chosen.description ?? chosen.preview ?? '')
+      .trim();
+  return {
+    'title': title.length > 60 ? title.substring(0, 60) : title,
+    'phase': phase,
+    'pending': pendingTask != null,
+    'tool': chosen.toolName ?? '',
+    'updatedAt': DateTime.now().millisecondsSinceEpoch,
+  };
 }
 
 final relayMonitorProvider =

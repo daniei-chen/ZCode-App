@@ -9,6 +9,7 @@ import '../relay/agent_rpc.dart';
 import '../services/device_store.dart';
 import '../services/event_observer.dart';
 import '../services/notifier.dart';
+import '../services/monitor_state_store.dart';
 import '../services/relay_credentials.dart';
 import 'event_feed.dart';
 import 'notification_prefs.dart';
@@ -22,6 +23,7 @@ import 'session_pool.dart';
 /// 回复"按钮。完成/失败仍由监控连接的快照差分负责（职责不重复）。
 class RelayAgentNotifier extends Notifier<Map<String, bool>> {
   final _channels = <String, RelayAgentChannel>{};
+  final _sids = <String, String>{};
   final _seenInteractions = <String>{};
   final _optionWaiters = <String, Timer>{};
   bool _disposed = false;
@@ -49,6 +51,12 @@ class RelayAgentNotifier extends Notifier<Map<String, bool>> {
       for (final d in devices)
         if (d.sid.isNotEmpty) d.id: d,
     };
+    // sid 表（v1.6.0）：通道就绪态按 sid 写入共享存储，诊断/体检可见。
+    _sids
+      ..clear()
+      ..addAll({
+        for (final d in wanted.values) d.id: d.sid,
+      });
     for (final id in _channels.keys.toSet()) {
       if (!wanted.containsKey(id)) {
         unawaited(_channels.remove(id)?.stop());
@@ -68,8 +76,11 @@ class RelayAgentNotifier extends Notifier<Map<String, bool>> {
       _channels[device.id] = channel;
       unawaited(
         channel.start().whenComplete(() {
-          if (!_disposed) {
-            state = Map.of(state)..[device.id] = channel.isReady;
+          if (_disposed) return;
+          state = Map.of(state)..[device.id] = channel.isReady;
+          final sid = _sids[device.id];
+          if (sid != null) {
+            unawaited(MonitorStateStore.writeAgentReady(sid, channel.isReady));
           }
         }),
       );

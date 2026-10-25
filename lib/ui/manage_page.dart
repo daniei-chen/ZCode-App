@@ -16,6 +16,7 @@ import '../services/structured_log.dart';
 import '../state/account_label.dart';
 import '../state/connection_status.dart';
 import '../state/device_directory.dart';
+import '../state/device_summaries.dart';
 import '../state/back_stack.dart';
 import '../state/session_pool.dart';
 import '../state/session_status.dart';
@@ -929,16 +930,7 @@ class _DeviceCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      '${switch (status) {
-                        SessionStatus.live => l10n.statusLive,
-                        SessionStatus.error => l10n.statusError,
-                        SessionStatus.loading || null => l10n.statusConnecting,
-                      }} · ${l10n.deviceAddedOn('${device.createdAt.month}/${device.createdAt.day}')}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: context.zt.textLo),
-                    ),
+                    _TaskStatusLine(sid: device.sid),
                   ],
                 ),
               ),
@@ -1925,7 +1917,6 @@ class _AccountDeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final online = device.online;
     return Card(
       child: InkWell(
@@ -1995,16 +1986,7 @@ class _AccountDeviceCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      '${online ? l10n.accountDeviceOnline : l10n.accountDeviceOffline}'
-                      '${device.platform != null && device.platform!.isNotEmpty ? ' · ${device.platform}' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: context.zt.textLo,
-                      ),
-                    ),
+                    _TaskStatusLine(sid: device.sid),
                   ],
                 ),
               ),
@@ -2013,6 +1995,41 @@ class _AccountDeviceCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 设备卡任务状态行（v1.6.0 工作台）：优先显示"正在干什么"，
+/// 没有摘要时回退到 在线/离线。pending 挂醒目色（审批红点语义）。
+class _TaskStatusLine extends ConsumerWidget {
+  const _TaskStatusLine({required this.sid});
+
+  final String sid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final summary = ref.watch(deviceSummariesProvider)[sid];
+    final (state, title) = taskLineOf(summary);
+    final text = switch (state) {
+      'pending' => '${l10n.taskPending} · $title',
+      'running' => '${l10n.taskRunning} · $title',
+      'completed' => '${l10n.taskCompleted} · $title',
+      'error' => '${l10n.taskFailed} · $title',
+      _ => '',
+    };
+    if (text.isEmpty) return const SizedBox(height: 17);
+    final color = switch (state) {
+      'pending' => context.zt.warn,
+      'error' => context.zt.danger,
+      'running' => context.zt.textLo,
+      _ => context.zt.textLo,
+    };
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, color: color),
     );
   }
 }

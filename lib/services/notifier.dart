@@ -402,6 +402,8 @@ class NotifierService {
             // stable device/type/session notification id.
             onlyAlertOnce: false,
             visibility: lockScreenVisibility(lockEnabled: _lockScreenRedact),
+            // 按设备分组（v1.6.0）：多设备一晚上的通知折叠成每设备一条。
+            groupKey: _groupId(device.id),
             // 动作按钮（v1.4.0）：审批=允许/拒绝（有选项时）、完成/提问=
             // 直接回复，其余=打开会话。见 [_actionsFor]。
             actions: _actionsFor(event, effectiveL10n),
@@ -409,6 +411,7 @@ class NotifierService {
         ),
         payload: spec.payload,
       );
+      await _showGroupSummary(device, spec, effectiveL10n);
     } catch (e) {
       AppLog.failure(
         LogEvent.notificationShowFailed,
@@ -416,6 +419,40 @@ class NotifierService {
         fields: {LogField.reason: 'show'},
       );
     }
+  }
+
+  static String _groupId(String deviceId) => 'zr_dev_$deviceId';
+
+  /// 组摘要通知（v1.6.0）：折叠态显示设备名；低调（同渠道、无声、
+  /// onlyAlertOnce）——真正的提醒永远来自具体事件通知。
+  Future<void> _showGroupSummary(
+    RemoteDevice device,
+    NotificationSpec spec,
+    AppLocalizations l10n,
+  ) async {
+    try {
+      await _plugin.show(
+        id: 0x5A4752 + (stableDeviceKey(device.id) & 0xFFF),
+        title: device.displayName(l10n),
+        body: '',
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId(spec.channelId),
+            spec.channelName,
+            icon: 'ic_notification',
+            importance: Importance.low,
+            priority: Priority.low,
+            playSound: false,
+            enableVibration: false,
+            silent: true,
+            onlyAlertOnce: true,
+            setAsGroupSummary: true,
+            groupKey: _groupId(device.id),
+          ),
+        ),
+        payload: device.id,
+      );
+    } catch (_) {}
   }
 
   /// 连接状态通知（v1.3.0）：断连/恢复用 IMPORTANCE_LOW 静默渠道，
