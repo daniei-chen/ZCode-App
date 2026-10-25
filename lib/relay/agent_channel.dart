@@ -22,17 +22,16 @@ class RelayAgentChannel {
     required this.deviceSid,
     required this.deviceMid,
     required this.appVersion,
-    required Future<String?> Function() tokenProvider,
+    required this.tokenProvider,
     required this.onEvent,
     RelaySocket Function()? socketFactory,
-  }) : _tokenProvider = tokenProvider,
-       _socketFactory = socketFactory ?? IoRelaySocket.new;
+  }) : _socketFactory = socketFactory ?? IoRelaySocket.new;
 
   final String deviceId;
   final String deviceSid;
   final String deviceMid;
   final String appVersion;
-  final Future<String?> Function() _tokenProvider;
+  final Future<String?> Function() tokenProvider;
   final RelaySocket Function() _socketFactory;
 
   /// 从订阅推送里提取的会话/交互事件（sessionId, interactionId, kind, options…）。
@@ -48,7 +47,7 @@ class RelayAgentChannel {
 
   String _workspaceKey = '';
   String _bridgeSessionId = '';
-  int _bridgeGeneration = 1;
+  final int _bridgeGeneration = 1;
   int _messageSeq = 0;
   int _requestSeq = 0;
   String _connectionId = '';
@@ -97,7 +96,7 @@ class RelayAgentChannel {
   }
 
   Future<void> _connectOnce() async {
-    final token = await _tokenProvider();
+    final token = await tokenProvider();
     if (!_running || token == null || token.isEmpty) {
       // 没有令牌：等一分钟再试（与监控连接同节奏）。
       await Future<void>.delayed(RelayMonitorConnection.authRetryDelay);
@@ -230,7 +229,7 @@ class RelayAgentChannel {
   }
 
   Future<bool> _openBridge(String workspaceKey) async {
-    _bridgeSessionId = 'zrbridge-${_requestSeq}-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
+    _bridgeSessionId = 'zrbridge-$_requestSeq-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
     _requestSeq += 1;
     final requestId = 'agent-$_requestSeq';
     final completer = Completer<Map<dynamic, dynamic>?>();
@@ -405,7 +404,8 @@ class RelayAgentChannel {
       return;
     }
     final fragmentCount = payload['fragmentCount'];
-    final logicalId = '${payload['logicalFrameId'] ?? messageSeq}';
+    final id = payload['logicalFrameId'] ?? messageSeq;
+    final logicalId = '$id';
     if (fragmentCount is int && fragmentCount > 1) {
       final index = payload['fragmentIndex'];
       if (index is! int) return;
