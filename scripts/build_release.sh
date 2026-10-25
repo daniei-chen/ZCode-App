@@ -47,9 +47,18 @@ FLUTTER="${SDK_DIR}/bin/flutter"
 "$FLUTTER" test
 
 step "2/5 构建"
-"$FLUTTER" build apk --release || true
+# 引擎 maven（storage.googleapis.com/download.flutter.io）国内间歇不可达，
+# floating version 元数据查询抖动即失败——gradle 自带重试不够，这里整轮
+# 重试（最多 3 次，间隔 10s）。注意：引擎产物只存在于官方仓，不能用
+# FLUTTER_STORAGE_BASE_URL 指到阿里云（它没有 io.flutter 组）。
 sed -i 's|^flutter.sdk=.*|flutter.sdk=D:/flutter-sdk|' android/local.properties
-( cd android && ./gradlew assembleRelease )
+BUILD_OK=0
+for attempt in 1 2 3; do
+  echo "构建尝试 $attempt/3"
+  if ( cd android && ./gradlew assembleRelease ); then BUILD_OK=1; break; fi
+  [[ $attempt -lt 3 ]] && sleep 10
+done
+[[ "$BUILD_OK" == "1" ]] || { echo "构建三试均失败（多为网络抖动，稍后重跑脚本即可）"; exit 1; }
 
 APK_SRC="build/app/outputs/apk/release/app-release.apk"
 APK="${OUT_DIR}/ZCode-${TAG}.apk"
