@@ -81,7 +81,7 @@ echo "签名校验通过（证书 ${ACTUAL_SHA:0:12}…，v2 scheme）"
 step "4/5 sha256 侧车"
 HASH=$(sha256sum "$APK" | awk '{print $1}')
 printf '%s  ZCode-%s.apk\n' "$HASH" "$TAG" > "${APK}.sha256"
-sha256sum -c "${APK}.sha256"
+( cd "$OUT_DIR" && sha256sum -c "ZCode-${TAG}.apk.sha256" )
 
 step "5/5 发布"
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
