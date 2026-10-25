@@ -14,7 +14,6 @@ import '../services/device_import.dart';
 import '../services/link_builder.dart';
 import '../services/structured_log.dart';
 import '../state/account_label.dart';
-import '../state/connection_status.dart';
 import '../state/device_directory.dart';
 import '../state/device_summaries.dart';
 import '../state/back_stack.dart';
@@ -118,62 +117,46 @@ class ManagePage extends ConsumerWidget {
                 if (account.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: devices.isEmpty
-                          ? null
-                          : () {
-                              final open = onOpenDevice;
-                              if (open != null) {
-                                open(0);
-                              } else {
-                                ref.read(activeTabProvider.notifier).set(0);
-                              }
-                            },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 2,
-                          vertical: 6,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: context.zt.surfaceHi,
+                          ),
+                          child: Icon(
+                            Icons.person_outline,
+                            size: 17,
+                            color: context.zt.textHi,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: context.zt.surfaceHi,
-                              ),
-                              child: Icon(
-                                Icons.person_outline,
-                                size: 17,
-                                color: context.zt.accent,
-                              ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            account,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: context.zt.textHi,
                             ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                account,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: context.zt.textHi,
-                                ),
-                              ),
-                            ),
-                            if (devices.isNotEmpty)
-                              Text(
-                                l10n.launcherSwitchAccount,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: context.zt.accent,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
+                        // 在线统计（官方排版：账号行右侧，权威口径=目录
+                        // online 字段；官方服务端判定，与绿点一致）。
+                        Text(
+                          l10n.launcherGroupOnline(
+                            directory.devices.where((d) => d.online).length,
+                          ),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: context.zt.textLo,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 const SizedBox(height: 14),
@@ -219,20 +202,7 @@ class ManagePage extends ConsumerWidget {
                       ),
                     const SizedBox(height: 2),
                   ],
-                  Builder(builder: (context) {
-                    final live = devices
-                        .where(
-                          (d) =>
-                              ref.read(connectionStatusProvider.notifier).liveState(d.id) ==
-                              true,
-                        )
-                        .length;
-                    return SectionLabel(
-                      live == devices.length
-                          ? l10n.launcherGroupOnline(live)
-                          : '${l10n.launcherGroupOnline(live)} · ${l10n.launcherGroupOffline} ${devices.length - live}',
-                    );
-                  }),
+                  SectionLabel(l10n.devicesCount(devices.length)),
                   ReorderableListView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
