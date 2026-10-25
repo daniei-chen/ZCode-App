@@ -7,6 +7,9 @@ analyzer:
     # Local reverse-engineering probes live outside the delivered source and
     # are gitignored; they must not gate the repository's analyze result.
     - tools/**
+    # integration_test 的依赖由 CI E2E 工作流按需注入（flutter test 时），
+    # 本地 release 构建不含它——排除避免 analyze 挡住发版脚本。
+    - integration_test/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
