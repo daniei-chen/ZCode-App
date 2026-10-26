@@ -1,0 +1,27 @@
+[Unit]
+Description=ZCode App external push relay
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/zcode-push
+Environment=ZPUSH_DB=/var/lib/zcode-push/push.db
+Environment=ZPUSH_TOKEN_FILE=/etc/zcode-push/token
+Environment=ZPUSH_HOST=127.0.0.1
+Environment=ZPUSH_PORT=8788
+ExecStart=/usr/bin/python3 /opt/zcode-push/push_server.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zcode-push
+MemoryMax=256M
+TasksMax=256
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
