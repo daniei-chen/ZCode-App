@@ -67,6 +67,7 @@ ZCode App（当前版本 1.0.9）面向需要在手机或平板上管理 ZCode �
 - **通知提醒方式**：声音 / 仅振动 / 静音三选，应用内和应用外通知统一跟随该设置。
 - **通知跳转**：通知标题使用实际会话标题，内容显示任务摘要；点击后直接回到对应设备和对话。
 - **后台消息提醒**：不显示“ZCode 运行中”常驻通知；应用退到后台后，在 WebView 和应用进程仍存活时继续监听，只有审批、完成或失败事件才发送提醒。若 Android 回收应用进程，系统不会保证无常驻服务的持续监听。
+- **外置通知通道（v1.8.0）**：ZCode 中继同一时间只允许一个手机终端接入，App 内的会话页与后台监控必然争抢这个槽位（表现为“一直被其他设备接管”）。这条通道**完全绕开中继**：桌面端 ZCode 的 hook 在审批请求与任务结束时把消息 POST 到你自己部署的 `zcode-push` 服务，手机长轮询取回后弹通知。不占终端槽位，因此与会话页、后台监控天然共存。完整链路、安装步骤与排障见 [docs/NOTIFICATION-CHANNELS.md](docs/NOTIFICATION-CHANNELS.md)。
 - **简体中文**：界面固定使用简体中文，不提供中英文切换。
 - **更新入口**：设备页提供检查更新和 GitHub 仓库入口；发现新版后在应用内下载 APK（支持断点续传与 SHA256 完整性校验），弹窗展示本次更新内容，交给系统安装，也可一键跳转 GitHub 下载。
 - **反馈与联系**：设置页提供 GitHub Issues 反馈入口与联系作者入口。
@@ -77,6 +78,26 @@ ZCode App（当前版本 1.0.9）面向需要在手机或平板上管理 ZCode �
 2. 在 ZCode App 设备页点击“扫码”，或点击“链接”粘贴控制链接。
 3. 导入后为设备命名，例如“家里电脑”或“办公室”。
 4. 点击设备卡片进入内置 WebView 任务和会话页；再次打开应用会优先恢复最近使用的设备。
+
+### 想让通知更稳？接上外置通道（可选，推荐）
+
+内置通知走 ZCode 中继，而中继**同一时间只允许一个手机终端**——App 的
+会话页与后台监控会为这个槽位互相礼让，极端情况下通知会延迟或出现
+“已被其他设备接管”。外置通道改由桌面端主动推送，不经过中继：
+
+```
+桌面 ZCode hook（审批请求 / 任务结束）
+      → POST → zcode-push 服务（你自己的服务器）
+      → 长轮询 → 手机 App 弹通知
+```
+
+三步（全部细节见 [通知链路说明](docs/NOTIFICATION-CHANNELS.md)）：
+
+1. 在服务器部署 `server/zcode-push/`（Docker Compose，一条命令）；
+2. 电脑上运行 `bash server/zcode-push/install_zcode_hook.sh --url https://<你的域名> --token <令牌>`；
+3. 手机 App → 设置 → 外置通知通道 → 填同一组地址与令牌 → 「保存并测试」。
+
+消息只经过你自己的机器；令牌存在服务端 600 权限文件与手机加密存储里。
 
 控制链接相当于远程访问凭据。请只在自己的设备之间传递，不要提交到 Git、Issue、日志或公开截图中。
 
@@ -119,6 +140,7 @@ test/           Dart 单元测试与 Widget 测试
 | [SECURITY.md](SECURITY.md) | 漏洞报告流程、凭证卫生、供应链门禁 |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | 数据流、日志边界、WebView 本地存储清单与清理策略 |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | 合规红线（不绕过鉴权、不碰计费、不上传数据） |
+| [docs/NOTIFICATION-CHANNELS.md](docs/NOTIFICATION-CHANNELS.md) | **通知链路**：单控制端约束、外置推送原理、安装与排障 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 架构与信任三层模型 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 版本范围与计划 |
 | [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md) | 发布前检查与签名/版本连续性要求 |
