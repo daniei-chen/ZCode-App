@@ -1,9 +1,9 @@
 {
-  "version": "1.8.1",
-  "tag": "v1.8.1",
-  "apk": "ZCode-v1.8.1.apk",
-  "sha256": "6198a16f19c2267c2e94e27937606c819476c3a5d336fa8dd22513534e8dd581",
+  "version": "1.8.2",
+  "tag": "v1.8.2",
+  "apk": "ZCode-v1.8.2.apk",
+  "sha256": "46f2abf90cb91e6c44746affc439cd379c854249ac209eb318bf4a1c74d0eab7",
   "size": 30807781,
-  "notes": "外置通知通道协议可完全自定义 + 检查更新失败可诊断",
-  "publishedAt": "2026-10-26T10:30:00Z"
+  "notes": "v1.8.2 — 检查更新改为 latest.json 主链路 + 公共反代（按实测排序）",
+  "publishedAt": "2026-10-26T03:43:30Z"
 }

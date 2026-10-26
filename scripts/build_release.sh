@@ -93,7 +93,18 @@ printf '%s  ZCode-%s.apk\n' "$HASH" "$TAG" > "${APK}.sha256"
 # 之前写好，否则这一版发出去后，下一版的检查更新会读到旧版本号。
 APK_SIZE=$(stat -c%s "$APK")
 NOTES_FIRST_LINE=$(grep -m1 '^# ' "docs/releases/v${VERSION}.md" 2>/dev/null | sed 's/^# //' || echo "")
-python3 - "$VERSION" "$TAG" "$HASH" "$APK_SIZE" "$NOTES_FIRST_LINE" <<'PY' > latest.json
+# 解释器探测：Git Bash 下 `python3` 常是 Windows Store 的桩程序（运行即
+# 静默失败）。依次试 python3 / python / py，取第一个能真正执行的。
+PYTHON_BIN=""
+for cand in python3 python py; do
+  if command -v "$cand" >/dev/null 2>&1 && "$cand" -c "import sys" >/dev/null 2>&1; then
+    PYTHON_BIN="$cand"
+    break
+  fi
+done
+[[ -n "$PYTHON_BIN" ]] || { echo "错误：找不到可用的 Python 解释器（需生成 latest.json）"; exit 1; }
+
+"$PYTHON_BIN" - "$VERSION" "$TAG" "$HASH" "$APK_SIZE" "$NOTES_FIRST_LINE" <<'PY' > latest.json
 import json, sys, datetime
 version, tag, sha, size, notes = sys.argv[1:6]
 print(json.dumps({
@@ -107,6 +118,11 @@ print(json.dumps({
         .strftime("%Y-%m-%dT%H:%M:%SZ"),
 }, ensure_ascii=False, indent=2))
 PY
+# 防御：生成失败就中止发布（空 manifest 会让下一版检查更新读不到版本）。
+if [[ ! -s latest.json ]] || ! grep -q '"sha256"' latest.json; then
+  echo "错误：latest.json 生成失败，中止发布"
+  exit 1
+fi
 echo "latest.json 已更新："
 cat latest.json
 
