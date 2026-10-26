@@ -63,12 +63,30 @@ class _AccountLoginPageState extends ConsumerState<AccountLoginPage> {
           _done = true;
           _poll?.cancel();
           await RelayCredentials.storeJwt(token);
-          final label = AccountLabel.displayNameFromToken(
-            result?.toString() ?? '',
-          );
-          if (label != null) {
-            ref.read(accountLabelProvider.notifier).report(label);
-          }
+          // 资料读取（v1.7.0）：登录一完成就抓名字 + 头像（user_info 在
+          // OAuth 回调时已写入 localStorage）。抓不到不阻塞登录收尾。
+          try {
+            final info = await _controller?.evaluateJavascript(
+              source: AccountLabel.userInfoScript,
+            );
+            final profile = AccountLabel.profileFromUserInfo(
+              info?.toString() ?? '',
+            );
+            final name =
+                profile.name.isNotEmpty
+                ? profile.name
+                : (AccountLabel.displayNameFromToken(
+                      result?.toString() ?? '',
+                    ) ??
+                    '');
+            if (name.isNotEmpty || profile.avatarUrl != null) {
+              ref
+                  .read(accountProfileProvider.notifier)
+                  .report(
+                    AccountProfile(name: name, avatarUrl: profile.avatarUrl),
+                  );
+            }
+          } catch (_) {}
           if (mounted) Navigator.of(context).pop(true);
         }
       }

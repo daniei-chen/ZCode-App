@@ -19,6 +19,7 @@ import '../services/event_observer.dart';
 import '../services/warmup.dart';
 import '../services/webview_sync.dart';
 import '../state/account_label.dart';
+import '../state/app_lifecycle.dart';
 import '../state/bridge_health.dart';
 import '../state/back_stack.dart';
 import '../state/observer_stats.dart';
@@ -475,6 +476,12 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   // 无法自愈；重试时用新的 generation 重建整个 WebView。
   bool _rendererGone = false;
   int _webviewGeneration = 0;
+  // 接管死循环修复（v1.7.0）：后台冻结页面 JS（官方页被踢后会自动重连
+  // 抢控制端槽位，与监控引擎互踢成"一直被其他设备接管"）；前台回来检查
+  // 页面是否停在接管卡/错误态上，是就静默重载收回槽位。
+  bool _pageTimersPaused = false;
+  Timer? _takeoverReconnectTimer;
+  DateTime? _lastTakeoverReconnectAt;
 
   /// 主 frame 令牌（F03）：每个 WebView generation 一个，只在主 frame 注入。
   String _bridgeToken = '';
@@ -583,6 +590,63 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     widget.backController?.attach(_handleBack);
     _rotateBridgeToken();
     _armFirstLoadWatchdog();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 接管死循环修复（v1.7.0）：官方中继是"同一设备同时只允许一个手机
+    // 控制端"（3.16.3 bundle session-conflict 卡文案实证）。后台时监控
+    // 引擎要接管槽位发通知——页面 JS 必须冻结，否则它被踢后自动重连，
+    // 与监控互踢；前台回来再恢复页面并把停掉的会话静默拉起来。
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      unawaited(_setPageTimersPaused(true));
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_setPageTimersPaused(false));
+      _scheduleTakeoverReconnect('app resumed');
+    }
+  }
+
+  Future<void> _setPageTimersPaused(bool paused) async {
+    if (_pageTimersPaused == paused) return;
+    _pageTimersPaused = paused;
+    final controller = _controller;
+    if (controller == null) return;
+    try {
+      if (paused) {
+        await controller.pauseTimers();
+      } else {
+        await controller.resumeTimers();
+      }
+    } catch (_) {
+      // 非 Android 平台没有该能力；冻结不是硬需求（让路退避在监控侧兜底）。
+      _pageTimersPaused = false;
+    }
+  }
+
+  /// 前台恢复后的自动重连：页面停在接管卡/错误态（上一轮后台里槽位被
+  /// 监控接走）时，静默重载收回槽位。先等 2s 让"监控让路"链路落地
+  /// （Activity.onResume → 头无引擎 suspend），15s 节流防真故障刷页。
+  void _scheduleTakeoverReconnect(String reason) {
+    if (!mounted) return;
+    _takeoverReconnectTimer?.cancel();
+    _takeoverReconnectTimer = Timer(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      final status = ref.read(sessionStatusProvider)[widget.device.id];
+      if (status != SessionStatus.error && !_failed) return;
+      final now = DateTime.now();
+      final last = _lastTakeoverReconnectAt;
+      if (last != null &&
+          now.difference(last) < const Duration(seconds: 15)) {
+        return;
+      }
+      _lastTakeoverReconnectAt = now;
+      AppLog.event(LogEvent.webviewTakeoverReconnect, level: LogLevel.info, fields: {
+        LogField.device: widget.device.id,
+        LogField.generation: _webviewGeneration,
+        LogField.reason: reason,
+      });
+      await _reload();
+    });
   }
 
   void _armFirstLoadWatchdog() {
@@ -883,16 +947,20 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
       if (token != null) {
         unawaited(RelayCredentials.storeJwt(token));
       }
-      var label = AccountLabel.displayNameFromToken(raw);
-      // JWT claims 无名字字段——补读官方 user_info（v1.6.3）。
-      if (label == null) {
-        final info = await _controller?.evaluateJavascript(
-          source: AccountLabel.userInfoScript,
-        );
-        label = AccountLabel.displayNameFromUserInfo(info?.toString() ?? '');
-      }
-      if (label != null) {
-        ref.read(accountLabelProvider.notifier).report(label);
+      // 资料读取（v1.7.0）：名字与头像都在官方 user_info 里；JWT claims
+      // 无名字字段，只在 user_info 缺席时兜底解 JWT。
+      final info = await _controller?.evaluateJavascript(
+        source: AccountLabel.userInfoScript,
+      );
+      final profile = AccountLabel.profileFromUserInfo(info?.toString() ?? '');
+      final name =
+          profile.name.isNotEmpty
+          ? profile.name
+          : (AccountLabel.displayNameFromToken(raw) ?? '');
+      if (name.isNotEmpty || profile.avatarUrl != null) {
+        ref
+            .read(accountProfileProvider.notifier)
+            .report(AccountProfile(name: name, avatarUrl: profile.avatarUrl));
       }
     } catch (_) {}
   }
@@ -1158,6 +1226,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _firstLoadWatchdog?.cancel();
     _bootCoverWatchdog?.cancel();
     _jumpWatchdog?.cancel();
+    _takeoverReconnectTimer?.cancel();
     _sync?.forget();
     super.dispose();
   }
@@ -1172,6 +1241,16 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     ref.listen<String>(themeModeProvider, (_, _) {
       if (!mounted) return;
       unawaited(_applyWebTheme(_currentDark(context)));
+    });
+    // 接管卡在**前台**弹出（槽位被同机监控外的终端抢走，如另一台手机）
+    // 也要自愈：错误一到、页面已定格，就安排一次静默重连。
+    ref.listen(sessionStatusProvider, (_, next) {
+      if (!mounted) return;
+      final status = next[widget.device.id];
+      if (status != SessionStatus.error) return;
+      if (ref.read(appLifecycleProvider) != AppLifecycleState.resumed) return;
+      if (!_firstLoadSettled) return;
+      _scheduleTakeoverReconnect('session error');
     });
     ref.listen<PendingSessionJump?>(pendingSessionJumpProvider, (_, next) {
       if (next == null || next.deviceId != widget.device.id) return;

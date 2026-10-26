@@ -370,6 +370,8 @@
   "@diagnosticsMonitorConnecting": {"description": "Monitor state label: connecting/authenticating"},
   "diagnosticsMonitorDisconnected": "已断开（自动重连中）",
   "@diagnosticsMonitorDisconnected": {"description": "Monitor state label: disconnected, auto reconnecting"},
+  "diagnosticsMonitorYielded": "让路中（其他设备正在控制，稍后自动收回）",
+  "@diagnosticsMonitorYielded": {"description": "Monitor state label: yielded after KICKED (v1.7.0)"},
   "diagnosticsMonitorNone": "监控引擎未上报",
   "@diagnosticsMonitorNone": {"description": "Diagnostics row when monitor engine has not reported"},
   "commonRefresh": "刷新",

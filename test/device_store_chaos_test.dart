@@ -44,7 +44,9 @@ void main() {
   String deviceJson(String id, {int day = 1}) => jsonEncode({
     'id': id,
     'baseUrl': 'https://example.invalid',
-    'params': const {'sid': 's', 'hash': 'h'},
+    // sid 跟 id 走（v1.7.0 起存储按 sid 收敛重复记录，唯一 sid 才能让
+    // 这些“并发/索引修复”语义的夹具各自存活）。
+    'params': {'sid': 'sid-$id', 'hash': 'h'},
     'label': 'dev-$id',
     'createdAt': DateTime(2026, 1, day).toIso8601String(),
   });

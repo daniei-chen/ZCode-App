@@ -39,10 +39,12 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
+  // sid 跟 id 走（v1.7.0 起存储按 sid 收敛重复记录，唯一 sid 才能让
+  // 这些“索引修复”语义的夹具各自存活）。
   String deviceJson(String id, DateTime createdAt) => jsonEncode({
     'id': id,
     'baseUrl': 'https://example.invalid',
-    'params': const {'sid': 's', 'hash': 'h'},
+    'params': {'sid': 'sid-$id', 'hash': 'h'},
     'label': 'dev-$id',
     'createdAt': createdAt.toIso8601String(),
   });
@@ -123,5 +125,61 @@ void main() {
       ),
       throwsA(isA<DeviceStoreUnavailableException>()),
     );
+  });
+
+  test('同 sid 双记录收敛：保留 index 序最前者，其余删除（v1.7.0 接管死循环修复）',
+      () async {
+    final first = RemoteDevice.fromJson(
+      jsonDecode(
+        jsonEncode({
+          'id': 'a-first',
+          'baseUrl': 'https://zcode.z.ai/remote/v4',
+          'params': {'sid': 'd_SAME', 'hash': 'h1'},
+          'label': '原始记录',
+          'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+        }),
+      ) as Map<String, dynamic>,
+    );
+    final duplicate = RemoteDevice.fromJson(
+      jsonDecode(
+        jsonEncode({
+          'id': 'b-dup',
+          'baseUrl': 'https://zcode.z.ai/remote/v4',
+          'params': {'sid': 'd_SAME', 'hash': 'h2'},
+          'label': '后导入的重复记录',
+          'createdAt': DateTime(2026, 2, 1).toIso8601String(),
+        }),
+      ) as Map<String, dynamic>,
+    );
+    await DeviceStore.instance.add(first);
+    await DeviceStore.instance.add(duplicate);
+    final result = await DeviceStore.instance.loadAllWithStatus();
+    expect(result.devices, hasLength(1));
+    expect(result.devices.single.id, 'a-first');
+    expect(result.devices.single.sid, 'd_SAME');
+    expect(result.repaired, isTrue);
+    // 重复记录的存储键真的被删掉（IndexedStack 不再为同 sid 开第二个会话页）。
+    expect(backing.containsKey('zremote.device.b-dup'), isFalse);
+    final index = jsonDecode(backing['zremote.device.index']!) as List;
+    expect(index, ['a-first']);
+  });
+  test('sid 为空的记录不参与收敛（老格式兼容）', () async {
+    for (final id in ['a', 'b']) {
+      await DeviceStore.instance.add(
+        RemoteDevice.fromJson(
+          jsonDecode(
+            jsonEncode({
+              'id': id,
+              'baseUrl': 'https://example.invalid',
+              'params': <String, String>{},
+              'label': id,
+              'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+            }),
+          ) as Map<String, dynamic>,
+        ),
+      );
+    }
+    final result = await DeviceStore.instance.loadAllWithStatus();
+    expect(result.devices, hasLength(2));
   });
 }

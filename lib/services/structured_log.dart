@@ -30,6 +30,7 @@ enum LogEvent {
   webviewStorageCleared('WV111'),
   webviewBootCoverTimeout('WV113'),
   webviewWsIgnored('WV114'),
+  webviewTakeoverReconnect('WV115'),
 
   // bridge / 观测
   bridgeTokenMissing('BR200'),
@@ -56,10 +57,12 @@ enum LogEvent {
   relayMonitorConnectFailed('RL520'),
   relayMonitorBinaryIgnored('RL521'),
   relayMonitorPaired('RL522'),
+  relayMonitorYielded('RL523'),
 
   // 账号设备目录（v1.5.0，GET /api/v1/remote/device）
   directoryFetchFailed('RL530'),
   directoryDevicesSynced('RL531'),
+  deviceRecordsDeduped('DS704'),
 
   // 更新
   updateCheckFailed('UP600'),

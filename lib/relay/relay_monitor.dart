@@ -45,6 +45,12 @@ enum RelayMonitorState {
   /// pair_status=matched：可以拉任务快照。
   paired,
 
+  /// 被服务端 KICKED（官方语义：同一设备同时只允许一个手机控制端，
+  /// 3.16.3 bundle "session-conflict" 卡实证）。主动让路：用**更长**的
+  /// 退避重连，绝不 3s 抢回——否则与正在使用会话的页面/另一台手机
+  /// 互踢成死循环（v1.7.0 实测抓到的"一直显示被其他设备接管"根因）。
+  yielded,
+
   /// 本轮连接已断开（服务停止或重连前的间隙）。
   disconnected,
 }
@@ -106,9 +112,22 @@ abstract final class RelayMonitorPolicy {
   static const reconnectBase = Duration(seconds: 3);
   static const reconnectCap = Duration(seconds: 120);
 
+  /// 被踢（KICKED）后的让路退避：20s 起，指数翻倍，封顶 120s。
+  /// 官方是"单控制端"语义——被踢说明槽位正被一个活跃终端占用；立刻
+  /// 抢回只会把对方（可能是用户正在看的会话页）踢成接管卡，反复横跳。
+  /// 20s 给对方稳定窗口；对方真消失（页面关闭/设备下线）则 ≤120s 内收回。
+  static const kickedReconnectBase = Duration(seconds: 20);
+
   static Duration backoff(int attempt) {
     if (attempt <= 0) return reconnectBase;
     final seconds = reconnectBase.inSeconds * math.pow(2, attempt - 1).toInt();
+    return Duration(seconds: math.min(seconds, reconnectCap.inSeconds));
+  }
+
+  static Duration kickedBackoff(int attempt) {
+    if (attempt <= 0) return kickedReconnectBase;
+    final seconds =
+        kickedReconnectBase.inSeconds * math.pow(2, attempt - 1).toInt();
     return Duration(seconds: math.min(seconds, reconnectCap.inSeconds));
   }
 
@@ -299,6 +318,11 @@ class RelayMonitorConnection {
   bool _running = false;
   int _requestSeq = 0;
 
+  /// 传输代次：每次建连 +1。socket 关闭后的 onDone/onError 异步到达，
+  /// 可能落在新状态（如 yielded 让路）之后——代次不符的回调一律忽略，
+  /// 否则被踢后的让路退避会被旧连接的 done 事件覆盖成 3s 抢槽重连。
+  int _epoch = 0;
+
   RelayMonitorState get state => _state;
 
   /// WS 端点基址（query 逐次构建：relay token 每次交换，60s 有效）。
@@ -359,6 +383,7 @@ class RelayMonitorConnection {
   Future<void> stop() async {
     // 状态先落地：stop 必须立即生效，socket/订阅的收尾异步进行。
     _running = false;
+    _epoch += 1;
     _teardownTimers();
     _setState(RelayMonitorState.idle);
     unawaited(_closeSocket());
@@ -434,10 +459,15 @@ class RelayMonitorConnection {
       return;
     }
     _socket = socket;
+    final epoch = ++_epoch;
     _subscription = socket.messages.listen(
       _onMessage,
-      onError: (Object _) => _onTransportDown(),
-      onDone: _onTransportDown,
+      onError: (Object _) {
+        if (_running && epoch == _epoch) _onTransportDown();
+      },
+      onDone: () {
+        if (_running && epoch == _epoch) _onTransportDown();
+      },
     );
     _setState(RelayMonitorState.authenticating);
     try {
@@ -473,6 +503,21 @@ class RelayMonitorConnection {
     _scheduleReconnect();
   }
 
+  void _onKicked() {
+    if (!_running) return;
+    // 让路是主动决策：废掉当前传输代次，本连接后续的 done/error 事件
+    // 不再触发旧退避路径（否则会覆盖 yielded 状态、3s 抢槽）。
+    _epoch += 1;
+    unawaited(_closeSocket());
+    _setState(RelayMonitorState.yielded);
+    AppLog.event(LogEvent.relayMonitorYielded, level: LogLevel.warn, fields: {
+      LogField.device: deviceId.substring(0, deviceId.length.clamp(0, 8)),
+    });
+    final delay = RelayMonitorPolicy.kickedBackoff(_attempt);
+    _attempt += 1;
+    _reconnect = Timer(delay, _connect);
+  }
+
   void _onMessage(String text) {
     final inbound = RelayMonitorPolicy.parse(text);
     if (inbound == null) return;
@@ -494,7 +539,13 @@ class RelayMonitorConnection {
       case RelayDataPayload(:final payload):
         if (_state != RelayMonitorState.paired) return;
         _consumeDataPayload(payload);
-      case RelayErrorFrame():
+      case RelayErrorFrame(:final code):
+        // KICKED = 官方单控制端语义下槽位被别的终端接走（同一台手机的
+        // 会话页、或另一台手机）。让路：长退避重连，不参与抢槽（v1.7.0）。
+        if (code == 'KICKED') {
+          _onKicked();
+          return;
+        }
         // DEVICE_OFFLINE / INTERNAL 官方也按可恢复处理；其余错误码同样只
         // 触发重连——监控通道没有需要向用户呈现的错误语义。
         _onTransportDown();

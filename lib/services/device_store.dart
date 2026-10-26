@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/device.dart';
 import '../models/notification_prefs.dart';
+import 'app_log.dart';
+import 'structured_log.dart';
 
 /// 设备存储的加载结果。
 ///
@@ -161,6 +163,42 @@ class DeviceStore {
       }
     }
 
+    // 按 sid 收敛重复记录（v1.7.0）：同一台电脑的双记录会在常驻
+    // IndexedStack 里同时开两个会话页，两个同 device_sid 的终端被官方
+    // 中继按"单控制端"语义互踢——用户实测"一直显示被其他设备接管"的
+    // 根因之一。保留 index 序最前者（用户原始命名/排序），其余删除。
+    final seenSids = <String>{};
+    final keptIds = <String>[];
+    final dropped = <String>[];
+    for (final id in ordered) {
+      final sid = records[id]!.sid;
+      if (sid.isEmpty || seenSids.add(sid)) {
+        keptIds.add(id);
+      } else {
+        dropped.add(id);
+      }
+    }
+    if (dropped.isNotEmpty) {
+      repaired = true;
+      for (final id in dropped) {
+        records.remove(id);
+        try {
+          await _secure.delete(key: _deviceKey(id));
+          await _secure.delete(key: _warmupKey(id));
+        } catch (_) {
+          // 删除失败不阻断读取：收敛标记已置位，下次启动再删。
+        }
+      }
+      ordered
+        ..clear()
+        ..addAll(keptIds);
+      AppLog.event(
+        LogEvent.deviceRecordsDeduped,
+        level: LogLevel.warn,
+        fields: {LogField.count: dropped.length},
+      );
+    }
+
     if (repaired) {
       try {
         await _secure.write(key: _indexKey, value: jsonEncode(ordered));
@@ -271,6 +309,37 @@ class DeviceStore {
   Future<void> setLastDeviceId(String id) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_lastDeviceKey, id);
+  }
+
+  static const _accountNameKey = 'zremote.account.name';
+  static const _accountAvatarKey = 'zremote.account.avatar';
+
+  /// 登录账号展示名（v1.3.0 探针读到，v1.7.0 起持久化：重启后账号行
+  /// 不再空白）。
+  Future<String> accountDisplayName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_accountNameKey) ?? '';
+  }
+
+  Future<void> setAccountDisplayName(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_accountNameKey, value);
+  }
+
+  /// 登录账号头像 URL（v1.7.0）：只在可信图床白名单内才写入（校验在
+  /// state 层 AccountLabel.isTrustedAvatarUrl，这里只存）。
+  Future<String?> accountAvatarUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_accountAvatarKey);
+  }
+
+  Future<void> setAccountAvatarUrl(String? value) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (value == null || value.isEmpty) {
+      await prefs.remove(_accountAvatarKey);
+    } else {
+      await prefs.setString(_accountAvatarKey, value);
+    }
   }
 
   static const _notifApprovalKey = 'zremote.notify.approval';

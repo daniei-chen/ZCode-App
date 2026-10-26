@@ -151,6 +151,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         'paired' => l10n.diagnosticsMonitorPaired,
         'waiting' => l10n.diagnosticsMonitorWaiting,
         'authMissing' => l10n.diagnosticsMonitorAuthMissing,
+        'yielded' => l10n.diagnosticsMonitorYielded,
         'connecting' || 'authenticating' => l10n.diagnosticsMonitorConnecting,
         'disconnected' => l10n.diagnosticsMonitorDisconnected,
         _ => raw,

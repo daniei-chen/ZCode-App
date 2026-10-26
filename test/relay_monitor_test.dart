@@ -123,6 +123,15 @@ void main() {
     expect(RelayMonitorPolicy.backoff(50), const Duration(seconds: 120));
   });
 
+  test('被踢让路退避：20s 起、指数翻倍、封顶 120s（v1.7.0）', () {
+    expect(RelayMonitorPolicy.kickedBackoff(0), const Duration(seconds: 20));
+    expect(RelayMonitorPolicy.kickedBackoff(1), const Duration(seconds: 20));
+    expect(RelayMonitorPolicy.kickedBackoff(2), const Duration(seconds: 40));
+    expect(RelayMonitorPolicy.kickedBackoff(3), const Duration(seconds: 80));
+    expect(RelayMonitorPolicy.kickedBackoff(4), const Duration(seconds: 120));
+    expect(RelayMonitorPolicy.kickedBackoff(50), const Duration(seconds: 120));
+  });
+
   group('状态机（fake socket）', () {
     test('连接 → auth_init → matched → 拉快照 → 收快照', () {
       fakeAsync((async) {
@@ -289,6 +298,45 @@ void main() {
         unawaited(connection.start());
         async.elapse(const Duration(seconds: 13));
         expect(connection.state, RelayMonitorState.disconnected);
+      });
+    });
+
+    test('KICKED 帧 → yielded 让路 + 长退避不抢槽（v1.7.0）', () {
+      fakeAsync((async) {
+        final sockets = <FakeSocket>[];
+        final states = <RelayMonitorState>[];
+        final connection = RelayMonitorConnection(
+          deviceId: 'dev12345678',
+          deviceSid: 'd_ABC',
+          deviceMid: 'mid-1234',
+          appVersion: '3.16.3',
+          tokenProvider: () async => 'jwt-token-1',
+          relayTokenExchange: (jwt) async => 'relay-from-$jwt',
+          socketFactory: () {
+            final socket = FakeSocket(false);
+            sockets.add(socket);
+            return socket;
+          },
+          onState: (_, state) => states.add(state),
+        );
+        unawaited(connection.start());
+        async.elapse(const Duration(milliseconds: 10));
+        // 配对成功后被第二个终端踢下线（官方单控制端语义，实测帧形状）。
+        sockets.first.serverSends(
+          '{"type":"auth_ack","device_sid":"d_ABC","pair_status":"matched"}',
+        );
+        async.elapse(const Duration(milliseconds: 10));
+        expect(connection.state, RelayMonitorState.paired);
+        sockets.first.serverSends('{"type":"error","code":"KICKED"}');
+        async.elapse(const Duration(milliseconds: 10));
+        expect(states.last, RelayMonitorState.yielded);
+        // 让路期内绝不重连：3s 旧退避时点上仍只有一条 socket。
+        async.elapse(const Duration(seconds: 5));
+        expect(sockets.length, 1);
+        expect(connection.state, RelayMonitorState.yielded);
+        // 20s 让路退避到点后重建连接。
+        async.elapse(const Duration(seconds: 16));
+        expect(sockets.length, 2);
       });
     });
 

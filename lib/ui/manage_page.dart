@@ -43,8 +43,12 @@ class ManagePage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     // 登录账号芯片（v1.3.0，账号中心化第一片）：V2 账号流里所有设备
     // 同属一个已登录账号，在设备中心头部把它亮出来。探针没读到（还没
-    // 进过远控页）时不占位。
-    final account = ref.watch(accountLabelProvider);
+    // 进过远控页）时不占位。v1.7.0 起展示名 + 头像都来自 user_info 探针
+    // 并持久化——重启后账号行仍是实名 + 头像。
+    final profile = ref.watch(accountProfileProvider);
+    final account = profile.name.isNotEmpty
+        ? profile.name
+        : ref.watch(accountLabelProvider);
     // 账号设备目录（v1.5.0）：官方"选择电脑"页的同款数据源，30s 探活。
     final directory = ref.watch(deviceDirectoryProvider);
     final directorySids = {
@@ -119,18 +123,10 @@ class ManagePage extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
                     child: Row(
                       children: [
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: context.zt.surfaceHi,
-                          ),
-                          child: Icon(
-                            Icons.person_outline,
-                            size: 17,
-                            color: context.zt.textHi,
-                          ),
+                        _AccountAvatar(
+                          profile: profile,
+                          name: account,
+                          size: 30,
                         ),
                         const SizedBox(width: 9),
                         Expanded(
@@ -1636,6 +1632,60 @@ class _ScannerOverlayPainter extends CustomPainter {
 
 /// ZCode 官方风格的黑色 Z 徽章（v1.4.0 首页改版）：圆角方块 + 白色粗体 Z，
 /// 暗色模式反色为白底黑字。
+/// 登录账号头像（v1.7.0）：官方 OAuth 资料图（白名单图床）优先；
+/// 没有图或加载失败回退字母头像（黑白原生风），再回退人形图标。
+class _AccountAvatar extends StatelessWidget {
+  const _AccountAvatar({
+    required this.profile,
+    required this.name,
+    this.size = 30,
+  });
+
+  final AccountProfile profile;
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget fallback() => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: context.zt.surfaceHi,
+      ),
+      alignment: Alignment.center,
+      child: name.trim().isEmpty
+          ? Icon(Icons.person_outline, size: size * 0.56, color: context.zt.textHi)
+          : Text(
+              name.trim().characters.first.toUpperCase(),
+              style: TextStyle(
+                fontSize: size * 0.45,
+                height: 1.0,
+                fontWeight: FontWeight.w800,
+                color: context.zt.textHi,
+              ),
+            ),
+    );
+
+    final url = profile.avatarUrl;
+    if (url == null || !AccountLabel.isTrustedAvatarUrl(url)) {
+      return fallback();
+    }
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Image.network(
+          url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => fallback(),
+        ),
+      ),
+    );
+  }
+}
+
 class _ZLogoBadge extends StatelessWidget {
   const _ZLogoBadge({this.size = 44, this.radius = 14});
 
