@@ -142,10 +142,54 @@ class UpdateService {
     'https://api.github.com/repos/daniei-chen/ZCode-App/releases/latest',
   );
 
+  static const _repoSlug = 'daniei-chen/ZCode-App';
+  static const _rawRepoBase =
+      'https://raw.githubusercontent.com/daniei-chen/ZCode-App';
+
+  /// 版本清单（latest.json）：走 raw，可被 jsDelivr 直接镜像。
+  /// 我们不用 GitHub API 作为首选——API 有匿名限流（60 次/小时/IP），
+  /// 国内还常直接 403；raw + CDN 稳定得多。
+  static const _manifestPath = 'latest.json';
+
+  /// 检查更新的候选源（v1.8.2，按实测延迟排序）。
+  ///
+  /// 排序依据（2026-10-26 实测，国内网络）：gh-proxy 0.6s、jsDelivr 1.9s、
+  /// 直连 raw/github 常超时、ghproxy.net 7.5s 且 API 403。因此顺序是
+  /// gh-proxy → jsDelivr → 直连 raw → 自有镜像 → API 兜底。
+  ///
+  /// 全部只是**传输通道**：拿到的版本号/资产名仍要与本机内置的仓库地址
+  /// 拼装，下载后强制比对 SHA-256（+ 安装器签名校验），公共反代换包也进
+  /// 不了安装流程。
+  static List<Uri> manifestSources() => [
+    // 1) gh-proxy（最快，实测 0.6s）
+    Uri.parse('https://gh-proxy.com/$_rawRepoBase/main/$_manifestPath'),
+    // 2) jsDelivr（CDN，实测 1.9s）
+    Uri.parse('https://cdn.jsdelivr.net/gh/$_repoSlug@main/$_manifestPath'),
+    // 3) 直连 raw（部分网络可用）
+    Uri.parse('$_rawRepoBase/main/$_manifestPath'),
+    // 4) 自有镜像（只在前面都失败时兜底）
+    latestReleaseMirror,
+  ];
+
+  /// API 兜底（manifest 全挂时）：gh-proxy → ghproxy.net → 直连。
+  static List<Uri> apiSources = [
+    Uri.parse('https://gh-proxy.com/https://api.github.com/repos/$_repoSlug/releases/latest'),
+    Uri.parse('https://ghproxy.net/https://api.github.com/repos/$_repoSlug/releases/latest'),
+    latestReleaseApi,
+  ];
+
+  /// 发布资产下载的候选前缀（v1.8.2）：直连 GitHub 在国内不稳，
+  /// 按实测顺序尝试公共反代。
+  static const downloadProxyPrefixes = <String>[
+    'https://gh-proxy.com/',
+    'https://ghproxy.net/',
+    '', // 直连兜底
+  ];
+
   /// 国内网络兜底镜像（用户自有服务器，只读反代 GitHub latest-release
   /// API，同源 JSON）。历史教训：v1.0.6-v1.1.6 的 main 线把仓库地址写成了
   /// 不存在的 `2421873411a-rgb/ZCode-App`，"检查更新"永远报"尚未发布正式
-  /// 版本"；加上国内直连 api.github.com 本就不稳，这里提供第三条链路。
+  /// 版本"；加上国内直连 api.github.com 本就不稳，这里提供兜底链路。
   /// 下载仍限定 GitHub 官方域并做 SHA-256 校验，镜像只用于读版本与资产名。
   static final latestReleaseMirror = Uri.parse(
     'https://zhihui.kaogong.art/zcode-release-latest',
@@ -190,66 +234,74 @@ class UpdateService {
 
     final httpClient = client ?? http.Client();
     final ownsClient = client == null;
+    String? lastReason;
     try {
-      final apiResponse = await _get(
-        httpClient,
-        latestReleaseApi,
-        current,
-        timeout,
-      );
-      if (apiResponse.statusCode == 404) {
-        return UpdateCheckResult(
-          status: UpdateCheckStatus.noRelease,
-          currentVersion: current,
-        );
-      }
-      if (apiResponse.statusCode >= 200 && apiResponse.statusCode < 300) {
-        final apiResult = _resultFromApi(apiResponse.body, current);
-        if (apiResult != null) return apiResult;
-      }
-
-      // 国内链路兜底：自有服务器镜像（同源 GitHub API JSON）。放在发布页
-      // 之前——对 CN 网络它的可达性远高于 github.com 网页重定向。
-      try {
-        final mirrorResponse = await _get(
-          httpClient,
-          latestReleaseMirror,
-          current,
-          timeout,
-        );
-        if (mirrorResponse.statusCode >= 200 &&
-            mirrorResponse.statusCode < 300) {
-          final mirrorResult = _resultFromApi(mirrorResponse.body, current);
-          if (mirrorResult != null) return mirrorResult;
+      // ── 第 1 梯队：latest.json（v1.8.2 新主链路）────────────────────
+      // 不依赖 GitHub API（匿名限流 60/h，国内常 403），且 manifest 自带
+      // sha256，天然满足"反代换包也进不了安装器"。
+      for (final source in manifestSources()) {
+        try {
+          final response = await _get(
+            httpClient,
+            source,
+            current,
+            timeout,
+          );
+          if (response.statusCode == 404) {
+            // 该源没有 manifest：可能是还没发版，也可能代理不缓存。
+            lastReason = 'manifest_404';
+            continue;
+          }
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            final manifestResult = _resultFromManifest(response.body, current);
+            if (manifestResult != null) return manifestResult;
+            lastReason = 'manifest_invalid';
+          } else {
+            lastReason = 'manifest_http_${response.statusCode}';
+          }
+        } catch (e) {
+          lastReason = 'manifest_unreachable';
+          AppLog.failure(
+            LogEvent.updateCheckFailed,
+            e,
+            fields: {LogField.reason: 'manifest_source'},
+          );
         }
-      } catch (_) {
-        // 镜像不可用不致命：继续走发布页回退。
       }
 
-      // Anonymous API requests can be rate-limited. The public page redirect
-      // still gives us the release tag, from which the canonical APK URL can
-      // be formed without opening a browser.
+      // ── 第 2 梯队：GitHub Release API（反代 → 直连）──────────────
+      for (final apiSource in apiSources) {
+        try {
+          final apiResponse = await _get(
+            httpClient,
+            apiSource,
+            current,
+            timeout,
+          );
+          if (apiResponse.statusCode == 404) {
+            return UpdateCheckResult(
+              status: UpdateCheckStatus.noRelease,
+              currentVersion: current,
+            );
+          }
+          if (apiResponse.statusCode >= 200 && apiResponse.statusCode < 300) {
+            final apiResult = _resultFromApi(apiResponse.body, current);
+            if (apiResult != null) return apiResult;
+            lastReason = 'api_invalid';
+          } else {
+            lastReason = 'api_http_${apiResponse.statusCode}';
+          }
+        } catch (_) {
+          lastReason = 'api_unreachable';
+        }
+      }
+
+      // ── 第 3 梯队：发布页（仍在 github.com，最后兜底）───────────
       return await _checkReleasePageOrFailed(
         httpClient,
         current: current,
         timeout: timeout,
-        reason: 'api_and_mirror_failed',
-      );
-    } on TimeoutException {
-      // F13：API 的 DNS/连接超时/断流不代表"检查更新失败"——网页回退是另一条
-      // 独立通道，异常路径同样要有界地试一次（总预算 ≤ 2×timeout）。
-      return _checkReleasePageOrFailed(
-        httpClient,
-        current: current,
-        timeout: timeout,
-        reason: 'api_timeout',
-      );
-    } catch (_) {
-      return _checkReleasePageOrFailed(
-        httpClient,
-        current: current,
-        timeout: timeout,
-        reason: 'api_error',
+        reason: lastReason ?? 'all_channels_failed',
       );
     } finally {
       if (ownsClient) httpClient.close();
@@ -421,6 +473,94 @@ class UpdateService {
     }
   }
 
+  /// 解析 latest.json（v1.8.2 主链路）。
+  ///
+  /// 约定格式（仓库根目录 latest.json，随每次发版更新）：
+  /// ```json
+  /// {
+  ///   "version": "1.8.2",
+  ///   "tag": "v1.8.2",
+  ///   "apk": "ZCode-v1.8.2.apk",
+  ///   "sha256": "<64 hex>",
+  ///   "size": 30600000,
+  ///   "notes": "…可选，Markdown…",
+  ///   "publishedAt": "2026-10-26T10:00:00Z"
+  /// }
+  /// ```
+  /// 也接受 GitHub API 形状（含 `tag_name`/`assets`）以便同一解析器复用。
+  ///
+  /// 关键点：下载地址由**本机内置的仓库地址**拼装，绝不采信 manifest 里
+  /// 的任意 URL——公共反代是可替换响应的，只有 sha256 与我们自己拼的
+  /// 官方路径才可信。
+  UpdateCheckResult? _resultFromManifest(String body, String current) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) return null;
+
+      // 版本号：version / tag_name / tag 皆可。
+      String? rawVersion;
+      for (final key in const ['version', 'tag_name', 'tag']) {
+        final value = decoded[key];
+        if (value is String && value.trim().isNotEmpty) {
+          rawVersion = value.trim();
+          break;
+        }
+      }
+      if (rawVersion == null) return null;
+      final latest = normalizeVersion(rawVersion);
+      if (latest == null) return null;
+
+      final tag = rawVersion.startsWith('v') ? rawVersion : 'v$latest';
+      final assetName = 'ZCode-$tag.apk';
+
+      // 摘要：顶层 sha256，或 GitHub API 的 assets[].digest。
+      String? digest;
+      final rawDigest = decoded['sha256'] ?? decoded['digest'];
+      if (rawDigest is String && rawDigest.trim().isNotEmpty) {
+        final clean = rawDigest.trim().toLowerCase();
+        digest = clean.startsWith('sha256:')
+            ? clean
+            : 'sha256:$clean';
+      }
+      if (digest == null) {
+        final assets = decoded['assets'];
+        if (assets is List) {
+          for (final entry in assets) {
+            if (entry is! Map) continue;
+            if ('${entry['name']}'.toLowerCase() != assetName.toLowerCase()) {
+              continue;
+            }
+            final value = entry['digest'];
+            if (value is String && value.isNotEmpty) digest = value;
+            break;
+          }
+        }
+      }
+      // 没有摘要就不给自动下载入口（fail-closed，见 canDownload）。
+      final releaseUri = _releaseUriForTag(tag) ?? latestReleasePage;
+
+      final notes = decoded['notes'] ?? decoded['body'];
+      final size = decoded['size'];
+
+      return _result(
+        current: current,
+        latest: latest,
+        releaseUri: releaseUri,
+        downloadUri: digest == null
+            ? null
+            : _safeDownloadUri(
+                '$repositoryUrl/releases/download/$tag/$assetName',
+              ),
+        downloadFileName: digest == null ? null : assetName,
+        downloadSize: size is num ? size.toInt() : null,
+        releaseBody: notes is String ? notes : null,
+        assetDigest: digest,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   UpdateCheckResult? _resultFromApi(String body, String current) {
     try {
       final decoded = jsonDecode(body);
@@ -573,6 +713,16 @@ class UpdateService {
         received = await partial.length();
       }
 
+      // 下载候选（v1.8.2）：直连 GitHub 在国内不稳，按实测顺序加入公共
+      // 反代。每个候选拿到的字节都要过同一套 SHA-256 校验——反代只能
+      // 影响"能不能下到"，不能影响"下到的是不是官方包"。
+      final downloadCandidates = <Uri>[
+        uri,
+        for (final prefix in downloadProxyPrefixes)
+          if (prefix.isNotEmpty)
+            Uri.parse('$prefix${uri.toString()}'),
+      ];
+
       for (var attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           if (isCancelled?.call() ?? false) {
@@ -581,10 +731,11 @@ class UpdateService {
           // 每次尝试前按 `.part` 的真实字节数续传：上一次失败可能发生在
           // 已写入若干字节之后（此时 received 尚未回传）。
           received = await partial.exists() ? await partial.length() : 0;
+          final chunkUri = downloadCandidates[(attempt - 1) % downloadCandidates.length];
           received = await _downloadChunk(
             result: result,
             httpClient: httpClient,
-            uri: uri,
+            uri: chunkUri,
             partial: partial,
             received: received,
             onProgress: onProgress,

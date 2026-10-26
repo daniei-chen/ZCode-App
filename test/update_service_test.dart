@@ -32,6 +32,22 @@ Future<void> deleteDirEventually(Directory dir) async {
   }
 }
 
+/// 检查更新主流程会先尝试 latest.json（v1.8.2），测试里统一让这些请求 404，
+/// 以便每个用例继续验证它真正关心的那条链路（API / 发布页 / sidecar）。
+bool _isManifestUrl(Uri url) =>
+    url.path.endsWith('latest.json') || url.host == 'zhihui.kaogong.art';
+
+/// API 直连与经反代的 API（`gh-proxy.com/https://api.github.com/...`）等价：
+/// v1.8.2 起 API 也会先走反代，测试里要按同一语义应答。
+bool _isApiUrl(Uri url) {
+  final text = url.toString();
+  // 只认 API 形状（.../api.github.com/repos/.../releases/latest），
+  // 发布页 .../releases/latest 不是 API。
+  return text.contains('api.github.com') && text.contains('/releases/latest');
+}
+
+final _manifestMissing = http.Response('not found', 404);
+
 void main() {
   test('normalizes GitHub tags and compares release versions', () {
     expect(UpdateService.normalizeVersion('v1.6.0'), '1.6.0');
@@ -43,7 +59,9 @@ void main() {
 
   test('reads the exact APK asset URL from the GitHub release API', () async {
     final client = MockClient((request) async {
-      expect(request.url, UpdateService.latestReleaseApi);
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      expect(_isApiUrl(request.url), isTrue);
       return http.Response(
         '{"tag_name":"v1.0.2",'
         '"html_url":"https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2",'
@@ -73,6 +91,7 @@ void main() {
 
   test('资产不符合命名契约 → 有更新但不自动下载（U2 fail-closed）', () async {
     final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
       return http.Response(
         '{"tag_name":"v1.0.2",'
         '"html_url":"https://github.com/daniei-chen/ZCode-App/releases/tag/v1.0.2",'
@@ -94,7 +113,8 @@ void main() {
 
   test('API 限流时从发布页取版本，并经 sidecar 摘要恢复自动下载', () async {
     final client = MockClient((request) async {
-      if (request.url == UpdateService.latestReleaseApi) {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isApiUrl(request.url)) {
         return http.Response('rate limited', 403);
       }
       if (request.url == UpdateService.latestReleasePage) {
@@ -140,7 +160,8 @@ void main() {
 
   test('sidecar 拿不到（404）→ 回退为只引导 GitHub 页（fail-closed）', () async {
     final client = MockClient((request) async {
-      if (request.url == UpdateService.latestReleaseApi) {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isApiUrl(request.url)) {
         return http.Response('rate limited', 403);
       }
       if (request.url == UpdateService.latestReleasePage) {
@@ -170,7 +191,8 @@ void main() {
 
   test('sidecar 文件名与契约资产不符 → 拒绝自动下载（防张冠李戴）', () async {
     final client = MockClient((request) async {
-      if (request.url == UpdateService.latestReleaseApi) {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isApiUrl(request.url)) {
         return http.Response('rate limited', 403);
       }
       if (request.url == UpdateService.latestReleasePage) {
@@ -196,7 +218,8 @@ void main() {
 
   test('empty GitHub releases page is reported as no release', () async {
     final client = MockClient((request) async {
-      if (request.url == UpdateService.latestReleaseApi) {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isApiUrl(request.url)) {
         return http.Response('rate limited', 403);
       }
       expect(request.url, UpdateService.latestReleasePage);
@@ -448,7 +471,8 @@ void main() {
 
   test('API 抛异常（DNS/超时/断流）也要走网页回退（F13）', () async {
     final client = MockClient((request) async {
-      if (request.url == UpdateService.latestReleaseApi) {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
+      if (_isApiUrl(request.url)) {
         throw TimeoutException('api down');
       }
       if (request.url == UpdateService.latestReleasePage) {
@@ -480,6 +504,7 @@ void main() {
 
   test('API 与发布页都不可达 → failed，绝不显示“已是最新版”（F13）', () async {
     final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
       throw const SocketException('offline');
     });
 
@@ -516,6 +541,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('zremote-policy');
       var hitEvilHost = false;
       final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
         if (request.url.host == 'evil.com') {
           hitEvilHost = true;
           return http.Response.bytes(apkBytes, 200);
@@ -545,6 +571,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('zremote-policy');
       var hitPrivate = false;
       final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
         if (request.url.host == '10.0.0.5') {
           hitPrivate = true;
           return http.Response.bytes(apkBytes, 200);
@@ -573,6 +600,7 @@ void main() {
     test('重定向到发布资产 CDN（白名单内）→ 跟随并完成下载', () async {
       final directory = await Directory.systemTemp.createTemp('zremote-policy');
       final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
         if (request.url.host == 'objects.githubusercontent.com') {
           return http.Response.bytes(apkBytes, 200);
         }
@@ -619,11 +647,12 @@ void main() {
     test('检查更新：发布页重定向到私网地址 → 不跟随（走失败分支）', () async {
       var hitPrivate = false;
       final client = MockClient((request) async {
+      if (_isManifestUrl(request.url)) return _manifestMissing;
         if (request.url.host == '192.168.1.1') {
           hitPrivate = true;
           return http.Response('', 200);
         }
-        if (request.url == UpdateService.latestReleaseApi) {
+        if (_isApiUrl(request.url)) {
           throw const SocketException('api down');
         }
         return http.Response(

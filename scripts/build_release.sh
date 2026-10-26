@@ -88,6 +88,28 @@ HASH=$(sha256sum "$APK" | awk '{print $1}')
 printf '%s  ZCode-%s.apk\n' "$HASH" "$TAG" > "${APK}.sha256"
 ( cd "$OUT_DIR" && sha256sum -c "ZCode-${TAG}.apk.sha256" )
 
+# latest.json（v1.8.2）：App 的检查更新主链路读这个文件（走 gh-proxy /
+# jsDelivr 镜像 raw），不依赖有匿名限流的 GitHub API。必须在 git commit
+# 之前写好，否则这一版发出去后，下一版的检查更新会读到旧版本号。
+APK_SIZE=$(stat -c%s "$APK")
+NOTES_FIRST_LINE=$(grep -m1 '^# ' "docs/releases/v${VERSION}.md" 2>/dev/null | sed 's/^# //' || echo "")
+python3 - "$VERSION" "$TAG" "$HASH" "$APK_SIZE" "$NOTES_FIRST_LINE" <<'PY' > latest.json
+import json, sys, datetime
+version, tag, sha, size, notes = sys.argv[1:6]
+print(json.dumps({
+    "version": version,
+    "tag": tag,
+    "apk": f"ZCode-{tag}.apk",
+    "sha256": sha,
+    "size": int(size),
+    "notes": notes,
+    "publishedAt": datetime.datetime.now(datetime.timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+}, ensure_ascii=False, indent=2))
+PY
+echo "latest.json 已更新："
+cat latest.json
+
 step "5/5 发布"
 if ! git diff-index --quiet HEAD -- 2>/dev/null; then
   git add -A

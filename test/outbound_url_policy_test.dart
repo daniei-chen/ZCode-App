@@ -33,8 +33,10 @@ void main() {
         'https://evil.com/x',
         'https://github.com.evil.com/x',
         'https://notgithub.com/x',
-        'https://raw.githubusercontent.com/x',
         'https://codeload.github.com/x',
+        // 反代域的子域伪装也必须拒绝（v1.8.2 加入 gh-proxy/jsDelivr 后）
+        'https://gh-proxy.com.evil.com/x',
+        'https://evil.jsdelivr.net/x',
       ]) {
         expect(OutboundUrlPolicy.isAllowed(Uri.parse(url)), isFalse, reason: url);
         expect(

@@ -16,14 +16,24 @@ import 'link_builder.dart';
 /// HttpClient/连接层，不在当前实现范围内（记为已知边界）。
 abstract final class OutboundUrlPolicy {
   /// 允许的 host（全小写）。
+  ///
+  /// 国内网络实测（2026-10）：github.com / api.github.com 直连常超时或 403
+  /// 限流，GitHub 内容必须走公共反代才稳定。因此白名单显式包含三家经实测
+  /// 可用的反代域——它们只是**传输通道**，内容仍靠 SHA-256 与签名证书校验
+  /// （见 UpdateService.downloadUpdate：摘要不符即丢弃，绝不进安装器）。
   static const Set<String> allowedHosts = {
+    // GitHub 官方域（直连兜底）
     'github.com',
     'api.github.com',
+    'raw.githubusercontent.com',
     'objects.githubusercontent.com',
     'release-assets.githubusercontent.com',
+    // 公共反代（实测延迟：gh-proxy 2-6s、jsDelivr 3-4.5s、ghproxy.net ~10s）
+    'gh-proxy.com',
+    'ghproxy.net',
+    'cdn.jsdelivr.net',
     // 用户自有服务器的发版检查镜像（/zcode-release-latest，只读 GET 反代
-    // GitHub latest-release API）：国内直连 api.github.com 经常失败，误报
-    // "尚未发布正式版本"。下载链路仍限定 GitHub 官方域并做摘要校验。
+    // GitHub latest-release API）
     'zhihui.kaogong.art',
   };
 

@@ -176,6 +176,24 @@ POST <ackUrl>   body {"ids":[<int>,…]}
 桌面端那边只需在事件发生时向 `<publishUrl>` POST 一条同样形状的 JSON——
 你甚至可以直接用 `install_zcode_hook.sh` 生成的 `notify.sh` 改目标地址。
 
+## 四点六、检查更新的源链（v1.8.2）
+
+更新检查不再依赖 GitHub API（匿名限流 60/h、国内常 403），改为**版本清单
+主链路**，按实测延迟排序：
+
+| 顺位 | 源 | 实测 |
+|---|---|---|
+| 1 | `gh-proxy.com` | 0.6 s |
+| 2 | `cdn.jsdelivr.net` | 1.9 s |
+| 3 | `raw.githubusercontent.com` 直连 | 常失败 |
+| 4 | 自有镜像 `/zcode-release-latest` | 兜底 |
+| 5 | GitHub API（反代 → 直连） | manifest 全挂时 |
+
+版本清单 `latest.json` 由发版脚本自动生成，含 `version` / `sha256` /
+`size` / `notes`。**下载地址不采信清单内容**——始终由本机内置仓库地址拼装，
+并用清单里的 `sha256` 逐字节校验，再加安装器签名比对。因此公共反代只能
+影响"能不能下到"，不能影响"下到的是不是官方包"。
+
 ## 五、排障：按这个顺序查
 
 | 现象 | 先查这里 |
