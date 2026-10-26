@@ -73,6 +73,15 @@ sudo nginx -t && sudo systemctl reload nginx
 
 存储上限：已投递即删；未投递保留 7 天 / 最多 2000 条。
 
+## 自测
+
+```bash
+python3 server/zcode-push/test_server.py
+```
+
+20 项断言：鉴权（缺/错/短令牌）、publish 校验与字段截断、poll 游标与去重、
+ack 后即删、健康检查、未知路由。全部 stdlib，无需起容器。
+
 ## 桌面端安装（一次性，在你自己电脑上跑）
 
 ```bash
