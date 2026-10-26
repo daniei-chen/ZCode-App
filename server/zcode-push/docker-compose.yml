@@ -1,0 +1,17 @@
+# 外置通知通道（v1.8.0）。与现有服务完全隔离：独立容器、独立卷、
+# 只监听 127.0.0.1，由 nginx 的 /zpush/ 反代进来。
+services:
+  zcode-push:
+    build: .
+    image: zcode-push:1.8.0
+    container_name: zcode-push
+    restart: unless-stopped
+    user: "10001:10001"
+    ports:
+      - "127.0.0.1:8788:8788"
+    volumes:
+      - /opt/zcode-push/data:/data
+      - /etc/zcode-push/token:/run/secrets/token:ro
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
