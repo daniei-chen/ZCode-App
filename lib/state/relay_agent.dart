@@ -16,86 +16,55 @@ import 'notification_prefs.dart';
 import 'session_index.dart';
 import 'session_pool.dart';
 
-/// 头无引擎的 agent 状态层（v1.4.0）：每设备一条命令通道。
+/// agent 事件状态层（v1.4.0 建立，v1.7.1 改造）。
 ///
-/// 事件流：订阅推送（会话索引 + 按需订阅的会话快照）经防御性提取器拆出
-/// 审批/输入请求（带 interactionId 与 options）→ 系统通知挂"允许/拒绝/
-/// 回复"按钮。完成/失败仍由监控连接的快照差分负责（职责不重复）。
+/// v1.4-v1.7.0 这里为每设备自持一条常驻命令 WS——但官方中继是"单控制端"
+/// 语义，它与监控连接、用户会话页互踢，是"一直被其他设备接管"的真正源头
+/// （v1.7.0 诊断包实锤：monitor=paired 与 agent=down 轮流出现）。v1.7.1 起
+/// agent 能力并入监控同一条 socket（[RelayAgentLayer]），本层只剩三件事：
+/// 消费订阅事件拆审批/输入请求（带 interactionId 与 options → 系统通知挂
+/// "允许/拒绝/回复"按钮）、把就绪态写进共享存储给诊断/体检、以及给通知
+/// 动作分发器的一次性命令兜底（[RelayAgentChannel] 按需连接）。
 class RelayAgentNotifier extends Notifier<Map<String, bool>> {
-  final _channels = <String, RelayAgentChannel>{};
   final _sids = <String, String>{};
   final _seenInteractions = <String>{};
-  final _optionWaiters = <String, Timer>{};
   bool _disposed = false;
 
   @override
   Map<String, bool> build() {
     ref.onDispose(() {
       _disposed = true;
-      for (final channel in _channels.values) {
-        unawaited(channel.stop());
-      }
-      _channels.clear();
-      for (final timer in _optionWaiters.values) {
-        timer.cancel();
-      }
-      _optionWaiters.clear();
     });
-    ref.listen(deviceListProvider, (_, next) => _sync(next));
-    _sync(ref.read(deviceListProvider));
+    // sid 表（v1.6.0）：就绪态按 sid 写入共享存储，诊断/体检可见。
+    ref.listen(deviceListProvider, (_, next) => _syncSids(next));
+    _syncSids(ref.read(deviceListProvider));
     return const {};
   }
 
-  void _sync(List<RemoteDevice> devices) {
-    final wanted = {
-      for (final d in devices)
-        if (d.sid.isNotEmpty) d.id: d,
-    };
-    // sid 表（v1.6.0）：通道就绪态按 sid 写入共享存储，诊断/体检可见。
+  void _syncSids(List<RemoteDevice> devices) {
     _sids
       ..clear()
       ..addAll({
-        for (final d in wanted.values) d.id: d.sid,
+        for (final d in devices)
+          if (d.sid.isNotEmpty) d.id: d.sid,
       });
-    for (final id in _channels.keys.toSet()) {
-      if (!wanted.containsKey(id)) {
-        unawaited(_channels.remove(id)?.stop());
-        state = Map.of(state)..remove(id);
-      }
-    }
-    for (final device in wanted.values) {
-      if (_channels.containsKey(device.id)) continue;
-      final channel = RelayAgentChannel(
-        deviceId: device.id,
-        deviceSid: device.sid,
-        deviceMid: device.params['mid'] ?? '',
-        appVersion: device.params['app_version'] ?? '3.16.3',
-        tokenProvider: RelayCredentials.loadJwt,
-        onEvent: (deviceId, event) => _onEvent(deviceId, event),
-      );
-      _channels[device.id] = channel;
-      unawaited(
-        channel.start().whenComplete(() {
-          if (_disposed) return;
-          state = Map.of(state)..[device.id] = channel.isReady;
-          final sid = _sids[device.id];
-          if (sid != null) {
-            unawaited(MonitorStateStore.writeAgentReady(sid, channel.isReady));
-          }
-        }),
-      );
-    }
   }
 
-  /// 命令入口（通知动作分发器调用）。通道未就绪时命令自然失败（false）。
-  Future<bool> submitCommand(String deviceId, Map<String, Object?> envelope) =>
-      _channels[deviceId]?.submitCommand(envelope) ?? Future.value(false);
-
-  // ---- 事件提取（防御性：认字段不认信封）----
-
-  void _onEvent(String deviceId, Map<dynamic, dynamic> event) {
+  /// 监控连接的 agent 层事件入口（同 socket 订阅推送）。
+  void handleEvent(String deviceId, Map<dynamic, dynamic> event) {
     if (_disposed) return;
     _walkForPendingInteractions(deviceId, event);
+  }
+
+  /// 监控连接的 agent 层就绪态上报（诊断页"命令通道"数据源）。
+  void reportReady(String deviceId, bool ready) {
+    if (_disposed) return;
+    if (state[deviceId] == ready) return;
+    state = Map.of(state)..[deviceId] = ready;
+    final sid = _sids[deviceId];
+    if (sid != null) {
+      unawaited(MonitorStateStore.writeAgentReady(sid, ready));
+    }
   }
 
   void _walkForPendingInteractions(String deviceId, dynamic node, {int depth = 0}) {

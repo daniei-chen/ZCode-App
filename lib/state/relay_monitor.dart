@@ -14,6 +14,7 @@ import '../services/relay_credentials.dart';
 import '../services/structured_log.dart';
 import 'active_session.dart';
 import 'app_lifecycle.dart';
+import 'relay_agent.dart';
 import 'connection_status.dart';
 import 'event_feed.dart';
 import 'notification_prefs.dart';
@@ -36,6 +37,12 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
   final _differs = <String, StateDiffer>{};
   final _gates = <String, EventDedupeGate>{};
   bool _disposed = false;
+
+  /// 前台让路标志（v1.7.1）：suspend 后**任何**重建入口（30s 周期重载、
+  /// 设备推送、设备表变更）都不得重建连接——此前 suspend 只删连接，
+  /// 30s 后周期重载原样建回，前台监控偷偷复活把用户会话页踢成
+  /// "已被其他设备接管"（v1.7.0 诊断包实锤）。
+  bool _suspended = false;
   Timer? _reloadTimer;
 
   @override
@@ -73,6 +80,8 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
       if (wanted.containsKey(id)) continue;
       _teardown(id);
     }
+    // 让路期只做拆除，绝不重建。
+    if (_suspended) return;
     for (final entry in wanted.entries) {
       _ensureConnection(entry.value);
     }
@@ -97,6 +106,14 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
       tokenProvider: RelayCredentials.loadJwt,
       onState: _onMonitorState,
       onSnapshot: _onSnapshot,
+      // agent 能力并到同一条 socket（v1.7.1）：审批事件带 interactionId/
+      // optionIds，通知栏才有"允许/拒绝"按钮；就绪态进共享存储供诊断。
+      onAgentEvent: (deviceId, event) => ref
+          .read(relayAgentProvider.notifier)
+          .handleEvent(deviceId, event),
+      onAgentReady: (deviceId, ready) => ref
+          .read(relayAgentProvider.notifier)
+          .reportReady(deviceId, ready),
     );
     _connections[device.id] = connection;
     _differs[device.id] = StateDiffer();
@@ -106,7 +123,9 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
 
   /// UI 前台时挂起（头无引擎协调，v1.3.1）：断开全部连接、停轮询，
   /// 事件与提醒完全交给 UI 引擎的 WebView 路径，避免双源重复。
+  /// v1.7.1：挂起是**持续状态**——标志位挡住所有重建入口，直到 resume。
   Future<void> suspend() async {
+    _suspended = true;
     for (final id in _connections.keys.toSet()) {
       await _connections.remove(id)?.stop();
     }
@@ -118,9 +137,11 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     }
   }
 
-  /// UI 离开后恢复：重新读设备表与 JWT（可能已轮换），重建全部连接。
+  /// UI 离开后恢复：清让路标志，重新读设备表与 JWT（可能已轮换），
+  /// 重建全部连接。
   Future<void> resume() async {
     await suspend();
+    _suspended = false;
     _sync(ref.read(deviceListProvider));
   }
 

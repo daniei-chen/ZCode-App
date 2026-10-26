@@ -614,3 +614,19 @@ agent-browser eval "$(cat tools/dump_hex.js)"
 
 另：本地存储按 `device_sid` 收敛重复设备记录（`DS704`）——同 sid 双记录会在
 常驻 IndexedStack 里同时开两个会话页，两个终端自相互踢，症状与跨设备接管一致。
+
+### v1.7.1 补充：app 内单终端化
+
+v1.7.0 诊断包实锤了互踢的最后一个来源在 app **内部**：agent 命令通道
+（v1.4.0 起）是自持的第二条常驻终端 WS，与监控连接按单控制端语义互踢
+（`monitor=paired` 与 `agent=down` 轮流出现），也把用户会话页一起踢。
+另发现前台 suspend 后 30s 周期重载会把监控连接原样建回，让路被撤销。
+
+修复：
+
+1. **agent 能力并入监控连接**：`RelayAgentLayer` 挂在同一条 socket 上
+   （配对 → workspace-list → 开桥 → hello/initialize → 订阅），app 内
+   每设备永远只有一个终端。命令提交同 socket；通知动作分发器（独立
+   isolate）仍走一次性连接兜底。
+2. **suspend 持续化**：让路标志挡住 30s 周期重载/设备推送/设备表变更
+   的所有重建入口，直到 resume。

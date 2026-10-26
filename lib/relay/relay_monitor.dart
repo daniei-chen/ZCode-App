@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/app_log.dart';
 import '../services/structured_log.dart';
+import 'agent_layer.dart';
 
 /// 监控连接的状态机。
 enum RelayMonitorState {
@@ -281,8 +282,24 @@ class RelayMonitorConnection {
     DateTime Function()? now,
     this.onState,
     this.onSnapshot,
+    this.onAgentEvent,
+    this.onAgentReady,
   }) : _socketFactory = socketFactory ?? IoRelaySocket.new,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now {
+    // agent 能力层（v1.7.1）：配对后在同一条 socket 上开桥/订阅/收命令。
+    // 不再自持第二条常驻 WS——单控制端语义下两条常驻连接互踢，还把用户
+    // 正在看的会话页一起踢成"已被其他设备接管"（v1.7.0 诊断包定位）。
+    if (onAgentEvent != null) {
+      _agent = RelayAgentLayer(
+        deviceId: deviceId,
+        deviceSid: deviceSid,
+        appVersion: appVersion,
+        sendJson: _sendJsonMap,
+        onEvent: onAgentEvent,
+        onReady: onAgentReady,
+      );
+    }
+  }
 
   final String deviceId;
   final String deviceSid;
@@ -305,6 +322,34 @@ class RelayMonitorConnection {
   /// 快照回调：`result` 即 `workspace-list-response.result`（含 tasks）。
   final void Function(String deviceId, Map<dynamic, dynamic> result)?
   onSnapshot;
+
+  /// agent 层订阅事件（审批/输入请求）。非 null = 启用同 socket agent 层。
+  final void Function(String deviceId, Map<dynamic, dynamic> event)?
+  onAgentEvent;
+
+  /// agent 层就绪态变化（诊断页"命令通道"数据源）。
+  final void Function(String deviceId, bool ready)? onAgentReady;
+
+  RelayAgentLayer? _agent;
+
+  /// 提交 agent 命令（同 socket agent 层；未启用/未就绪返回 false，
+  /// 调用方走一次性通道兜底）。
+  Future<bool> submitAgentCommand(Map<String, Object?> envelope) =>
+      _agent?.submitCommand(envelope) ?? Future.value(false);
+
+  /// agent 层是否就绪（诊断"命令通道"口径）。
+  bool get agentReady => _agent?.isReady ?? false;
+
+  /// agent 层发帧口（与监控共用同一条 socket）。
+  void _sendJsonMap(Map<String, Object?> message) {
+    final socket = _socket;
+    if (socket == null) return;
+    try {
+      socket.send(jsonEncode(message));
+    } catch (_) {
+      _onTransportDown();
+    }
+  }
 
   RelayMonitorState _state = RelayMonitorState.idle;
   RelaySocket? _socket;
@@ -386,6 +431,7 @@ class RelayMonitorConnection {
     _epoch += 1;
     _teardownTimers();
     _setState(RelayMonitorState.idle);
+    _agent?.reset();
     unawaited(_closeSocket());
   }
 
@@ -491,6 +537,7 @@ class RelayMonitorConnection {
 
   void _scheduleReconnect() {
     if (!_running) return;
+    _agent?.reset();
     unawaited(_closeSocket());
     _setState(RelayMonitorState.disconnected);
     final delay = RelayMonitorPolicy.backoff(_attempt);
@@ -508,6 +555,7 @@ class RelayMonitorConnection {
     // 让路是主动决策：废掉当前传输代次，本连接后续的 done/error 事件
     // 不再触发旧退避路径（否则会覆盖 yielded 状态、3s 抢槽）。
     _epoch += 1;
+    _agent?.reset();
     unawaited(_closeSocket());
     _setState(RelayMonitorState.yielded);
     AppLog.event(LogEvent.relayMonitorYielded, level: LogLevel.warn, fields: {
@@ -538,7 +586,17 @@ class RelayMonitorConnection {
         }
       case RelayDataPayload(:final payload):
         if (_state != RelayMonitorState.paired) return;
-        _consumeDataPayload(payload);
+        // agent 层先看：rpc-frame/bridge-ready 归它（同 socket 能力层）；
+        // workspace-list-response 两边都消费（agent 匹配引导请求，监控
+        // 喂快照——引导期的列表响应也是一份有效快照）。
+        final agent = _agent;
+        final consumed = agent?.handleDataPayload(payload) ?? false;
+        final zcodeType = payload['zcode_type'];
+        final agentOnly =
+            zcodeType == 'rpc-frame' || zcodeType == 'workspace-bridge-ready';
+        if (!consumed || !agentOnly) {
+          _consumeDataPayload(payload);
+        }
       case RelayErrorFrame(:final code):
         // KICKED = 官方单控制端语义下槽位被别的终端接走（同一台手机的
         // 会话页、或另一台手机）。让路：长退避重连，不参与抢槽（v1.7.0）。
@@ -572,6 +630,9 @@ class RelayMonitorConnection {
     _poll?.cancel();
     _requestSnapshot();
     _poll = Timer.periodic(RelayMonitorPolicy.poll, (_) => _requestSnapshot());
+    // 同一条 socket 上的 agent 引导链（workspace-list → 开桥 → 订阅）。
+    // 失败只降级为"通知栏没有按钮"，不影响快照/通知主链路。
+    _agent?.onPaired();
   }
 
   void _startHeartbeat() {
