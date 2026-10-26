@@ -2033,11 +2033,14 @@ class _TaskStatusLine extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final summary = ref.watch(deviceSummariesProvider)[sid];
     final (state, title) = taskLineOf(summary);
+    // 新鲜度（v1.8.4）：区分"刚跑完"和"三小时前的旧状态"。
+    final fresh = freshnessOf(summary);
+    final suffix = fresh.isEmpty ? '' : ' · $fresh';
     final text = switch (state) {
-      'pending' => '${l10n.taskPending} · $title',
-      'running' => '${l10n.taskRunning} · $title',
-      'completed' => '${l10n.taskCompleted} · $title',
-      'error' => '${l10n.taskFailed} · $title',
+      'pending' => '${l10n.taskPending} · $title$suffix',
+      'running' => '${l10n.taskRunning} · $title$suffix',
+      'completed' => '${l10n.taskCompleted} · $title$suffix',
+      'error' => '${l10n.taskFailed} · $title$suffix',
       _ => '',
     };
     if (text.isEmpty) return const SizedBox(height: 17);

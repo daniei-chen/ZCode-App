@@ -54,6 +54,22 @@ final deviceSummariesProvider =
 
 /// 摘要 → 首页展示行（纯函数，可单测）：返回 (状态文案 key, 任务标题)。
 /// 状态 key：pending / running / completed / error / null（无摘要）。
+/// 摘要新鲜度（v1.8.4）：把 updatedAt 折成"刚刚 / 3 分钟前 / 2 小时前"。
+///
+/// 首页只显示"运行中"是不够的——用户分不清那是 10 秒前还是 3 小时前的
+/// 状态（进程可能早已停止，只是最后写下的摘要还留在这里）。
+String freshnessOf(Map<String, Object?>? summary, {DateTime? now}) {
+  if (summary == null || summary.isEmpty) return '';
+  final at = summary['updatedAt'];
+  if (at is! int || at <= 0) return '';
+  final moment = DateTime.fromMillisecondsSinceEpoch(at);
+  final delta = (now ?? DateTime.now()).difference(moment);
+  if (delta.isNegative || delta.inSeconds < 60) return '刚刚';
+  if (delta.inMinutes < 60) return '${delta.inMinutes} 分钟前';
+  if (delta.inHours < 24) return '${delta.inHours} 小时前';
+  return '${delta.inDays} 天前';
+}
+
 (String?, String?) taskLineOf(Map<String, Object?>? summary) {
   if (summary == null || summary.isEmpty) return (null, '');
   final phase = '${summary['phase']}';

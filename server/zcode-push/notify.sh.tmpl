@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# 由 ZCode hook 调用：从 stdin 读事件 JSON，POST 到 zcode-push。
+#
+# 两条硬约束（都是实测踩出来的）：
+#  1. 任何失败都必须静默 exit 0——hook 的退出码会影响 ZCode 的任务流程，
+#     绝不能因为"通知没发出去"就阻塞用户的工作；
+#  2. 不依赖 python：Windows 上 `python3` 常是 Microsoft Store 的桩程序
+#     （运行即静默失败），依赖它会导致字段解析全空、一条通知都发不出。
+#     这里用纯 bash + sed 提取字段。
+set -uo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zcode-push"
+TOKEN_FILE="$CONFIG_DIR/token"
+ENDPOINT_FILE="$CONFIG_DIR/endpoint"
+
+[ -r "$TOKEN_FILE" ] || exit 0
+[ -r "$ENDPOINT_FILE" ] || exit 0
+TOKEN="$(cat "$TOKEN_FILE")"
+BASE="$(cat "$ENDPOINT_FILE")"
+[ -n "$TOKEN" ] || exit 0
+[ -n "$BASE" ] || exit 0
+
+EVENT="${1:-unknown}"
+
+# stdin：ZCode 的「进程」模式可能不传 stdin。有界读，绝不无限等待。
+PAYLOAD=""
+if [ ! -t 0 ]; then
+  PAYLOAD="$(timeout 2 cat 2>/dev/null || true)"
+fi
+
+KIND="info"
+case "$EVENT" in
+  PermissionRequest) KIND="permission" ;;
+  Stop) KIND="completed" ;;
+  SessionEnd) KIND="completed" ;;
+  *) KIND="info" ;;
+esac
+
+# 从扁平 JSON 里取第一个匹配 key 的字符串值。
+# 用 # 作 sed 分隔符（内容常含 / | 等字符）。
+json_str() {
+  key="$1"
+  src="$2"
+  pattern='.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*'
+  printf '%s' "$src" | sed -n "s#${pattern}#\\1#p" | head -1
+}
+
+TOOL="$(json_str toolName "$PAYLOAD")"
+[ -n "$TOOL" ] || TOOL="$(json_str tool_name "$PAYLOAD")"
+SUMMARY="$(json_str summary "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str description "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str command "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str prompt "$PAYLOAD")"
+SESSION="$(json_str sessionId "$PAYLOAD")"
+[ -n "$SESSION" ] || SESSION="$(json_str taskId "$PAYLOAD")"
+
+case "$KIND" in
+  permission) TITLE="需要审批" ;;
+  completed) TITLE="任务已完成" ;;
+  *) TITLE="ZCode 通知" ;;
+esac
+if [ -n "$TOOL" ]; then
+  TITLE="$TITLE: $TOOL"
+fi
+
+# 正文兜底：没有摘要就用事件名（宁可朴素，也不能整条链路失效）。
+BODY="${SUMMARY:-$EVENT}"
+
+# 截断（服务端还会二次截断）。
+TITLE="$(printf '%s' "$TITLE" | cut -c1-180)"
+BODY="$(printf '%s' "$BODY" | cut -c1-500)"
+
+# JSON 字符串转义：反斜杠、双引号、换行。
+json_escape() {
+  printf '%s' "$1" \
+    | tr -d '\r' \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | awk 'BEGIN{ORS=""} {if (NR > 1) printf "\\n"; print}'
+}
+
+TITLE_ESC="$(json_escape "$TITLE")"
+BODY_ESC="$(json_escape "$BODY")"
+SESSION_ESC="$(json_escape "$SESSION")"
+
+BODY_FILE="$(mktemp)"
+printf '{"kind":"%s","title":"%s","body":"%s","sessionId":"%s","device":"desktop"}' \
+  "$KIND" "$TITLE_ESC" "$BODY_ESC" "$SESSION_ESC" > "$BODY_FILE"
+
+# 静默上报：失败不影响 ZCode 的任务流程。
+curl -sS -m 10 -o /dev/null \
+  -X POST "$BASE/zpush/publish" \
+  -H "X-ZP-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary "@$BODY_FILE" 2>/dev/null || true
+
+rm -f "$BODY_FILE"
+exit 0

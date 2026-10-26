@@ -132,7 +132,9 @@ class SettingsPage extends ConsumerWidget {
               const _DiagnosticsTile(),
               SectionLabel(l10n.settingsGroupNotifications),
               const _NotificationCard(),
-              const _ExternalPushCard(),
+              // 外置通道（v1.8.0）默认折叠：多数用户不需要自建服务，
+              // 展开后才显示地址/令牌/端点配置，避免干扰主流程。
+              const _ExternalPushEntry(),
             ],
           ),
         ),
@@ -1405,6 +1407,77 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// 外置通道折叠入口（v1.8.4）：默认收起，点开才显示完整配置卡片。
+/// 理由——这条通道需要自建服务 + 桌面 hook，属于进阶用法；摆在通知设置的
+/// 首屏只会让普通用户困惑"我要不要配"。
+class _ExternalPushEntry extends StatefulWidget {
+  const _ExternalPushEntry();
+
+  @override
+  State<_ExternalPushEntry> createState() => _ExternalPushEntryState();
+}
+
+class _ExternalPushEntryState extends State<_ExternalPushEntry> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.zt;
+    if (!_open) {
+      return Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _open = true),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            child: Row(
+              children: [
+                Icon(Icons.science_outlined, size: 18, color: palette.textLo),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '进阶：外置通知通道',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: palette.textHi,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '需要自己的服务器与桌面端配置',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: palette.textLo,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.expand_more, size: 20, color: palette.textLo),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        const _ExternalPushCard(),
+        TextButton.icon(
+          onPressed: () => setState(() => _open = false),
+          icon: const Icon(Icons.expand_less, size: 18),
+          label: const Text('收起'),
+        ),
+      ],
     );
   }
 }

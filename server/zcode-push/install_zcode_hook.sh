@@ -106,107 +106,100 @@ NOTIFY_SH="$CONFIG_DIR/notify.sh"
 cat > "$NOTIFY_SH" <<'SCRIPT'
 #!/usr/bin/env bash
 # 由 ZCode hook 调用：从 stdin 读事件 JSON，POST 到 zcode-push。
-# 任何失败都必须静默退出 0——hook 的退出码会影响 ZCode 的任务流程，
-# 绝不能因为"通知没发出去"就阻塞用户的工作。
+#
+# 两条硬约束（都是实测踩出来的）：
+#  1. 任何失败都必须静默 exit 0——hook 的退出码会影响 ZCode 的任务流程，
+#     绝不能因为"通知没发出去"就阻塞用户的工作；
+#  2. 不依赖 python：Windows 上 `python3` 常是 Microsoft Store 的桩程序
+#     （运行即静默失败），依赖它会导致字段解析全空、一条通知都发不出。
+#     这里用纯 bash + sed 提取字段。
 set -uo pipefail
 
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zcode-push"
 TOKEN_FILE="$CONFIG_DIR/token"
 ENDPOINT_FILE="$CONFIG_DIR/endpoint"
 
-[[ -r "$TOKEN_FILE" && -r "$ENDPOINT_FILE" ]] || exit 0
+[ -r "$TOKEN_FILE" ] || exit 0
+[ -r "$ENDPOINT_FILE" ] || exit 0
 TOKEN="$(cat "$TOKEN_FILE")"
 BASE="$(cat "$ENDPOINT_FILE")"
-[[ -n "$TOKEN" && -n "$BASE" ]] || exit 0
+[ -n "$TOKEN" ] || exit 0
+[ -n "$BASE" ] || exit 0
 
 EVENT="${1:-unknown}"
-PAYLOAD="$(cat 2>/dev/null || true)"
+
+# stdin：ZCode 的「进程」模式可能不传 stdin。有界读，绝不无限等待。
+PAYLOAD=""
+if [ ! -t 0 ]; then
+  PAYLOAD="$(timeout 2 cat 2>/dev/null || true)"
+fi
 
 KIND="info"
 case "$EVENT" in
   PermissionRequest) KIND="permission" ;;
-  Stop)              KIND="completed" ;;
-  SessionEnd)        KIND="completed" ;;
-  PostToolUseFailure) KIND="info" ;;
+  Stop) KIND="completed" ;;
+  SessionEnd) KIND="completed" ;;
+  *) KIND="info" ;;
 esac
 
-# 从事件 JSON 里取标题/正文/会话 id（字段名做了防御性回退；取不到就用
-# 事件名兜底——宁可通知内容朴素，也不能因为格式变化整条链路失效）。
-TITLE="$(printf '%s' "$PAYLOAD" | python3 -c '
-import json,sys
-kind=sys.argv[1]
-try:
-    e=json.load(sys.stdin)
-except Exception:
-    print(""); raise SystemExit
-if not isinstance(e,dict): print(""); raise SystemExit
-def pick(*keys):
-    for k in keys:
-        v=e.get(k)
-        if isinstance(v,str) and v.strip(): return v.strip()
-    return ""
-tool=pick("toolName","tool_name","tool")
-summary=pick("summary","description","prompt","command")
-if kind=="permission":
-    print(("需要审批: "+tool) if tool else "需要审批")
-elif kind=="completed":
-    print("任务已完成")
-else:
-    print(tool or "ZCode 通知")
-' "$KIND" 2>/dev/null || echo "")"
+# 从扁平 JSON 里取第一个匹配 key 的字符串值。
+# 用 # 作 sed 分隔符（内容常含 / | 等字符）。
+json_str() {
+  key="$1"
+  src="$2"
+  pattern='.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*'
+  printf '%s' "$src" | sed -n "s#${pattern}#\\1#p" | head -1
+}
 
-BODY="$(printf '%s' "$PAYLOAD" | python3 -c '
-import json,sys
-try:
-    e=json.load(sys.stdin)
-except Exception:
-    print(""); raise SystemExit
-if not isinstance(e,dict): print(""); raise SystemExit
-def pick(*keys):
-    for k in keys:
-        v=e.get(k)
-        if isinstance(v,str) and v.strip(): return v.strip()
-    return ""
-print(pick("summary","description","command","prompt","toolName","tool_name")[:600])
-' 2>/dev/null || echo "")"
+TOOL="$(json_str toolName "$PAYLOAD")"
+[ -n "$TOOL" ] || TOOL="$(json_str tool_name "$PAYLOAD")"
+SUMMARY="$(json_str summary "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str description "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str command "$PAYLOAD")"
+[ -n "$SUMMARY" ] || SUMMARY="$(json_str prompt "$PAYLOAD")"
+SESSION="$(json_str sessionId "$PAYLOAD")"
+[ -n "$SESSION" ] || SESSION="$(json_str taskId "$PAYLOAD")"
 
-SESSION="$(printf '%s' "$PAYLOAD" | python3 -c '
-import json,sys
-try:
-    e=json.load(sys.stdin)
-except Exception:
-    print(""); raise SystemExit
-if not isinstance(e,dict): print(""); raise SystemExit
-for k in ("sessionId","session_id","taskId","task_id"):
-    v=e.get(k)
-    if isinstance(v,str) and v.strip(): print(v.strip()); break
-else: print("")
-' 2>/dev/null || echo "")"
+case "$KIND" in
+  permission) TITLE="需要审批" ;;
+  completed) TITLE="任务已完成" ;;
+  *) TITLE="ZCode 通知" ;;
+esac
+if [ -n "$TOOL" ]; then
+  TITLE="$TITLE: $TOOL"
+fi
 
-[[ -n "$TITLE" || -n "$BODY" ]] || exit 0
+# 正文兜底：没有摘要就用事件名（宁可朴素，也不能整条链路失效）。
+BODY="${SUMMARY:-$EVENT}"
 
-python3 - "$KIND" "$TITLE" "$BODY" "$SESSION" "$BASE" "$TOKEN" <<'PY' >/dev/null 2>&1 || exit 0
-import json,sys,urllib.request
-kind,title,body,session,base,token = sys.argv[1:7]
-data = json.dumps({
-    "kind": kind,
-    "title": title,
-    "body": body,
-    "sessionId": session,
-    "device": "desktop",
-}, ensure_ascii=False).encode("utf-8")
-req = urllib.request.Request(
-    base.rstrip("/") + "/zpush/publish",
-    data=data,
-    headers={"Content-Type": "application/json", "X-ZP-Token": token},
-    method="POST",
-)
-try:
-    urllib.request.urlopen(req, timeout=8).read()
-except Exception:
-    pass
-PY
+# 截断（服务端还会二次截断）。
+TITLE="$(printf '%s' "$TITLE" | cut -c1-180)"
+BODY="$(printf '%s' "$BODY" | cut -c1-500)"
 
+# JSON 字符串转义：反斜杠、双引号、换行。
+json_escape() {
+  printf '%s' "$1" \
+    | tr -d '\r' \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' \
+    | awk 'BEGIN{ORS=""} {if (NR > 1) printf "\\n"; print}'
+}
+
+TITLE_ESC="$(json_escape "$TITLE")"
+BODY_ESC="$(json_escape "$BODY")"
+SESSION_ESC="$(json_escape "$SESSION")"
+
+BODY_FILE="$(mktemp)"
+printf '{"kind":"%s","title":"%s","body":"%s","sessionId":"%s","device":"desktop"}' \
+  "$KIND" "$TITLE_ESC" "$BODY_ESC" "$SESSION_ESC" > "$BODY_FILE"
+
+# 静默上报：失败不影响 ZCode 的任务流程。
+curl -sS -m 10 -o /dev/null \
+  -X POST "$BASE/zpush/publish" \
+  -H "X-ZP-Token: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary "@$BODY_FILE" 2>/dev/null || true
+
+rm -f "$BODY_FILE"
 exit 0
 SCRIPT
 chmod 700 "$NOTIFY_SH"
@@ -269,10 +262,14 @@ say "  ZCode 的 hooks 存在工作区配置里并需要信任授权，命令行
 say "  请在桌面端：设置 → 钩子 → 新建/导入，填下面两条："
 say ""
 say "    事件 PermissionRequest"
-say "    命令 $NOTIFY_SH PermissionRequest"
+say "    命令 bash \"$NOTIFY_SH\" PermissionRequest"
 say ""
 say "    事件 Stop"
-say "    命令 $NOTIFY_SH Stop"
+say "    命令 bash \"$NOTIFY_SH\" Stop"
+say ""
+say "  ⚠ Windows：命令必须带 bash 前缀。ZCode 的「进程」方式直接执行，"
+say "    .sh 不是可执行程序会报找不到文件。若 bash 不在 PATH，用完整路径："
+say "    C:\Program Files\Git\bin\bash.exe \"$NOTIFY_SH\" Stop"
 say ""
 say "  支持"导入"的版本可以直接选这个文件："
 say "    $HOOK_JSON"
@@ -285,16 +282,23 @@ say ""
 say ""
 say "== 自检（发一条测试消息到服务器）=="
 TEST_OK=0
-if curl -sS -m 10 -o /dev/null -w '%{http_code}' \
-     -X POST "$BASE/zpush/publish" \
-     -H "X-ZP-Token: $TOKEN" \
-     -H 'Content-Type: application/json' \
-     -d '{"kind":"info","title":"外置通道已连通","body":"这条来自安装脚本的自检消息"}' \
-     | grep -q '^200$'; then
+# 用临时文件承接 JSON 体：Git Bash 会把命令行里的中文按 GBK 传，服务端按
+# UTF-8 解析会 400（bad_json）。写文件走 --data-binary 就没有这个问题。
+TEST_BODY="$(mktemp)"
+printf '%s' '{"kind":"info","title":"外置通道已连通","body":"这条来自安装脚本的自检消息"}' > "$TEST_BODY"
+HTTP_CODE=$(curl -sS -m 15 -o /dev/null -w '%{http_code}'   -X POST "$BASE/zpush/publish"   -H "X-ZP-Token: $TOKEN"   -H 'Content-Type: application/json'   --data-binary "@$TEST_BODY" 2>/dev/null)
+rm -f "$TEST_BODY"
+HTTP_CODE="${HTTP_CODE:-000}"
+if [[ "$HTTP_CODE" == "200" ]]; then
   TEST_OK=1
-  say "✓ 服务器接受消息（200）"
+  say "✓ 服务器接受消息（HTTP 200）——手机上点「保存并测试」应能收到"
 else
-  say "✗ 服务器拒绝了消息——检查地址与令牌是否匹配"
+  say "✗ 服务器返回 HTTP $HTTP_CODE"
+  case "$HTTP_CODE" in
+    401) say "  令牌不匹配：手机与桌面必须用同一个 /etc/zcode-push/token" ;;
+    404) say "  端点不存在：检查 --url 是否指向已部署 zcode-push 的域名" ;;
+    000) say "  连不上：检查网络，或服务器上 docker ps 看 zcode-push 是否在跑" ;;
+  esac
 fi
 
 say ""

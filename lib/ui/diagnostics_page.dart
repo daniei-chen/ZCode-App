@@ -10,6 +10,7 @@ import '../services/battery_optimization.dart';
 import '../services/bridge_schema.dart';
 import '../services/diagnostics_bundle.dart';
 import '../services/monitor_state_store.dart';
+import '../services/notifier.dart';
 import '../state/device_directory.dart';
 import 'account_login_page.dart';
 import '../services/structured_log.dart';
@@ -432,6 +433,20 @@ class _HealthCheckCardState extends ConsumerState<_HealthCheckCard> {
     final agent = await MonitorStateStore.readAgentReady();
     soft['agent'] = agent.values.contains(true);
 
+    // 实投测试（v1.8.4）：权限开着 ≠ 真能收到。这里真的发一条本地通知——
+    // 用户点完体检立刻能在通知栏看到它，才算"通知链路可用"。
+    // 失败原因（渠道被关、免打扰、厂商拦截）都在结果里如实呈现。
+    if (ok['notif'] == true) {
+      try {
+        ok['deliver'] = await NotifierService.instance.showTest();
+      } catch (_) {
+        ok['deliver'] = false;
+      }
+    } else {
+      // 没权限就不重复报错，避免两行同时红。
+      ok['deliver'] = false;
+    }
+
     if (!mounted) return;
     setState(() {
       _ok
@@ -458,6 +473,10 @@ class _HealthCheckCardState extends ConsumerState<_HealthCheckCard> {
           MaterialPageRoute<bool>(builder: (_) => const AccountLoginPage()),
         );
         await ref.read(deviceDirectoryProvider.notifier).refresh();
+      case 'deliver':
+        // 权限开着但通知没弹出来：多半是渠道被关、免打扰、或厂商拦截。
+        // 直接带用户去系统的通知设置页逐项检查，比只报红有用。
+        await AppSettings.openNotifications();
     }
   }
 
@@ -476,6 +495,9 @@ class _HealthCheckCardState extends ConsumerState<_HealthCheckCard> {
         ('monitor', l10n.healthItemMonitor, _ok['monitor'] ?? false, false),
       if (_state == _HealthState.done)
         ('agent', l10n.healthItemAgent, _soft['agent'] ?? false, true),
+      if (_state == _HealthState.done && (_ok['notif'] ?? false))
+        ('deliver', '通知实际送达（应已弹出测试通知）',
+            _ok['deliver'] ?? false, false),
     ];
     return Card(
       child: Padding(

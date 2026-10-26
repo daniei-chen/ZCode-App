@@ -58,4 +58,38 @@ void main() {
     expect(taskLineOf(const {}), (null, ''));
     expect(taskLineOf({'phase': 'weird'}), (null, ''));
   });
+
+  group('freshnessOf（v1.8.4 摘要新鲜度）', () {
+    Map<String, Object?> at(Duration ago) => {
+          'phase': 'running',
+          'title': 't',
+          'updatedAt': DateTime.now().subtract(ago).millisecondsSinceEpoch,
+        };
+
+    test('60 秒内显示"刚刚"', () {
+      expect(freshnessOf(at(const Duration(seconds: 5))), '刚刚');
+    });
+
+    test('分钟与小时分档', () {
+      expect(freshnessOf(at(const Duration(minutes: 3))), '3 分钟前');
+      expect(freshnessOf(at(const Duration(hours: 2))), '2 小时前');
+      expect(freshnessOf(at(const Duration(days: 3))), '3 天前');
+    });
+
+    test('缺 updatedAt 或空摘要返回空串（不显示噪声）', () {
+      expect(freshnessOf(null), '');
+      expect(freshnessOf(const {}), '');
+      expect(freshnessOf(const {'phase': 'running'}), '');
+    });
+
+    test('时钟回拨（未来时间）按"刚刚"处理', () {
+      expect(
+        freshnessOf({
+          'updatedAt':
+              DateTime.now().add(const Duration(minutes: 5)).millisecondsSinceEpoch,
+        }),
+        '刚刚',
+      );
+    });
+  });
 }
