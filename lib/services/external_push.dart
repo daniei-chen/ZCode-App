@@ -112,7 +112,7 @@ class ExternalPushConfig {
   static const defaultPublishPath = '/zpush/publish';
   static const defaultAuthHeader = 'X-ZP-Token';
 
-  /// 例如 `https://zhihui.kaogong.art`（不带尾部斜杠）。
+  /// 例如 `https://your-server.example.com`（不带尾部斜杠）。
   final String baseUrl;
   final String token;
 

@@ -1218,7 +1218,7 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
                 keyboardType: TextInputType.url,
                 decoration: const InputDecoration(
                   labelText: '服务器地址',
-                  hintText: 'https://zhihui.kaogong.art',
+                  hintText: 'https://your-server.example.com',
                   isDense: true,
                 ),
               ),

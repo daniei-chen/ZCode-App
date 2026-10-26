@@ -30,7 +30,7 @@ curl -s http://127.0.0.1:8788/zpush/healthz     # {"ok":true,...}
 
 ## nginx（只新增一个 location，不动现有规则）
 
-在 `zhihui.kaogong.art` 的 `server { }` 内加入：
+在**你的站点**的 `server { }` 内加入：
 
 ```nginx
 location ^~ /zpush/ {
@@ -47,9 +47,9 @@ location ^~ /zpush/ {
 ```
 
 ```bash
-sudo cp /etc/nginx/sites-available/zhihui.kaogong.art{,.bak-$(date +%Y%m%d-%H%M%S)}
+sudo cp /etc/nginx/sites-available/<你的站点>{,.bak-$(date +%Y%m%d-%H%M%S)}
 sudo nginx -t && sudo systemctl reload nginx
-curl -s https://zhihui.kaogong.art/zpush/healthz
+curl -s https://<你的域名>/zpush/healthz
 ```
 
 ## 回滚
@@ -86,7 +86,7 @@ ack 后即删、健康检查、未知路由。全部 stdlib，无需起容器。
 
 ```bash
 bash install_zcode_hook.sh \
-  --url https://zhihui.kaogong.art \
+  --url https://<你的域名> \
   --token <把 /etc/zcode-push/token 的内容贴这里>
 ```
 
@@ -101,6 +101,36 @@ bash install_zcode_hook.sh \
 4. 自检：直接发一条测试消息，确认服务器接受。
 
 卸载：`bash install_zcode_hook.sh --uninstall`。
+
+### 关于 hook 写入位置（v1.8.2 实测修正）
+
+**不要把 JSON 丢进 `~/.zcode/hooks/`——ZCode 不扫描那个目录。**
+
+真实机制（从官方 3.16.3 bundle 逆向确认）：
+
+- hooks 由桌面端**按 workspace 持久化**，通过 `saveHooks({workspacePath, scope})`
+  写入，UI 在 **设置 → 钩子**（插件详情里的标识是 `settings.plugins.detail.hook`）；
+- 写入后需要**信任授权**（`grantWorkspaceHookTrust`），未信任的 hook 不执行；
+- 真实 schema 是**按事件名分组**的对象：
+
+```json
+{
+  "hooks": {
+    "PermissionRequest": [
+      { "hooks": [ { "type": "command", "command": "… PermissionRequest", "timeout": 10 } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "… Stop", "timeout": 10 } ] }
+    ]
+  }
+}
+```
+
+支持的事件名：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、
+`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Stop`。
+
+`install_zcode_hook.sh` 会把这份（格式正确的）JSON 生成到
+`~/.config/zcode-push/hooks.json`，并打印在界面里逐条填写所需的命令与事件。
 
 ### 如果界面里已经配过 hook
 

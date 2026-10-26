@@ -12,7 +12,7 @@
 #
 # 用法：
 #   bash install_zcode_hook.sh \
-#     --url https://zhihui.kaogong.art \
+#     --url https://your-server.example.com \
 #     --token <你的令牌>
 #   （可选）--dry-run   只打印将要写入的配置，不落盘
 #            --uninstall 移除本脚本添加的 hook
@@ -70,7 +70,7 @@ if [[ "$UNINSTALL" == "1" ]]; then
   exit 0
 fi
 
-[[ -n "$URL" ]] || die "缺少 --url（例：https://zhihui.kaogong.art）"
+[[ -n "$URL" ]] || die "缺少 --url（例：https://your-server.example.com）"
 [[ -n "$TOKEN" ]] || die "缺少 --token（服务器 /etc/zcode-push/token 的内容）"
 
 BASE="${URL%/}"
@@ -92,7 +92,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   say "[dry-run] 将写入 $TOKEN_FILE"
   say "[dry-run] 将在 $HOOKS_DIR 下写入 hook 配置："
   say "          events: PermissionRequest, Stop"
-  say "          command: curl -sS -m 8 -X POST $BASE/zpush/publish …"
+  say "          （配置经桌面端 设置→钩子 写入并授权）"
   exit 0
 fi
 
@@ -126,6 +126,7 @@ KIND="info"
 case "$EVENT" in
   PermissionRequest) KIND="permission" ;;
   Stop)              KIND="completed" ;;
+  SessionEnd)        KIND="completed" ;;
   PostToolUseFailure) KIND="info" ;;
 esac
 
@@ -214,24 +215,71 @@ chmod 600 "$CONFIG_DIR/endpoint"
 say "✓ 上报脚本已写入 $NOTIFY_SH"
 
 # 3) ZCode hook 配置
-HOOK_FILE="$HOOKS_DIR/$HOOK_MARK.json"
-cat > "$HOOK_FILE" <<JSON
+#
+# 重要（v1.8.2 实测修正）：ZCode 的 hooks **不扫描** `~/.zcode/hooks/*.json`。
+# 它们由桌面端按 **workspace** 持久化，必须经 `saveHooks({workspacePath,
+# scope})` 写入并完成信任授权（`grantWorkspaceHookTrust`），UI 位置是
+#   设置 → 钩子（插件详情里也叫 settings.plugins.detail.hook）
+# 真实 schema 是按事件名分组的对象，每一项形如：
+#   { "hooks": [ { "type": "command", "command": "...", "timeout": 10 } ],
+#     "matcher": "..." }
+#
+# 因此这里做两件事：
+#   1. 仍然把一份**格式正确**的 JSON 写到 ~/.config/zcode-push/hooks.json，
+#      供你在界面里用"导入"直接选它；
+#   2. 把同样的内容打印出来，界面不支持导入时可以逐条粘贴。
+HOOK_JSON="$CONFIG_DIR/hooks.json"
+cat > "$HOOK_JSON" <<JSON
 {
-  "hooks": [
-    {
-      "event": "PermissionRequest",
-      "command": "$NOTIFY_SH PermissionRequest"
-    },
-    {
-      "event": "Stop",
-      "command": "$NOTIFY_SH Stop"
-    }
-  ],
-  "_note": "$HOOK_MARK：由 install_zcode_hook.sh 写入；事件发生时把消息推到 $BASE"
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$NOTIFY_SH PermissionRequest",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$NOTIFY_SH Stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
 JSON
-chmod 644 "$HOOK_FILE"
-say "✓ hook 配置已写入 $HOOK_FILE"
+chmod 600 "$HOOK_JSON"
+say "✓ hook 配置已生成：$HOOK_JSON"
+
+say ""
+say "══════════════════════════════════════════════════════════════"
+say "  还需在 ZCode 桌面端做最后一步（必须，否则不会触发）"
+say "══════════════════════════════════════════════════════════════"
+say ""
+say "  ZCode 的 hooks 存在工作区配置里并需要信任授权，命令行无法直接写入。"
+say "  请在桌面端：设置 → 钩子 → 新建/导入，填下面两条："
+say ""
+say "    事件 PermissionRequest"
+say "    命令 $NOTIFY_SH PermissionRequest"
+say ""
+say "    事件 Stop"
+say "    命令 $NOTIFY_SH Stop"
+say ""
+say "  支持"导入"的版本可以直接选这个文件："
+say "    $HOOK_JSON"
+say ""
+say "  保存后如果提示"需要信任"，点允许——不信任的 hook 不会执行。"
+say "══════════════════════════════════════════════════════════════"
+say ""
 
 # 4) 自检：直接发一条测试消息
 say ""
