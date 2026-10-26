@@ -202,6 +202,34 @@ void main() {
         isTrue,
         reason: 'specialUse 前台服务必须声明用途子类型',
       );
+      // v1.7.3 闪退回归门禁：前台服务**类型与权限必须成对**。
+      // v1.7.2 改成 specialUse 却漏了 FOREGROUND_SERVICE_SPECIAL_USE，
+      // API 34+ 上 startForeground 抛 SecurityException → 打开即闪退。
+      expect(
+        manifest.contains(
+          'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
+        ),
+        isTrue,
+        reason: 'specialUse 类型必须同时声明 FOREGROUND_SERVICE_SPECIAL_USE 权限',
+      );
+      // 每个出现的 foregroundServiceType 都要有配套权限。
+      for (final m in RegExp(r'foregroundServiceType="([a-zA-Z|]+)"')
+          .allMatches(manifest)) {
+        final types = m.group(1)!.split('|');
+        for (final type in types) {
+          final snake = type.replaceAllMapped(
+            RegExp('[A-Z]'),
+            (match) => '_${match.group(0)!.toLowerCase()}',
+          );
+          final permission =
+              'android.permission.FOREGROUND_SERVICE_${snake.toUpperCase()}';
+          expect(
+            manifest.contains(permission),
+            isTrue,
+            reason: '类型 $type 缺少配套权限 $permission（会导致 startForeground 崩溃）',
+          );
+        }
+      }
       // 旧的历史实现不得以原名回归（避免新旧两套常驻并存）。
       expect(
         File(

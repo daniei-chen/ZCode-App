@@ -60,8 +60,18 @@ class MonitorKeepAliveService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startInForeground()
-        ensureMonitorEngine()
+        // 任何一步都不许把进程带走：这个服务在 App 启动时被拉起，
+        // 这里抛异常 = 用户看到"打开就闪退"（v1.7.2 实测）。
+        try {
+            startInForeground()
+        } catch (e: Exception) {
+            android.util.Log.e("MonitorKeepAlive", "onCreate foreground failed", e)
+        }
+        try {
+            ensureMonitorEngine()
+        } catch (e: Exception) {
+            android.util.Log.e("MonitorKeepAlive", "onCreate engine failed", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -182,20 +192,53 @@ class MonitorKeepAliveService : Service() {
         }
     }
 
+    /**
+     * 前台化（绝不允许抛异常把进程带走）。
+     *
+     * v1.7.2 → v1.7.3 教训：v1.7.2 把类型改成 specialUse 却漏了
+     * `FOREGROUND_SERVICE_SPECIAL_USE` 权限，API 34+ 上 startForeground
+     * 抛 SecurityException → 应用启动即闪退。权限已补，这里再加一层
+     * fail-closed 降级：类型被拒 → 退回无类型前台 → 再失败就放弃前台
+     * 化（服务仍可跑，只是后台存活概率降低），任何一步都不向上抛。
+     */
     private fun startInForeground() {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // v1.7.2：dataSync → specialUse。dataSync 在 Android 15+ 有
-            // 6h/24h 配额（onTimeout 后不停即 ANR 强杀），与"24 小时都在"
-            // 的目标直接冲突；specialUse 无时长配额。
-            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            } else {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (e: Exception) {
+                android.util.Log.e("MonitorKeepAlive", "startForeground failed", e)
             }
-            startForeground(NOTIFICATION_ID, notification, type)
+            return
+        }
+        // API 34+ 用 specialUse（无时长配额）；29-33 用 dataSync。
+        val specialUse = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+        val preferredType = if (specialUse) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        }
+        val attempts = mutableListOf<Int>()
+        attempts += preferredType
+        if (specialUse) attempts += ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        for (type in attempts) {
+            try {
+                startForeground(NOTIFICATION_ID, notification, type)
+                return
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "MonitorKeepAlive",
+                    "startForeground(type=$type) rejected, will try fallback",
+                    e,
+                )
+            }
+        }
+        // 最后兜底：不声明类型（API 34+ 会被系统按 manifest 声明推断，
+        // 万一仍被拒也不让进程崩）。
+        try {
             startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            android.util.Log.e("MonitorKeepAlive", "foreground promotion gave up", e)
         }
     }
 

@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- v1.7.3：前台服务类型与权限必须成对。v1.7.2 把服务类型改成
+         specialUse 却漏了这个权限——API 34+ 上 startForeground(SPECIAL_USE)
+         直接抛 SecurityException，应用启动即闪退（用户实测）。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <!-- API 29-33 的降级分支仍用 dataSync 类型，权限保留。 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
