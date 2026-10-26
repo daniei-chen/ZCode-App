@@ -1,9 +1,9 @@
 {
-  "version": "1.8.2",
-  "tag": "v1.8.2",
-  "apk": "ZCode-v1.8.2.apk",
-  "sha256": "46f2abf90cb91e6c44746affc439cd379c854249ac209eb318bf4a1c74d0eab7",
+  "version": "1.8.3",
+  "tag": "v1.8.3",
+  "apk": "ZCode-v1.8.3.apk",
+  "sha256": "6961aaf74647916569db841d0e0387c652d2f413c6182593ffda89acd890fc60",
   "size": 30807781,
-  "notes": "v1.8.2 — 检查更新改为 latest.json 主链路 + 公共反代（按实测排序）",
-  "publishedAt": "2026-10-26T03:45:02Z"
+  "notes": "v1.8.3 — 修复\"保存并测试\"假成功（拉到消息却不弹通知）",
+  "publishedAt": "2026-10-26T04:45:08Z"
 }
