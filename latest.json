@@ -1,9 +1,9 @@
 {
-  "version": "1.8.3",
-  "tag": "v1.8.3",
-  "apk": "ZCode-v1.8.3.apk",
-  "sha256": "6961aaf74647916569db841d0e0387c652d2f413c6182593ffda89acd890fc60",
+  "version": "1.8.4",
+  "tag": "v1.8.4",
+  "apk": "ZCode-v1.8.4.apk",
+  "sha256": "3a78c8c732d149f43e0bdd5df984a51b213cfa63cbf2493997d658c5bfd02d2a",
   "size": 30807781,
-  "notes": "v1.8.3 — 修复\"保存并测试\"假成功（拉到消息却不弹通知）",
-  "publishedAt": "2026-10-26T04:45:08Z"
+  "notes": "v1.8.4 — 收拾收尾 + 三处体验优化（通知不折腾了）",
+  "publishedAt": "2026-10-26T08:51:37Z"
 }
