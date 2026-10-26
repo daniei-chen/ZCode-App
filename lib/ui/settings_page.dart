@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -1153,16 +1154,42 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
         authHeaderName: _authHeader.text.trim(),
       );
       if (test) {
+        // 用共享游标拉取（而不是 0）：既验证连通性，也**真正投递**已有
+        // 消息。v1.8.3 修：旧版从 0 拉完就丢弃，消息被静默消费却不弹通知，
+        // 用户看到"通道可用"却什么都没收到。
+        final cursor = await ExternalPushCursor.read();
         final batch = await fetchExternalPushOnce(
           config: config,
-          after: 0,
+          after: cursor,
           timeout: const Duration(seconds: 12),
         );
+        var posted = 0;
+        if (batch.messages.isNotEmpty) {
+          for (final message in batch.messages) {
+            final ok = await NotifierService.instance.showExternalPush(
+              message: message,
+              deviceName: '外置通道测试',
+            );
+            if (ok) posted += 1;
+          }
+          // 只推进到已真正弹过通知的位置（发失败的留待轮询器重试）。
+          if (posted == batch.messages.length) {
+            await ExternalPushCursor.write(
+              batch.nextCursor ?? cursor,
+            );
+            unawaited(
+              ackExternalPush(
+                config: config,
+                ids: batch.messages.map((m) => m.id).toList(),
+              ),
+            );
+          }
+        }
         if (!mounted) return;
         setState(() {
           _result = batch.isEmpty
-              ? '已保存。服务器暂时没有待收消息（通道可用）'
-              : '已保存，收到 ${batch.messages.length} 条待收消息';
+              ? '已保存。通道可用；当前队列为空（发一条测试消息试试）'
+              : '已保存并弹出 $posted 条通知（队列原有 ${batch.messages.length} 条）';
         });
       } else {
         if (!mounted) return;

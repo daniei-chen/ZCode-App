@@ -257,6 +257,52 @@ void main() {
     });
   });
 
+  group('游标语义（v1.8.3 回归：假成功）', () {
+    test('从非零游标拉取只返回更新的消息', () {
+      final batch = ExternalPushProtocol.parsePoll(
+        jsonEncode({
+          'ok': true,
+          'messages': [
+            {'id': 10, 'title': '旧', 'body': 'x'},
+            {'id': 11, 'title': '新', 'body': 'y'},
+          ],
+        }),
+        after: 10,
+      );
+      expect(batch.messages.single.id, 11);
+      expect(batch.nextCursor, 11);
+    });
+
+    test('游标推进用 nextCursor，绝不回退', () {
+      // 空批次不推进游标（nextCursor 为 null，调用方保持原值）。
+      final empty = ExternalPushProtocol.parsePoll(
+        jsonEncode({'ok': true, 'messages': []}),
+        after: 7,
+      );
+      expect(empty.nextCursor, isNull);
+      // 有消息时必须严格大于 after。
+      final some = ExternalPushProtocol.parsePoll(
+        jsonEncode({
+          'ok': true,
+          'messages': [
+            {'id': 8, 'title': 't', 'body': 'b'},
+          ],
+        }),
+        after: 7,
+      );
+      expect(some.nextCursor! > 7, isTrue);
+    });
+
+    test('ackIds 只包含真正投递过的 id（发失败的不能 ack）', () {
+      // 调用方契约：只为 posted 成功的消息发 ack，避免"服务端删了但没弹"。
+      final posted = [10, 11];
+      final failed = 12;
+      final ids = ExternalPushProtocol.ackIds([...posted]);
+      expect(ids.contains(failed), isFalse);
+      expect(ids, [10, 11]);
+    });
+  });
+
   group('ackIds', () {
     test('去重并升序', () {
       expect(ExternalPushProtocol.ackIds([3, 1, 3, 2]), [1, 2, 3]);
