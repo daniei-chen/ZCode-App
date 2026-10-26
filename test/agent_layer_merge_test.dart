@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zremote/relay/agent_rpc.dart';
 import 'package:zremote/relay/relay_monitor.dart';
 
 /// 与 relay_monitor_test 的 FakeSocket 同形（独立副本避免跨文件耦合）。
@@ -38,7 +37,7 @@ class FakeSocket implements RelaySocket {
   }
 }
 
-/// 桌面端 rpc 响应体：04 02 06 C9 01 06 <seq> 05 <len> <json>。
+/// 桌面端 rpc 响应体：`04 02 06 C9 01 06 <seq> 05 <len> <json>`。
 Uint8List rpcResponse(Object json) {
   final jsonBytes = utf8.encode(jsonEncode(json));
   final out = BytesBuilder();
