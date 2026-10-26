@@ -331,6 +331,63 @@ class DeviceStore {
     }
   }
 
+  // 高级协议配置（v1.8.1）：只在用户自建服务且不沿用默认路径时才写。
+  static const _pushPollPathKey = 'zremote.push.pollPath';
+  static const _pushAckPathKey = 'zremote.push.ackPath';
+  static const _pushPublishPathKey = 'zremote.push.publishPath';
+  static const _pushAuthStyleKey = 'zremote.push.authStyle';
+  static const _pushAuthHeaderKey = 'zremote.push.authHeader';
+
+  Future<String> pushPollPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushPollPathKey) ?? '';
+  }
+
+  Future<String> pushAckPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushAckPathKey) ?? '';
+  }
+
+  Future<String> pushPublishPath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushPublishPathKey) ?? '';
+  }
+
+  Future<String> pushAuthStyle() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushAuthStyleKey) ?? '';
+  }
+
+  Future<String> pushAuthHeader() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushAuthHeaderKey) ?? '';
+  }
+
+  /// 一次性写回全部高级项（空串 = 回到默认）。
+  Future<void> setPushProtocol({
+    required String pollPath,
+    required String ackPath,
+    required String publishPath,
+    required String authStyle,
+    required String authHeader,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    Future<void> put(String key, String value) async {
+      final clean = value.trim();
+      if (clean.isEmpty) {
+        await prefs.remove(key);
+      } else {
+        await prefs.setString(key, clean);
+      }
+    }
+
+    await put(_pushPollPathKey, pollPath);
+    await put(_pushAckPathKey, ackPath);
+    await put(_pushPublishPathKey, publishPath);
+    await put(_pushAuthStyleKey, authStyle);
+    await put(_pushAuthHeaderKey, authHeader);
+  }
+
   /// 推送令牌（敏感）：走 secure storage，绝不进普通 prefs / 日志。
   Future<String> pushToken() async {
     try {

@@ -149,7 +149,21 @@ Future<ExternalPushConfig> _readPushConfig(DeviceStore store) async {
     final baseUrl = await store.pushBaseUrl();
     if (baseUrl.isEmpty) return const ExternalPushConfig();
     final token = await store.pushToken();
-    return ExternalPushConfig(baseUrl: baseUrl, token: token);
+    // 高级项为空 = 用本项目的默认端点/鉴权（v1.8.1）。
+    final style = await store.pushAuthStyle();
+    return ExternalPushConfig(
+      baseUrl: baseUrl,
+      token: token,
+      pollPath: await store.pushPollPath(),
+      ackPath: await store.pushAckPath(),
+      publishPath: await store.pushPublishPath(),
+      authStyle: switch (style) {
+        'bearer' => ExternalPushAuthStyle.bearer,
+        'query' => ExternalPushAuthStyle.queryToken,
+        _ => ExternalPushAuthStyle.headerToken,
+      },
+      authHeaderName: await store.pushAuthHeader(),
+    );
   } catch (_) {
     return const ExternalPushConfig();
   }

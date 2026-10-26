@@ -81,23 +81,126 @@ class ExternalPushMessage {
   }
 }
 
-/// 客户端配置（服务地址 + 令牌）。两者都为空 = 未启用。
-class ExternalPushConfig {
-  const ExternalPushConfig({this.baseUrl = '', this.token = ''});
+/// 鉴权方式（v1.8.1）：不同自建服务习惯不同，三种常见形态都支持。
+enum ExternalPushAuthStyle {
+  /// `X-ZP-Token: <token>`（本项目默认；自定义头名也走这个）
+  headerToken,
 
-  /// 例如 `https://zhihui.kaogong.art`（不带尾部斜杠、不含 /zpush）。
+  /// `Authorization: Bearer <token>`（最通用的 JWT/OAuth 风格）
+  bearer,
+
+  /// `?token=<token>` 查询参数（部分简单实现只支持这个）
+  queryToken,
+}
+
+/// 客户端配置。默认值 = 本项目自带 zcode-push 的约定；把端点/鉴权方式
+/// 暴露成配置项，是为了让别人能用**自己的**服务，而不必照抄我们的路径。
+class ExternalPushConfig {
+  const ExternalPushConfig({
+    this.baseUrl = '',
+    this.token = '',
+    this.pollPath = defaultPollPath,
+    this.ackPath = defaultAckPath,
+    this.publishPath = defaultPublishPath,
+    this.authStyle = ExternalPushAuthStyle.headerToken,
+    this.authHeaderName = defaultAuthHeader,
+  });
+
+  /// 自带服务的默认端点（与本项目 `server/zcode-push` 一致）。
+  static const defaultPollPath = '/zpush/poll';
+  static const defaultAckPath = '/zpush/ack';
+  static const defaultPublishPath = '/zpush/publish';
+  static const defaultAuthHeader = 'X-ZP-Token';
+
+  /// 例如 `https://zhihui.kaogong.art`（不带尾部斜杠）。
   final String baseUrl;
   final String token;
+
+  /// 端点路径，可填绝对路径（`/api/push/poll`）或完整 URL。
+  final String pollPath;
+  final String ackPath;
+  final String publishPath;
+
+  final ExternalPushAuthStyle authStyle;
+
+  /// [ExternalPushAuthStyle.headerToken] 时使用的头名。
+  final String authHeaderName;
 
   bool get enabled =>
       baseUrl.isNotEmpty && token.isNotEmpty && token.length >= 16;
 
   bool get isEmpty => baseUrl.isEmpty && token.isEmpty;
 
-  String get pollUrl =>
-      '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/zpush/poll';
+  /// 是否全部使用默认端点与默认鉴权（诊断页用来区分"自带服务"与"自建"）。
+  bool get isDefaultProtocol =>
+      pollPath == defaultPollPath &&
+      ackPath == defaultAckPath &&
+      publishPath == defaultPublishPath &&
+      authStyle == ExternalPushAuthStyle.headerToken &&
+      (authHeaderName == defaultAuthHeader || authHeaderName.isEmpty);
 
-  String get ackUrl => '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/zpush/ack';
+  String get _base => baseUrl.replaceAll(RegExp(r'/+$'), '');
+
+  /// 相对路径拼到 baseUrl 上；已是完整 URL 则原样使用。
+  String _resolve(String path) {
+    final value = path.trim();
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    final normalized = value.startsWith('/') ? value : '/$value';
+    return '$_base$normalized';
+  }
+
+  String get pollUrl => _resolve(pollPath.isEmpty ? defaultPollPath : pollPath);
+  String get ackUrl => _resolve(ackPath.isEmpty ? defaultAckPath : ackPath);
+  String get publishUrl =>
+      _resolve(publishPath.isEmpty ? defaultPublishPath : publishPath);
+
+  ExternalPushConfig copyWith({
+    String? baseUrl,
+    String? token,
+    String? pollPath,
+    String? ackPath,
+    String? publishPath,
+    ExternalPushAuthStyle? authStyle,
+    String? authHeaderName,
+  }) => ExternalPushConfig(
+    baseUrl: baseUrl ?? this.baseUrl,
+    token: token ?? this.token,
+    pollPath: pollPath ?? this.pollPath,
+    ackPath: ackPath ?? this.ackPath,
+    publishPath: publishPath ?? this.publishPath,
+    authStyle: authStyle ?? this.authStyle,
+    authHeaderName: authHeaderName ?? this.authHeaderName,
+  );
+
+  /// 把鉴权写进请求（三种风格集中在这里，调用点不必分支）。
+  void applyAuth(HttpClientRequest request, {bool asQuery = false}) {
+    switch (authStyle) {
+      case ExternalPushAuthStyle.headerToken:
+        final name = authHeaderName.isEmpty
+            ? defaultAuthHeader
+            : authHeaderName;
+        request.headers.set(name, token);
+      case ExternalPushAuthStyle.bearer:
+        request.headers.set('Authorization', 'Bearer $token');
+      case ExternalPushAuthStyle.queryToken:
+        if (!asQuery) {
+          // 查询参数风格在调用方拼进 URL（见 [withQueryToken]）。
+          request.headers.set(defaultAuthHeader, token);
+        }
+    }
+  }
+
+  /// 查询参数风格：把 token 追加到 URL 上。
+  String withQueryToken(String url) {
+    if (authStyle != ExternalPushAuthStyle.queryToken) return url;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return url;
+    return uri
+        .replace(queryParameters: {...uri.queryParameters, 'token': token})
+        .toString();
+  }
 }
 
 /// 轮询结果：成功时带回新消息与「下一个游标」；失败为空。
@@ -164,9 +267,12 @@ Future<ExternalPushBatch> fetchExternalPushOnce({
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 10);
   try {
-    final uri = Uri.parse('${config.pollUrl}?after=$after');
+    final sep = config.pollUrl.contains('?') ? '&' : '?';
+    final uri = Uri.parse(
+      config.withQueryToken('${config.pollUrl}${sep}after=$after'),
+    );
     final request = await client.getUrl(uri).timeout(timeout);
-    request.headers.set('X-ZP-Token', config.token);
+    config.applyAuth(request);
     request.headers.set('Accept', 'application/json');
     final response = await request.close().timeout(timeout);
     if (response.statusCode != 200) return const ExternalPushBatch();
@@ -194,9 +300,9 @@ Future<void> ackExternalPush({
     ..connectionTimeout = const Duration(seconds: 10);
   try {
     final request = await client
-        .postUrl(Uri.parse(config.ackUrl))
+        .postUrl(Uri.parse(config.withQueryToken(config.ackUrl)))
         .timeout(const Duration(seconds: 15));
-    request.headers.set('X-ZP-Token', config.token);
+    config.applyAuth(request);
     request.headers.contentType = ContentType.json;
     request.add(utf8.encode(jsonEncode({'ids': clean})));
     final response = await request.close().timeout(

@@ -28,10 +28,15 @@ class UpdateCheckResult {
     this.downloadSize,
     this.releaseBody,
     this.assetDigest,
+    this.failureReason,
   });
 
   final UpdateCheckStatus status;
   final String currentVersion;
+
+  /// failed 时的机器可读原因（v1.8.1）：区分"读不到当前版本""三条链路全断"
+  /// "被出站策略拦截"。用户看到的是人话提示，这里给排障用（诊断页可见）。
+  final String? failureReason;
   final String? latestVersion;
   final Uri? releaseUri;
   final Uri? downloadUri;
@@ -179,6 +184,7 @@ class UpdateService {
       return const UpdateCheckResult(
         status: UpdateCheckStatus.failed,
         currentVersion: '',
+        failureReason: 'version_unavailable',
       );
     }
 
@@ -227,6 +233,7 @@ class UpdateService {
         httpClient,
         current: current,
         timeout: timeout,
+        reason: 'api_and_mirror_failed',
       );
     } on TimeoutException {
       // F13：API 的 DNS/连接超时/断流不代表"检查更新失败"——网页回退是另一条
@@ -235,12 +242,14 @@ class UpdateService {
         httpClient,
         current: current,
         timeout: timeout,
+        reason: 'api_timeout',
       );
     } catch (_) {
       return _checkReleasePageOrFailed(
         httpClient,
         current: current,
         timeout: timeout,
+        reason: 'api_error',
       );
     } finally {
       if (ownsClient) httpClient.close();
@@ -248,17 +257,28 @@ class UpdateService {
   }
 
   /// 回退到发布页；回退本身也失败时返回 failed（绝不假装"已是最新版"）。
+  ///
+  /// v1.8.1：携带机器可读原因。用户反馈"检查更新失败了"但旧版只显示一句
+  /// 人话，无法判断是网络、镜像还是版本读取问题——现在诊断页/日志能看到
+  /// 具体是哪一步断的。
   Future<UpdateCheckResult> _checkReleasePageOrFailed(
     http.Client client, {
     required String current,
     required Duration timeout,
+    String reason = 'all_channels_failed',
   }) async {
     try {
       return await _checkReleasePage(client, current: current, timeout: timeout);
-    } catch (_) {
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.updateCheckFailed,
+        e,
+        fields: {LogField.reason: reason},
+      );
       return UpdateCheckResult(
         status: UpdateCheckStatus.failed,
         currentVersion: current,
+        failureReason: reason,
       );
     }
   }

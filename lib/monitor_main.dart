@@ -42,9 +42,19 @@ Future<void> monitorMain() async {
   final pushBaseUrl = await pushStore.pushBaseUrl();
   if (pushBaseUrl.isNotEmpty) {
     final pushToken = await pushStore.pushToken();
+    final style = await pushStore.pushAuthStyle();
     final pushConfig = ExternalPushConfig(
       baseUrl: pushBaseUrl,
       token: pushToken,
+      pollPath: await pushStore.pushPollPath(),
+      ackPath: await pushStore.pushAckPath(),
+      publishPath: await pushStore.pushPublishPath(),
+      authStyle: switch (style) {
+        'bearer' => ExternalPushAuthStyle.bearer,
+        'query' => ExternalPushAuthStyle.queryToken,
+        _ => ExternalPushAuthStyle.headerToken,
+      },
+      authHeaderName: await pushStore.pushAuthHeader(),
     );
     if (pushConfig.enabled) {
       final poller = ExternalPushPoller(

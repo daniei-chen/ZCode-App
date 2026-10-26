@@ -144,6 +144,38 @@ bash server/zcode-push/install_zcode_hook.sh \
 - 令牌存在 Android 的加密存储里（与登录态同一级别），不进普通配置；
 - 「保存并测试」会真的拉一次队列并回报结果，当场就能知道通不通。
 
+## 四点五、换成别人的服务？（协议可完全自定义）
+
+不用本项目自带的 `zcode-push` 也可以——只要能满足下面的协议，App 端在
+设置 → 外置通知通道 → **高级：端点与鉴权** 里改配置即可，不需要改代码、
+不需要重新打包。
+
+| 配置项 | 默认 | 说明 |
+|---|---|---|
+| 轮询端点 | `/zpush/poll` | 可填相对路径或**完整 URL** |
+| 确认端点 | `/zpush/ack` | 同上 |
+| 上报端点 | `/zpush/publish` | 同上（仅用于桌面端提示文案） |
+| 鉴权方式 | 请求头 `X-ZP-Token` | 也可选 `Authorization: Bearer` 或 `?token=` |
+| 鉴权头名 | `X-ZP-Token` | 选请求头方式时可自定义头名 |
+
+**最小协议契约**（满足这三条即可对接）：
+
+```
+GET  <pollUrl>?after=<lastId>
+     ← 200 {"ok":true,"messages":[{ "id":<int>, "kind":"permission|completed|info",
+              "title":"…", "body":"…", "sessionId":"…", "device":"…", "ts":<毫秒> }]}
+
+POST <ackUrl>   body {"ids":[<int>,…]}
+     ← 200 {"ok":true,"acked":<int>}
+
+鉴权：按所选方式携带令牌
+语义：只返回 id > after 且未投递的消息；ack 之后不再返回
+```
+
+`title` 与 `body` 至少有一个非空，否则该条被丢弃（不弹空通知）。
+桌面端那边只需在事件发生时向 `<publishUrl>` POST 一条同样形状的 JSON——
+你甚至可以直接用 `install_zcode_hook.sh` 生成的 `notify.sh` 改目标地址。
+
 ## 五、排障：按这个顺序查
 
 | 现象 | 先查这里 |

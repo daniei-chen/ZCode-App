@@ -872,9 +872,18 @@ class _UpdateSettingTileState extends State<UpdateSettingTile> {
           context,
         ).showSnackBar(SnackBar(content: Text(l10n.updateNoRelease)));
       case UpdateCheckStatus.failed:
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.updateFailed)));
+        // v1.8.1：把机器可读原因翻成人话一起显示——只说"失败"用户无法
+        // 判断是网络、镜像还是版本读取问题。
+        final detail = switch (result.failureReason) {
+          'version_unavailable' => '（读不到当前安装版本）',
+          'api_timeout' => '（网络超时）',
+          'api_error' => '（直连与镜像均不可用）',
+          'api_and_mirror_failed' => '（直连与镜像均不可用）',
+          _ => '',
+        };
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${l10n.updateFailed}$detail')),
+        );
     }
   }
 
@@ -1031,6 +1040,13 @@ class _ExternalPushCard extends ConsumerStatefulWidget {
 class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
   late final TextEditingController _url;
   late final TextEditingController _token;
+  // 高级协议项（v1.8.1）：留空即用本项目默认的 /zpush/* 与 X-ZP-Token。
+  late final TextEditingController _pollPath;
+  late final TextEditingController _ackPath;
+  late final TextEditingController _publishPath;
+  late final TextEditingController _authHeader;
+  ExternalPushAuthStyle _authStyle = ExternalPushAuthStyle.headerToken;
+  bool _advancedOpen = false;
   bool _loaded = false;
   bool _busy = false;
   String? _result;
@@ -1040,6 +1056,10 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
     super.initState();
     _url = TextEditingController();
     _token = TextEditingController();
+    _pollPath = TextEditingController();
+    _ackPath = TextEditingController();
+    _publishPath = TextEditingController();
+    _authHeader = TextEditingController();
     _load();
   }
 
@@ -1047,10 +1067,24 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
     final store = DeviceStore.instance;
     final baseUrl = await store.pushBaseUrl();
     final token = await store.pushToken();
+    final pollPath = await store.pushPollPath();
+    final ackPath = await store.pushAckPath();
+    final publishPath = await store.pushPublishPath();
+    final style = await store.pushAuthStyle();
+    final authHeader = await store.pushAuthHeader();
     if (!mounted) return;
     setState(() {
       _url.text = baseUrl;
       _token.text = token;
+      _pollPath.text = pollPath;
+      _ackPath.text = ackPath;
+      _publishPath.text = publishPath;
+      _authHeader.text = authHeader;
+      _authStyle = switch (style) {
+        'bearer' => ExternalPushAuthStyle.bearer,
+        'query' => ExternalPushAuthStyle.queryToken,
+        _ => ExternalPushAuthStyle.headerToken,
+      };
       _loaded = true;
     });
   }
@@ -1059,8 +1093,18 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
   void dispose() {
     _url.dispose();
     _token.dispose();
+    _pollPath.dispose();
+    _ackPath.dispose();
+    _publishPath.dispose();
+    _authHeader.dispose();
     super.dispose();
   }
+
+  String get _styleKey => switch (_authStyle) {
+    ExternalPushAuthStyle.bearer => 'bearer',
+    ExternalPushAuthStyle.queryToken => 'query',
+    ExternalPushAuthStyle.headerToken => '',
+  };
 
   Future<void> _save({required bool test}) async {
     if (_busy) return;
@@ -1075,6 +1119,13 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
       if (baseUrl.isEmpty && token.isEmpty) {
         await store.setPushBaseUrl('');
         await store.setPushToken('');
+        await store.setPushProtocol(
+          pollPath: '',
+          ackPath: '',
+          publishPath: '',
+          authStyle: '',
+          authHeader: '',
+        );
         if (!mounted) return;
         setState(() => _result = '已关闭外置通道');
         return;
@@ -1085,7 +1136,22 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
       }
       await store.setPushBaseUrl(baseUrl);
       await store.setPushToken(token);
-      final config = ExternalPushConfig(baseUrl: baseUrl, token: token);
+      await store.setPushProtocol(
+        pollPath: _pollPath.text,
+        ackPath: _ackPath.text,
+        publishPath: _publishPath.text,
+        authStyle: _styleKey,
+        authHeader: _authHeader.text,
+      );
+      final config = ExternalPushConfig(
+        baseUrl: baseUrl,
+        token: token,
+        pollPath: _pollPath.text.trim(),
+        ackPath: _ackPath.text.trim(),
+        publishPath: _publishPath.text.trim(),
+        authStyle: _authStyle,
+        authHeaderName: _authHeader.text.trim(),
+      );
       if (test) {
         final batch = await fetchExternalPushOnce(
           config: config,
@@ -1166,6 +1232,127 @@ class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
                   isDense: true,
                 ),
               ),
+              // 高级：端点与鉴权（v1.8.1）。默认折叠——用本项目服务的
+              // 人不需要看；自建服务的人可以完全自定义这一层。
+              const SizedBox(height: 4),
+              InkWell(
+                onTap: () =>
+                    setState(() => _advancedOpen = !_advancedOpen),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _advancedOpen
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 18,
+                        color: palette.textLo,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '高级：端点与鉴权',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: palette.textLo,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        _pollPath.text.isEmpty &&
+                                _ackPath.text.isEmpty &&
+                                _publishPath.text.isEmpty &&
+                                _authStyle ==
+                                    ExternalPushAuthStyle.headerToken &&
+                                _authHeader.text.isEmpty
+                            ? '默认'
+                            : '已自定义',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: palette.textLo,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_advancedOpen) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '用本项目自带 zcode-push 时留空即可；换成自己的服务时在这里'
+                  '填端点路径（相对地址或完整 URL）与鉴权方式。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: palette.textLo,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _pollPath,
+                  decoration: const InputDecoration(
+                    labelText: '轮询端点',
+                    hintText: '/zpush/poll',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _ackPath,
+                  decoration: const InputDecoration(
+                    labelText: '确认端点',
+                    hintText: '/zpush/ack',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _publishPath,
+                  decoration: const InputDecoration(
+                    labelText: '上报端点（仅用于桌面端提示）',
+                    hintText: '/zpush/publish',
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<ExternalPushAuthStyle>(
+                  initialValue: _authStyle,
+                  decoration: const InputDecoration(
+                    labelText: '鉴权方式',
+                    isDense: true,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: ExternalPushAuthStyle.headerToken,
+                      child: Text('请求头（X-ZP-Token）'),
+                    ),
+                    DropdownMenuItem(
+                      value: ExternalPushAuthStyle.bearer,
+                      child: Text('Authorization: Bearer'),
+                    ),
+                    DropdownMenuItem(
+                      value: ExternalPushAuthStyle.queryToken,
+                      child: Text('URL 查询参数（?token=）'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _authStyle = value);
+                  },
+                ),
+                if (_authStyle == ExternalPushAuthStyle.headerToken) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _authHeader,
+                    decoration: const InputDecoration(
+                      labelText: '鉴权头名称（留空 = X-ZP-Token）',
+                      hintText: 'X-ZP-Token',
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ],
               if (_result != null) ...[
                 const SizedBox(height: 10),
                 Text(

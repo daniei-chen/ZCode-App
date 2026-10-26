@@ -173,6 +173,90 @@ void main() {
     });
   });
 
+  group('自定义端点与鉴权（v1.8.1）', () {
+    test('默认值 = 本项目自带服务的约定', () {
+      const config = ExternalPushConfig(
+        baseUrl: 'https://a.com',
+        token: 'abcdefghijklmnop',
+      );
+      expect(config.pollUrl, 'https://a.com/zpush/poll');
+      expect(config.ackUrl, 'https://a.com/zpush/ack');
+      expect(config.publishUrl, 'https://a.com/zpush/publish');
+      expect(config.isDefaultProtocol, isTrue);
+    });
+
+    test('自定义路径（相对）拼到 baseUrl 上', () {
+      const config = ExternalPushConfig(
+        baseUrl: 'https://my.host',
+        token: 'abcdefghijklmnop',
+        pollPath: '/api/notify/next',
+        ackPath: 'api/notify/ack',
+      );
+      expect(config.pollUrl, 'https://my.host/api/notify/next');
+      expect(config.ackUrl, 'https://my.host/api/notify/ack');
+      expect(config.isDefaultProtocol, isFalse);
+    });
+
+    test('绝对 URL 端点原样使用（完全脱离 baseUrl）', () {
+      const config = ExternalPushConfig(
+        baseUrl: 'https://ignored.host',
+        token: 'abcdefghijklmnop',
+        pollPath: 'https://other.host/queue/next',
+      );
+      expect(config.pollUrl, 'https://other.host/queue/next');
+    });
+
+    test('查询参数鉴权把 token 加到 URL', () {
+      const config = ExternalPushConfig(
+        baseUrl: 'https://a.com',
+        token: 'secret-token-123456',
+        authStyle: ExternalPushAuthStyle.queryToken,
+      );
+      expect(
+        config.withQueryToken('https://a.com/zpush/poll?after=5'),
+        'https://a.com/zpush/poll?after=5&token=secret-token-123456',
+      );
+      // 非 query 风格不动 URL。
+      expect(
+        const ExternalPushConfig(
+          baseUrl: 'https://a.com',
+          token: 'secret-token-123456',
+        ).withQueryToken('https://a.com/x'),
+        'https://a.com/x',
+      );
+    });
+
+    test('copyWith 只改指定项', () {
+      const base = ExternalPushConfig(
+        baseUrl: 'https://a.com',
+        token: 'abcdefghijklmnop',
+        pollPath: '/p',
+      );
+      final bearer = base.copyWith(authStyle: ExternalPushAuthStyle.bearer);
+      expect(bearer.authStyle, ExternalPushAuthStyle.bearer);
+      expect(bearer.pollPath, '/p');
+      expect(bearer.baseUrl, 'https://a.com');
+    });
+
+    test('自定义头名生效（留空回退默认）', () {
+      const custom = ExternalPushConfig(
+        baseUrl: 'https://a.com',
+        token: 't',
+        authHeaderName: 'X-My-Auth',
+      );
+      expect(custom.authHeaderName, 'X-My-Auth');
+      const empty = ExternalPushConfig(
+        baseUrl: 'https://a.com',
+        token: 't',
+        authHeaderName: '',
+      );
+      expect(
+        empty.authHeaderName.isEmpty ? ExternalPushConfig.defaultAuthHeader : '',
+        'X-ZP-Token',
+      );
+    });
+  });
+
   group('ackIds', () {
     test('去重并升序', () {
       expect(ExternalPushProtocol.ackIds([3, 1, 3, 2]), [1, 2, 3]);
