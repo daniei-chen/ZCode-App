@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineGroup
@@ -184,14 +185,35 @@ class MonitorKeepAliveService : Service() {
     private fun startInForeground() {
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
+            // v1.7.2：dataSync → specialUse。dataSync 在 Android 15+ 有
+            // 6h/24h 配额（onTimeout 后不停即 ANR 强杀），与"24 小时都在"
+            // 的目标直接冲突；specialUse 无时长配额。
+            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            } else {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            }
+            startForeground(NOTIFICATION_ID, notification, type)
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    /**
+     * Android 15+：受限类型前台服务配额用尽时系统回调这里，几秒内不停
+     * 服务就 ANR 强杀。specialUse 不在受限名单内，但兜底仍然要有——
+     * 把中断写进 logcat 并主动停服，让 START_STICKY 之外的重启路径
+     * （用户打开 App / 开机自启）能干净地重新拉起，而不是被强杀留个
+     * 半死进程。
+     */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int) {
+        android.util.Log.w(
+            "MonitorKeepAlive",
+            "foreground service timeout (startId=$startId), stopping so the next launch can restart cleanly",
+        )
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf(startId)
     }
 
     private fun buildNotification(): Notification {

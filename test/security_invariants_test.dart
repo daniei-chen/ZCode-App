@@ -190,9 +190,17 @@ void main() {
       final manifest = read('android/app/src/main/AndroidManifest.xml');
       expect(manifest.contains('<service'), isTrue);
       expect(manifest.contains('.MonitorKeepAliveService'), isTrue);
+      // v1.7.2：dataSync → specialUse。Android 15+ 给 dataSync 加了
+      // 6h/24h 配额，到点 onTimeout 不完即 ANR 强杀——与"后台 24 小时
+      // 都能收通知"直接冲突。specialUse 无时长配额，且必须带用途声明。
       expect(
-        manifest.contains('android:foregroundServiceType="dataSync"'),
+        manifest.contains('android:foregroundServiceType="specialUse"'),
         isTrue,
+      );
+      expect(
+        manifest.contains('PROPERTY_SPECIAL_USE_FGS_SUBTYPE'),
+        isTrue,
+        reason: 'specialUse 前台服务必须声明用途子类型',
       );
       // 旧的历史实现不得以原名回归（避免新旧两套常驻并存）。
       expect(

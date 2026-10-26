@@ -417,7 +417,150 @@ abstract final class EventObserver {
     var wsSend = function(event) {
       post('zrWs', event);
     };
+    // v1.7.2：后台释放控制端槽位。官方中继"单控制端"语义下，后台时页面
+    // 自己的 relay WS 还活着就会一直占着唯一槽位——监控连上即被踢、只能
+    // 让路 20s，这期间页面已冻结、监控已让路，**没有任何东西在听**，
+    // 用户实测"断开连接 + 有新消息不推"。所以后台要真正断开 relay WS
+    // 且拒绝新建，前台恢复时再放行并由页面自行重连。
+    var relaySuspended = false;
+    var liveRelaySockets = [];
+    var deferredRelays = [];
+    var wsSendRaw = function(event) {
+      post('zrWs', event);
+    };
+    // 后台期间页面新建的 relay 连接不真连（否则立刻抢回槽位把监控踢掉），
+    // 只记下来；回前台 __zrResumeRelay 时按原参数真正建连并回放监听器。
+    // 这样官方页在后台看到的是"仍在连接中"（不进入错误卡、不触发退避），
+    // 回前台瞬间接上，用户无感。
+    function flushDeferredRelay() {
+      var list = deferredRelays;
+      deferredRelays = [];
+      for (var k = 0; k < list.length; k++) {
+        var d = list[k];
+        if (d.abandoned) continue;
+        var real;
+        try {
+          real = (d.protocols === undefined)
+              ? new OrigWS(d.url)
+              : new OrigWS(d.url, d.protocols);
+        } catch (e) {
+          d.dispatch('error', {});
+          d.dispatch('close', {code: 1006, reason: 'connect-failed', wasClean: false});
+          continue;
+        }
+        d.real = real;
+        real.binaryType = d.binaryType || 'blob';
+        // 回放监听器（addEventListener 与 on* 两种写法都要照顾）。
+        for (var t in d.listeners) {
+          if (!Object.prototype.hasOwnProperty.call(d.listeners, t)) continue;
+          for (var i2 = 0; i2 < d.listeners[t].length; i2++) {
+            attachRelayListener(real, t, d.listeners[t][i2]);
+          }
+        }
+        for (var h in d.handlers) {
+          if (!Object.prototype.hasOwnProperty.call(d.handlers, h)) continue;
+          var fn = d.handlers[h];
+          if (typeof fn === 'function') {
+            attachRelayListener(real, h.slice(2), fn);
+          }
+        }
+        for (var q = 0; q < d.queue.length; q++) {
+          try { real.send(d.queue[q]); } catch (e2) {}
+        }
+        d.queue = [];
+        d.readyState = 1;
+      }
+    }
+    window.__zrSuspendRelay = function() {
+      relaySuspended = true;
+      for (var k = 0; k < liveRelaySockets.length; k++) {
+        try { liveRelaySockets[k].close(4001, 'app-background'); } catch (e) {}
+      }
+      liveRelaySockets = [];
+      try { wsSendRaw(JSON.stringify({s: 'suspended'})); } catch (e) {}
+    };
+    window.__zrResumeRelay = function() {
+      relaySuspended = false;
+      try { flushDeferredRelay(); } catch (e) {}
+      try { wsSendRaw(JSON.stringify({s: 'resumed'})); } catch (e) {}
+    };
+    // 统一的监听挂载（真 socket 与延迟 socket 共用；顺带做白名单/计数）。
+    function attachRelayListener(sock, type, fn) {
+      try {
+        sock.addEventListener(type, fn);
+      } catch (e) {}
+    }
+    function DeferredRelay(url, protocols) {
+      var self = this;
+      this.url = (url && url.href) ? url.href : String(url);
+      this.protocols = protocols;
+      this.readyState = 0;
+      this.bufferedAmount = 0;
+      this.binaryType = 'blob';
+      this.listeners = {};
+      this.handlers = {};
+      this.queue = [];
+      this.abandoned = false;
+      this.real = null;
+      // 捕获 ws.onopen/onmessage/onerror/onclose 这种属性赋值：
+      // 页面两种写法都有，只接 addEventListener 会丢一半监听。
+      var evTypes = ['open', 'message', 'error', 'close'];
+      for (var et = 0; et < evTypes.length; et++) {
+        (function(type) {
+          Object.defineProperty(self, 'on' + type, {
+            configurable: true,
+            enumerable: true,
+            get: function() { return self.handlers['on' + type]; },
+            set: function(fn) { self.handlers['on' + type] = fn; },
+          });
+        })(evTypes[et]);
+      }
+      this.addEventListener = function(type, fn) {
+        if (!this.listeners[type]) this.listeners[type] = [];
+        this.listeners[type].push(fn);
+      };
+      this.removeEventListener = function(type, fn) {
+        var arr = this.listeners[type];
+        if (!arr) return;
+        var i = arr.indexOf(fn);
+        if (i >= 0) arr.splice(i, 1);
+      };
+      this.send = function(data) {
+        if (this.real) {
+          try { this.real.send(data); } catch (e) {}
+        } else {
+          this.queue.push(data);
+        }
+      };
+      this.close = function(code, reason) {
+        this.abandoned = true;
+        this.readyState = 3;
+        if (this.real) {
+          try { this.real.close(code || 1000, reason || ''); } catch (e) {}
+        }
+        this.dispatch('close', {code: code || 1000, reason: reason || '', wasClean: true});
+      };
+      this.dispatch = function(type, ev) {
+        var arr = this.listeners[type] || [];
+        for (var i = 0; i < arr.length; i++) {
+          try { arr[i].call(this, ev); } catch (e) {}
+        }
+        var handler = this.handlers['on' + type];
+        if (typeof handler === 'function') {
+          try { handler.call(this, ev); } catch (e) {}
+        }
+      };
+      deferredRelays.push(this);
+    }
     var WSWrapped = function(url, protocols) {
+      var urlStrEarly = (url && url.href) ? url.href : String(url);
+      // 后台挂起期：relay 连接一律延迟（不真连、不抢控制端槽位）。
+      if (relaySuspended && wsAllowed(urlStrEarly)) {
+        var deferred = new DeferredRelay(url, protocols);
+        // 记录 on* 赋值：用定时器不可行，改用 defineProperty 太重；
+        // 这里直接返回对象，页面通过属性赋值即可（flush 时读取）。
+        return deferred;
+      }
       var ws = (protocols === undefined)
           ? new OrigWS(url)
           : new OrigWS(url, protocols);
@@ -439,6 +582,7 @@ abstract final class EventObserver {
           } catch (e3) {}
           return ws;
         }
+        liveRelaySockets.push(ws);
         ws.addEventListener('open', function() {
           bump('wsOpened');
           wsSend(JSON.stringify({s: 'open', u: urlStr}));
@@ -468,6 +612,7 @@ abstract final class EventObserver {
       } catch (e) {}
       return ws;
     };
+    DeferredRelay.prototype = OrigWS.prototype;
     WSWrapped.prototype = OrigWS.prototype;
     var wsStatics = ['CONNECTING', 'OPEN', 'CLOSED'];
     for (var j = 0; j < wsStatics.length; j++) {

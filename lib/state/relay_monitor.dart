@@ -43,6 +43,7 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
   /// 30s 后周期重载原样建回，前台监控偷偷复活把用户会话页踢成
   /// "已被其他设备接管"（v1.7.0 诊断包实锤）。
   bool _suspended = false;
+  Timer? _resumeTimer;
   Timer? _reloadTimer;
 
   @override
@@ -50,6 +51,7 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
     ref.onDispose(() {
       _disposed = true;
       _reloadTimer?.cancel();
+      _resumeTimer?.cancel();
       for (final id in _connections.keys.toSet()) {
         _connections.remove(id)?.stop();
       }
@@ -139,10 +141,21 @@ class RelayMonitorNotifier extends Notifier<Map<String, RelayMonitorState>> {
 
   /// UI 离开后恢复：清让路标志，重新读设备表与 JWT（可能已轮换），
   /// 重建全部连接。
+  ///
+  /// v1.7.2：**延迟 2s 再建连**——进后台时页面要先跑
+  /// `window.__zrSuspendRelay()` 关掉自己的 relay WS 才能腾出控制端槽位。
+  /// 两个动作分别走 Activity.onPause→Service→Channel 和
+  /// didChangeAppLifecycleState→evaluateJavascript 两条独立链路，谁先谁后
+  /// 没有保证；监控抢在前面连上就会被页面的存活 socket 踢（KICKED），
+  /// 白等一轮 20s 让路，这期间没人监听。2s 足够页面完成关闭。
   Future<void> resume() async {
     await suspend();
     _suspended = false;
-    _sync(ref.read(deviceListProvider));
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(seconds: 2), () {
+      if (_disposed || _suspended) return;
+      _sync(ref.read(deviceListProvider));
+    });
   }
 
   /// UI 引擎推送的设备清单（v1.6.3，跨隔离体显式同步）：头无引擎自身的

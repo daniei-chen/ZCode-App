@@ -203,6 +203,12 @@ class WebViewSyncController {
             ref
                 .read(connectionStatusProvider.notifier)
                 .reportWebview(device.id, open: false);
+          case 'suspended':
+            // 后台主动腾槽位（v1.7.2）：这一刻的关闭是设计行为，不是故障。
+            // 交接豁免已在页面侧置位；这里只清掉信号，不参与断连判断。
+            ref
+                .read(connectionStatusProvider.notifier)
+                .reportWebview(device.id, open: false);
           case 'ignored':
             // 被白名单忽略的 WS：pathname（无 query，脱敏安全）进日志，
             // 诊断包可判读"relay 实际连接路径 vs 白名单"。

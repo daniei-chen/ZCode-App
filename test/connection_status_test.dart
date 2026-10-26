@@ -51,6 +51,56 @@ void main() {
       );
     });
 
+    test('让路/交接期不算断连（v1.7.2 假断连修复）', () {
+      final now = DateTime(2026, 10, 25, 12);
+      final stale = now.subtract(const Duration(minutes: 5));
+      // 沉寂远超宽限，但处于交接窗口 → 仍算在线（不发假断连）。
+      expect(
+        ConnectionPolicy.isLive(
+          webviewOpen: false,
+          monitorPaired: false,
+          lastAliveAt: stale,
+          now: now,
+          handoff: true,
+        ),
+        isTrue,
+      );
+      // 交接结束后同一条踪迹如实判离线。
+      expect(
+        ConnectionPolicy.isLive(
+          webviewOpen: false,
+          monitorPaired: false,
+          lastAliveAt: stale,
+          now: now,
+          handoff: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('交接豁免有上限：超过 handoffCap 如实报离线（v1.7.2）', () {
+      final now = DateTime(2026, 10, 25, 12);
+      final stale = now.subtract(const Duration(minutes: 10));
+      final track = DeviceLinkTrack()
+        ..handoff = true
+        ..handoffSince = now.subtract(ConnectionPolicy.handoffCap);
+      expect(track.handoffActiveAt(now), isFalse);
+      expect(
+        ConnectionPolicy.isLive(
+          webviewOpen: false,
+          monitorPaired: false,
+          lastAliveAt: stale,
+          now: now,
+          handoff: track.handoffActiveAt(now),
+        ),
+        isFalse,
+        reason: '另一台设备长期占槽位时，本机不能永远装作在线',
+      );
+      // 窗口内仍豁免。
+      track.handoffSince = now.subtract(const Duration(seconds: 30));
+      expect(track.handoffActiveAt(now), isTrue);
+    });
+
     test('从未有过生命迹象（无 lastAliveAt）不算在线', () {
       expect(
         ConnectionPolicy.isLive(
@@ -106,6 +156,41 @@ void main() {
       expect(notifier.liveState('devX'), isNull);
       notifier.markAlive('devX', LinkSignal.monitor);
       expect(notifier.liveState('devX'), isTrue);
+    });
+
+    test('yielded 让路 → 不计断连；配对恢复后清豁免（v1.7.2）', () {
+      final notifier = container.read(connectionStatusProvider.notifier);
+      notifier.reportMonitor('dev1', RelayMonitorState.paired);
+      expect(notifier.isLive('dev1'), isTrue);
+
+      // 被踢让路：槽位在别的终端手里，这是设计行为，不是断线。
+      notifier.reportMonitor('dev1', RelayMonitorState.yielded);
+      container
+          .read(connectionStatusProvider)['dev1']!
+          .lastAliveAt = DateTime.now().subtract(const Duration(minutes: 5));
+      expect(notifier.isLive('dev1'), isTrue);
+
+      // 重新配对：豁免清除，回到正常在线判定。
+      notifier.reportMonitor('dev1', RelayMonitorState.paired);
+      expect(
+        container.read(connectionStatusProvider)['dev1']!.handoff,
+        isFalse,
+      );
+      expect(notifier.isLive('dev1'), isTrue);
+    });
+
+    test('reportHandoff 控制交接豁免', () {
+      final notifier = container.read(connectionStatusProvider.notifier);
+      notifier.reportWebview('dev1', open: true);
+      container
+          .read(connectionStatusProvider)['dev1']!
+          .lastAliveAt = DateTime.now().subtract(const Duration(minutes: 5));
+      expect(notifier.isLive('dev1'), isTrue);
+      notifier.reportWebview('dev1', open: false);
+      notifier.reportHandoff('dev1', active: true);
+      expect(notifier.isLive('dev1'), isTrue);
+      notifier.reportHandoff('dev1', active: false);
+      expect(notifier.isLive('dev1'), isFalse);
     });
 
     test('markAlive(monitor) 隐含配对成立', () {

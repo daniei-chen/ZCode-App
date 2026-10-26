@@ -21,6 +21,7 @@ import '../services/webview_sync.dart';
 import '../state/account_label.dart';
 import '../state/app_lifecycle.dart';
 import '../state/bridge_health.dart';
+import '../state/connection_status.dart';
 import '../state/back_stack.dart';
 import '../state/observer_stats.dart';
 import '../state/root_tabs.dart';
@@ -481,6 +482,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
   // 页面是否停在接管卡/错误态上，是就静默重载收回槽位。
   bool _pageTimersPaused = false;
   Timer? _takeoverReconnectTimer;
+  Timer? _relayResumeTimer;
   DateTime? _lastTakeoverReconnectAt;
 
   /// 主 frame 令牌（F03）：每个 WebView generation 一个，只在主 frame 注入。
@@ -594,16 +596,64 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 接管死循环修复（v1.7.0）：官方中继是"同一设备同时只允许一个手机
-    // 控制端"（3.16.3 bundle session-conflict 卡文案实证）。后台时监控
-    // 引擎要接管槽位发通知——页面 JS 必须冻结，否则它被踢后自动重连，
-    // 与监控互踢；前台回来再恢复页面并把停掉的会话静默拉起来。
+    // 槽位交接（v1.7.2，最终模型）：官方中继"单控制端"语义——同一台电脑
+    // 同时只允许一个手机终端。要同时做到"后台有通知"和"前台不被踢"，
+    // 只有一条路：**任何时刻恰好一个持有者**，且换手必须有序。
+    //
+    // 后台：先真正**关闭页面 relay WS**（只冻结 JS 定时器是错的——
+    // pauseTimers 不关 socket，槽位仍被占，监控一连就被踢只能让路 20s，
+    // 期间页面冻结+监控让路 = 谁都没在听，这就是"断开连接且不推送"
+    // 的直接原因），再冻定时器，把槽位干净地交给监控引擎。
+    //
+    // 前台：先恢复定时器，**延后 2s 再放行页面重连**——Activity.onResume
+    // 要经 Service→MethodChannel 才让头无引擎 suspend，页面抢在前面
+    // 重连就会把监控踢下线并弹"已被其他设备接管"（用户实测）。
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      unawaited(_setPageTimersPaused(true));
+      unawaited(_releaseSlotToMonitor());
     } else if (state == AppLifecycleState.resumed) {
-      unawaited(_setPageTimersPaused(false));
-      _scheduleTakeoverReconnect('app resumed');
+      unawaited(_reclaimSlotFromMonitor());
     }
+  }
+
+  /// 进后台：先断 relay WS 腾槽位，再冻结页面定时器/渲染。
+  Future<void> _releaseSlotToMonitor() async {
+    // 交接窗口：这段时间的静默是设计行为，断连评估器必须豁免，
+    // 否则每次切后台都弹一条假"连接已断开"（用户实测）。
+    ref
+        .read(connectionStatusProvider.notifier)
+        .reportHandoff(widget.device.id, active: true);
+    await _setRelaySuspended(true);
+    await _setPageTimersPaused(true);
+  }
+
+  /// 回前台：恢复定时器；等监控让路落地（2s）后再放行页面重连，
+  /// 并把停在接管卡/错误态上的页面静默拉起来。
+  Future<void> _reclaimSlotFromMonitor() async {
+    await _setPageTimersPaused(false);
+    _relayResumeTimer?.cancel();
+    _relayResumeTimer = Timer(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      await _setRelaySuspended(false);
+      if (!mounted) return;
+      // 交接结束：页面重新持有槽位。给页面一个重连周期（监控侧 45s
+      // 宽限远大于此）再解除豁免；若确实连不上，宽限后会如实报断连。
+      ref
+          .read(connectionStatusProvider.notifier)
+          .reportHandoff(widget.device.id, active: false);
+      _scheduleTakeoverReconnect('app resumed');
+    });
+  }
+
+  /// 页面侧 relay 开关：关 = 主动断开官方页的 relay WS 并拒绝新建
+  /// （钩子里的 __zrSuspendRelay）；开 = 放行，页面按自己的退避重连。
+  Future<void> _setRelaySuspended(bool suspended) async {
+    try {
+      await _controller?.evaluateJavascript(
+        source: suspended
+            ? 'window.__zrSuspendRelay && window.__zrSuspendRelay();'
+            : 'window.__zrResumeRelay && window.__zrResumeRelay();',
+      );
+    } catch (_) {}
   }
 
   Future<void> _setPageTimersPaused(bool paused) async {
@@ -1227,6 +1277,7 @@ class _OfficialRemotePageState extends ConsumerState<OfficialRemotePage>
     _bootCoverWatchdog?.cancel();
     _jumpWatchdog?.cancel();
     _takeoverReconnectTimer?.cancel();
+    _relayResumeTimer?.cancel();
     _sync?.forget();
     super.dispose();
   }

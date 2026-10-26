@@ -48,11 +48,22 @@
             </intent-filter>
         </activity>
         <!-- 常驻监控前台服务（v1.2.0）：保活进程让后台/锁屏期间事件流
-             与任务通知不断线。dataSync 类型对应 API 34+ 的前台服务类型门禁。 -->
+             与任务通知不断线。
+
+             v1.7.2 类型改 specialUse：dataSync 自 Android 15 起有
+             **6 小时/24 小时配额**，到点系统回调 Service.onTimeout()，
+             不主动停就 ANR 强杀——用户实测"后台几小时后彻底收不到通知"
+             的直接原因。远程会话监控不属于 dataSync 的任何一种受限场景，
+             specialUse + 用途声明是官方给的正当出口（个人分发不走 Play
+             审核，无政策阻力）。 -->
         <service
             android:name=".MonitorKeepAliveService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="长期远程会话监控：保持与用户自有电脑的实时连接，用于转发任务完成/审批/失败提醒" />
+        </service>
         <!-- 开机自启（v1.3.0）：系统启动完成后拉起常驻监控，重启不再断档。 -->
         <receiver
             android:name=".BootReceiver"

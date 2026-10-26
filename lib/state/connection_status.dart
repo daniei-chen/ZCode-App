@@ -28,6 +28,23 @@ class DeviceLinkTrack {
   bool webviewOpen = false;
   bool monitorPaired = false;
   DateTime? lastAliveAt;
+
+  /// 主动让路中（v1.7.2）：页面与监控在做槽位交接，或监控被踢后按设计
+  /// 退避。这段时间**不是故障**——不计入断连判定，也不发断连通知，
+  /// 否则用户会看到一串假的"连接已断开"（v1.7.1 用户实测）。
+  bool handoff = false;
+
+  /// 豁免起点。豁免有上限（[ConnectionPolicy.handoffCap]）：如果另一台
+  /// 设备长期占着槽位、或电脑其实已经关机，不能永远装作在线。
+  DateTime? handoffSince;
+
+  /// 当前是否仍在豁免窗口内。
+  bool handoffActiveAt(DateTime now) {
+    if (!handoff) return false;
+    final since = handoffSince;
+    if (since == null) return true;
+    return now.difference(since) < ConnectionPolicy.handoffCap;
+  }
 }
 
 /// 纯判定策略（可单测）。
@@ -36,14 +53,21 @@ abstract final class ConnectionPolicy {
   /// 一次重连抖动 + 一个轮询周期。
   static const grace = Duration(seconds: 45);
 
-  /// true = 设备在线。
+  /// 交接豁免的时长上限：足够覆盖一次前后台切换 + 让路退避（20s 起，
+  /// 指数退避到 120s），但不能无限期——否则另一台手机长期占槽位时，
+  /// 本机永远不会报告"电脑离线"。
+  static const handoffCap = Duration(minutes: 3);
+
+  /// true = 设备在线。交接/让路期一律视为在线（见 [DeviceLinkTrack.handoff]）。
   static bool isLive({
     required bool webviewOpen,
     required bool monitorPaired,
     required DateTime? lastAliveAt,
     required DateTime now,
+    bool handoff = false,
   }) {
     if (webviewOpen || monitorPaired) return true;
+    if (handoff) return true;
     final at = lastAliveAt;
     if (at == null) return false;
     return now.difference(at) < grace;
@@ -100,16 +124,32 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
       case RelayMonitorState.paired:
         track.monitorPaired = true;
         track.lastAliveAt = DateTime.now();
+        track.handoff = false;
+        track.handoffSince = null;
       case RelayMonitorState.waiting:
       case RelayMonitorState.authenticating:
       case RelayMonitorState.connecting:
       case RelayMonitorState.authMissing:
         track.monitorPaired = false;
       case RelayMonitorState.yielded:
+        // 让路是设计行为（另一终端正持有槽位），不是断线——静默它，
+        // 否则每次切前后台都会弹一条假断连。
+        track.monitorPaired = false;
+        track.handoff = true;
+        track.handoffSince ??= DateTime.now();
       case RelayMonitorState.disconnected:
       case RelayMonitorState.idle:
         track.monitorPaired = false;
     }
+    state = Map.of(state);
+  }
+
+  /// 页面与监控的槽位交接（v1.7.2）：交接窗口内同样不算断连。
+  void reportHandoff(String deviceId, {required bool active}) {
+    final track = _track(deviceId);
+    if (track.handoff == active) return;
+    track.handoff = active;
+    track.handoffSince = active ? DateTime.now() : null;
     state = Map.of(state);
   }
 
@@ -138,6 +178,7 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
       monitorPaired: track.monitorPaired,
       lastAliveAt: track.lastAliveAt,
       now: DateTime.now(),
+      handoff: track.handoffActiveAt(DateTime.now()),
     );
   }
 
@@ -156,6 +197,7 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
       monitorPaired: track.monitorPaired,
       lastAliveAt: track.lastAliveAt,
       now: DateTime.now(),
+      handoff: track.handoffActiveAt(DateTime.now()),
     );
   }
 
@@ -185,6 +227,7 @@ class ConnectionStatusNotifier extends Notifier<Map<String, DeviceLinkTrack>> {
             monitorPaired: track.monitorPaired,
             lastAliveAt: track.lastAliveAt,
             now: now,
+            handoff: track.handoffActiveAt(now),
           );
       final previous = _lastLive[entry.key];
       _lastLive[entry.key] = live;

@@ -134,6 +134,25 @@ void main() {
       expect(s.contains('clearInterval(flushTimer)'), isTrue);
     });
 
+    test('后台释放控制端槽位：挂起/恢复入口 + 延迟 socket（v1.7.2）', () {
+      final s = EventObserver.hookScript;
+      // 主动关闭并拒绝新建的入口。
+      expect(s.contains('window.__zrSuspendRelay'), isTrue);
+      expect(s.contains('window.__zrResumeRelay'), isTrue);
+      // 后台期间 relay 连接延迟建连（不抢槽位），回前台回放。
+      expect(s.contains('DeferredRelay'), isTrue);
+      expect(s.contains('flushDeferredRelay'), isTrue);
+      // 页面两种监听写法都要回放：addEventListener 与 on* 属性赋值。
+      expect(s.contains('this.listeners[type].push(fn)'), isTrue);
+      expect(
+        s.contains("Object.defineProperty(self, 'on' + type"),
+        isTrue,
+        reason: 'onopen/onmessage 等属性赋值必须被捕获，否则回放丢监听',
+      );
+      // 挂起期间的 send 要排队，恢复后按序回放。
+      expect(s.contains('this.queue.push(data)'), isTrue);
+    });
+
     test('EventSource 包装转发类静态量（CONNECTING/OPEN/CLOSED）', () {
       expect(
         EventObserver.hookScript.contains(
