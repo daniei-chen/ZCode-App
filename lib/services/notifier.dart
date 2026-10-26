@@ -10,6 +10,7 @@ import '../models/device.dart';
 import '../models/device_label.dart';
 import '../models/notification_prefs.dart';
 import 'event_observer.dart';
+import 'external_push.dart';
 import 'app_log.dart';
 import 'notification_history.dart';
 import 'structured_log.dart';
@@ -595,6 +596,72 @@ class NotifierService {
       try {
         await _plugin.cancel(id: id);
       } catch (_) {}
+    }
+  }
+
+  /// 外置通道消息 → 系统通知（v1.8.0）。
+  ///
+  /// 与 relay 路径的区别：消息来自桌面端 hook（不是会话快照差分），所以
+  /// 没有路由/选项 id，也就**不挂"允许/拒绝"按钮**——按钮需要 agent 通道
+  /// 才能把命令送回去，而那条通道正是我们要避开的互踢来源。用户点通知
+  /// 直接进 App（深链到会话）。
+  Future<bool> showExternalPush({
+    required ExternalPushMessage message,
+    required String deviceName,
+    AppLocalizations? l10n,
+  }) async {
+    final text = l10n ?? l10nZh;
+    final isPermission = message.kind == 'permission';
+    final isCompleted = message.kind == 'completed';
+    final title = message.title.isNotEmpty
+        ? message.title
+        : (isPermission
+              ? '需要你的审批'
+              : isCompleted
+              ? '任务已完成'
+              : 'ZCode');
+    final body = message.body.isNotEmpty ? message.body : deviceName;
+    // 稳定 id（同一会话的同类消息替换而不是堆叠）；无会话时按设备+类型。
+    final key = '${message.kind} ${message.device} ${message.sessionId}';
+    final id = 0x50000000 | (key.hashCode & 0x0FFFFFFF);
+    try {
+      await ensurePermission();
+      await _plugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId(kConnectionChannel),
+            text.notifChannelConn,
+            icon: 'ic_notification',
+            importance: Importance.high,
+            priority: Priority.high,
+            channelShowBadge: true,
+            playSound: _alertMode == NotificationPrefs.kAlertSound,
+            enableVibration: _alertMode != NotificationPrefs.kAlertSilent,
+            silent: _alertMode == NotificationPrefs.kAlertSilent,
+            onlyAlertOnce: false,
+            visibility: lockScreenVisibility(lockEnabled: _lockScreenRedact),
+            groupKey: 'zr_push',
+            actions: [
+              AndroidNotificationAction(kOpenActionId, text.notifActionOpen),
+            ],
+          ),
+        ),
+        // 深链：有会话就直达，否则回设备列表。
+        payload: message.sessionId.isEmpty
+            ? 'open-app'
+            : 'open-session|${message.device}|${message.sessionId}',
+      );
+      return true;
+    } catch (e) {
+      AppLog.failure(
+        LogEvent.notificationShowFailed,
+        e,
+        fields: {LogField.reason: 'external_push'},
+      );
+      return false;
     }
   }
 }

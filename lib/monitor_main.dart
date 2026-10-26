@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'services/device_store.dart';
+import 'services/external_push.dart';
 import 'services/notifier.dart';
 import 'state/app_lifecycle.dart';
 import 'state/connection_status.dart';
@@ -34,6 +36,33 @@ Future<void> monitorMain() async {
     ],
   );
   await NotifierService.instance.init();
+  // 外置通知通道（v1.8.0）：后台由本引擎轮询（前台交给 UI 引擎）。
+  // 游标在共享 prefs 里，两边不会双响；这条通道不碰 relay 终端槽位。
+  final pushStore = DeviceStore.instance;
+  final pushBaseUrl = await pushStore.pushBaseUrl();
+  if (pushBaseUrl.isNotEmpty) {
+    final pushToken = await pushStore.pushToken();
+    final pushConfig = ExternalPushConfig(
+      baseUrl: pushBaseUrl,
+      token: pushToken,
+    );
+    if (pushConfig.enabled) {
+      final poller = ExternalPushPoller(
+        config: pushConfig,
+        onMessage: (message) {
+          unawaited(
+            NotifierService.instance.showExternalPush(
+              message: message,
+              deviceName: 'ZCode',
+            ),
+          );
+        },
+      );
+      // 头无引擎不退出（下面 await 永不返回），无需在容器 dispose 时
+      // 停轮询；进程退出即终止。
+      poller.start();
+    }
+  }
   const control = MethodChannel('zremote/monitor_control');
   control.setMethodCallHandler((call) async {
     final monitor = container.read(relayMonitorProvider.notifier);

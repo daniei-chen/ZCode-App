@@ -6,6 +6,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
+import '../services/device_store.dart';
+import '../services/external_push.dart';
 import '../services/app_log.dart';
 import '../services/app_settings.dart';
 import '../services/battery_optimization.dart';
@@ -129,6 +131,7 @@ class SettingsPage extends ConsumerWidget {
               const _DiagnosticsTile(),
               SectionLabel(l10n.settingsGroupNotifications),
               const _NotificationCard(),
+              const _ExternalPushCard(),
             ],
           ),
         ),
@@ -1008,6 +1011,186 @@ class VersionFooter extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+
+/// 外置通知通道（v1.8.0）。
+///
+/// 桌面端 ZCode 的 hook 在审批/任务结束时把消息推到用户自己的服务器，
+/// 本 App 长轮询取回后弹通知。**不经过 ZCode 的 relay 终端槽位**，所以
+/// 不会与页面/监控互踢——这条通道存在的理由就是绕开那个约束。
+class _ExternalPushCard extends ConsumerStatefulWidget {
+  const _ExternalPushCard();
+
+  @override
+  ConsumerState<_ExternalPushCard> createState() => _ExternalPushCardState();
+}
+
+class _ExternalPushCardState extends ConsumerState<_ExternalPushCard> {
+  late final TextEditingController _url;
+  late final TextEditingController _token;
+  bool _loaded = false;
+  bool _busy = false;
+  String? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _url = TextEditingController();
+    _token = TextEditingController();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final store = DeviceStore.instance;
+    final baseUrl = await store.pushBaseUrl();
+    final token = await store.pushToken();
+    if (!mounted) return;
+    setState(() {
+      _url.text = baseUrl;
+      _token.text = token;
+      _loaded = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _token.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save({required bool test}) async {
+    if (_busy) return;
+    final baseUrl = _url.text.trim();
+    final token = _token.text.trim();
+    setState(() {
+      _busy = true;
+      _result = null;
+    });
+    try {
+      final store = DeviceStore.instance;
+      if (baseUrl.isEmpty && token.isEmpty) {
+        await store.setPushBaseUrl('');
+        await store.setPushToken('');
+        if (!mounted) return;
+        setState(() => _result = '已关闭外置通道');
+        return;
+      }
+      if (!ExternalPushProtocol.isAcceptableBaseUrl(baseUrl)) {
+        setState(() => _result = '服务器地址必须以 https:// 开头');
+        return;
+      }
+      await store.setPushBaseUrl(baseUrl);
+      await store.setPushToken(token);
+      final config = ExternalPushConfig(baseUrl: baseUrl, token: token);
+      if (test) {
+        final batch = await fetchExternalPushOnce(
+          config: config,
+          after: 0,
+          timeout: const Duration(seconds: 12),
+        );
+        if (!mounted) return;
+        setState(() {
+          _result = batch.isEmpty
+              ? '已保存。服务器暂时没有待收消息（通道可用）'
+              : '已保存，收到 ${batch.messages.length} 条待收消息';
+        });
+      } else {
+        if (!mounted) return;
+        setState(() => _result = '已保存，重启后生效');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _result = '保存失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.zt;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.bolt_outlined, size: 19, color: palette.textHi),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '外置通知通道',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: palette.textHi,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '由桌面端 ZCode 的 hook 主动推送审批/完成消息，不占用远程'
+              '控制通道——这是最稳的收通知方式。填你自己的 zcode-push 服务地址。',
+              style: TextStyle(fontSize: 12.5, color: palette.textLo, height: 1.45),
+            ),
+            if (!_loaded)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: LinearProgressIndicator(minHeight: 2),
+              )
+            else ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _url,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: '服务器地址',
+                  hintText: 'https://zhihui.kaogong.art',
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _token,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: '访问令牌',
+                  hintText: '与服务器 /etc/zcode-push/token 一致',
+                  isDense: true,
+                ),
+              ),
+              if (_result != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _result!,
+                  style: TextStyle(fontSize: 12.5, color: palette.textLo),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  FilledButton(
+                    onPressed: _busy ? null : () => _save(test: false),
+                    child: const Text('保存'),
+                  ),
+                  const SizedBox(width: 10),
+                  OutlinedButton(
+                    onPressed: _busy ? null : () => _save(test: true),
+                    child: const Text('保存并测试'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

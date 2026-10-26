@@ -72,3 +72,32 @@ sudo nginx -t && sudo systemctl reload nginx
 `kind` 取值：`permission`（审批请求）/ `completed`（任务结束）/ `info`。
 
 存储上限：已投递即删；未投递保留 7 天 / 最多 2000 条。
+
+## 桌面端安装（一次性，在你自己电脑上跑）
+
+```bash
+bash install_zcode_hook.sh \
+  --url https://zhihui.kaogong.art \
+  --token <把 /etc/zcode-push/token 的内容贴这里>
+```
+
+脚本会：
+
+1. 把令牌写到 `~/.config/zcode-push/token`（权限 600；hook 命令从这里读，
+   不会把令牌放进进程参数或 shell 历史）；
+2. 生成上报脚本 `~/.config/zcode-push/notify.sh`（读 stdin 事件 JSON，
+   **任何失败都静默 exit 0**——通知发不出去绝不能阻塞 ZCode 的任务）；
+3. 在 `~/.zcode/hooks/zcode-push-notify.json` 注册两个 hook：
+   `PermissionRequest`（审批请求）与 `Stop`（任务结束）；
+4. 自检：直接发一条测试消息，确认服务器接受。
+
+卸载：`bash install_zcode_hook.sh --uninstall`。
+
+### 如果界面里已经配过 hook
+
+Zone 的 hook 也可以在桌面端 设置 → 钩子 里手工加。手工配置时填：
+
+| 事件 | 命令 |
+|---|---|
+| `PermissionRequest` | `~/.config/zcode-push/notify.sh PermissionRequest` |
+| `Stop` | `~/.config/zcode-push/notify.sh Stop` |

@@ -22,6 +22,8 @@ import '../state/event_feed.dart';
 import '../state/notification_prefs.dart';
 import '../state/root_tabs.dart';
 import '../state/session_pool.dart';
+import '../services/event_observer.dart';
+import '../services/external_push.dart';
 import '../theme.dart';
 import 'manage_page.dart';
 import 'official_remote_page.dart';
@@ -86,6 +88,64 @@ class _AppShellState extends ConsumerState<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_syncKeepAliveDeviceName());
     });
+    _initExternalPush();
+  }
+
+  /// 外置通知通道（v1.8.0）：UI 可见时前台轮询；后台交给头无引擎。
+  ///
+  /// 这条通道刻意不走 relay 终端——它收的是桌面端 hook 主动推来的消息，
+  /// 所以在"单控制端"约束下与页面/监控都不冲突。
+  void _initExternalPush() {
+    final config = ref.read(externalPushConfigProvider);
+    if (!config.enabled) return;
+    final notifier = ref.read(externalPushProvider.notifier);
+    notifier.configure(config);
+    notifier.setHandler((message) {
+      unawaited(_handleExternalPush(message));
+    });
+  }
+
+  Future<void> _handleExternalPush(ExternalPushMessage message) async {
+    final l10n = AppLocalizations.of(context);
+    final deviceName = _currentDeviceName();
+    // 应用内历史：与 relay 事件共用同一个通知中心（用户只翻一处）。
+    ref
+        .read(eventFeedProvider.notifier)
+        .ingest(
+          _externalPushDeviceId(),
+          ObservedEvent(
+            type: message.kind == 'permission'
+                ? 'permission_request'
+                : message.kind == 'completed'
+                ? 'completedSuccess'
+                : 'info',
+            taskId: message.sessionId.isEmpty ? null : message.sessionId,
+            sessionTitle: message.title,
+            summary: message.body,
+          ),
+        );
+    await NotifierService.instance.showExternalPush(
+      message: message,
+      deviceName: deviceName,
+      l10n: l10n,
+    );
+  }
+
+  String _currentDeviceName() {
+    final devices = ref.read(deviceListProvider);
+    final active = ref.read(activeTabProvider);
+    if (active >= 0 && active < devices.length) {
+      return devices[active].displayName(l10nZh);
+    }
+    return devices.isEmpty ? 'ZCode' : devices.first.displayName(l10nZh);
+  }
+
+  /// 外置消息没有本地 deviceId（它来自桌面 hook），用一个稳定占位符
+  /// 归并到通知历史里，避免污染真实设备的计数。
+  String _externalPushDeviceId() {
+    final devices = ref.read(deviceListProvider);
+    if (devices.isNotEmpty) return devices.first.id;
+    return 'external-push';
   }
 
   /// 账号设备 → deviceList 自动同步（v1.6.3）：

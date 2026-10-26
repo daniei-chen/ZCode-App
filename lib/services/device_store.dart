@@ -311,6 +311,46 @@ class DeviceStore {
     await prefs.setString(_lastDeviceKey, id);
   }
 
+  // ---- 外置通知通道（v1.8.0）----
+  // 令牌进 secure storage（与 JWT 同级），地址进普通 prefs。
+  static const _pushBaseUrlKey = 'zremote.push.baseUrl';
+  static const _pushTokenSecureKey = 'zremote.push.token.v1';
+
+  Future<String> pushBaseUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pushBaseUrlKey) ?? '';
+  }
+
+  Future<void> setPushBaseUrl(String value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final clean = value.trim();
+    if (clean.isEmpty) {
+      await prefs.remove(_pushBaseUrlKey);
+    } else {
+      await prefs.setString(_pushBaseUrlKey, clean);
+    }
+  }
+
+  /// 推送令牌（敏感）：走 secure storage，绝不进普通 prefs / 日志。
+  Future<String> pushToken() async {
+    try {
+      return await _secure.read(key: _pushTokenSecureKey) ?? '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> setPushToken(String value) async {
+    try {
+      final clean = value.trim();
+      if (clean.isEmpty) {
+        await _secure.delete(key: _pushTokenSecureKey);
+      } else {
+        await _secure.write(key: _pushTokenSecureKey, value: clean);
+      }
+    } catch (_) {}
+  }
+
   static const _accountNameKey = 'zremote.account.name';
   static const _accountAvatarKey = 'zremote.account.avatar';
 

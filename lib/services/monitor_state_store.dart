@@ -14,6 +14,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 abstract final class MonitorStateStore {
   static const _key = 'zremote.monitor_state_v1';
 
+  /// 共享的 SharedPreferences 实例（v1.8.0：外置推送游标等跨隔离体状态
+  /// 需要直接读写整数/字符串，不值得为每种形态再开一套读写方法）。
+  static Future<SharedPreferences> preferences() =>
+      SharedPreferences.getInstance();
+
   static Future<void> writeDevice(String deviceId, String state) async {
     try {
       final prefs = await SharedPreferences.getInstance();

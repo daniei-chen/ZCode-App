@@ -9,6 +9,7 @@ import 'models/device_label.dart';
 import 'services/app_log.dart';
 import 'services/biometric.dart';
 import 'services/device_store.dart';
+import 'services/external_push.dart';
 import 'services/keepalive.dart';
 import 'monitor_main.dart' as monitor;
 import 'services/notifier.dart';
@@ -45,6 +46,8 @@ Future<void> main() async {
   final securityPrefFuture = _readSecurityPref(store.biometricEnabled());
   final themeModeFuture = _safeString(store.themeModeSetting(), 'system');
   final startupTargetFuture = _safeString(store.startupTarget(), 'lastDevice');
+  // 外置通知通道（v1.8.0）：地址 + 令牌（令牌在 secure storage）。
+  final pushConfigFuture = _readPushConfig(store);
 
   // Resolve the saved devices before the first Flutter frame. Otherwise the
   // provider briefly reports an empty list and paints the import launcher
@@ -55,6 +58,7 @@ Future<void> main() async {
   final initialSecurityPref = await securityPrefFuture;
   final initialThemeMode = await themeModeFuture;
   final startupTarget = await startupTargetFuture;
+  final pushConfig = await pushConfigFuture;
   final recentIndex = lastDeviceId == null
       ? -1
       : initialDevices.indexWhere((d) => d.id == lastDeviceId);
@@ -91,8 +95,13 @@ Future<void> main() async {
         startupTargetProvider.overrideWith(
           () => StartupTargetNotifier(initial: startupTarget),
         ),
+        // 外置通知通道（v1.8.0）：启动时读到的地址/令牌。
+        externalPushConfigProvider.overrideWithValue(pushConfig),
       ],
-      child: ZCodeControlApp(startAtLauncher: startAtLauncher),
+      child: ZCodeControlApp(
+        startAtLauncher: startAtLauncher,
+        externalPushConfig: pushConfig,
+      ),
     ),
   );
 }
@@ -134,6 +143,18 @@ Future<_SecurityPref> _readSecurityPref(Future<bool> future) async {
   }
 }
 
+/// 读外置推送配置（地址在 prefs、令牌在 secure storage；任一失败即视为未配置）。
+Future<ExternalPushConfig> _readPushConfig(DeviceStore store) async {
+  try {
+    final baseUrl = await store.pushBaseUrl();
+    if (baseUrl.isEmpty) return const ExternalPushConfig();
+    final token = await store.pushToken();
+    return ExternalPushConfig(baseUrl: baseUrl, token: token);
+  } catch (_) {
+    return const ExternalPushConfig();
+  }
+}
+
 Future<String> _safeString(Future<String> future, String fallback) async {
   try {
     return await future;
@@ -143,9 +164,16 @@ Future<String> _safeString(Future<String> future, String fallback) async {
 }
 
 class ZCodeControlApp extends ConsumerWidget {
-  const ZCodeControlApp({super.key, this.startAtLauncher = false});
+  const ZCodeControlApp({
+    super.key,
+    this.startAtLauncher = false,
+    this.externalPushConfig = const ExternalPushConfig(),
+  });
 
   final bool startAtLauncher;
+
+  /// 外置通知通道配置（v1.8.0）：非空即在前台轮询（后台由头无引擎接手）。
+  final ExternalPushConfig externalPushConfig;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
