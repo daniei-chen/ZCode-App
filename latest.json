@@ -1,9 +1,9 @@
 {
-  "version": "1.8.4",
-  "tag": "v1.8.4",
-  "apk": "ZCode-v1.8.4.apk",
-  "sha256": "3a78c8c732d149f43e0bdd5df984a51b213cfa63cbf2493997d658c5bfd02d2a",
+  "version": "1.8.5",
+  "tag": "v1.8.5",
+  "apk": "ZCode-v1.8.5.apk",
+  "sha256": "2389c342c79d060b42b60adfc1958a76f0b02d0906e1303e5a7505edd9b0e706",
   "size": 30807781,
-  "notes": "v1.8.4 — 收拾收尾 + 三处体验优化（通知不折腾了）",
-  "publishedAt": "2026-10-26T08:51:37Z"
+  "notes": "v1.8.5 — 修 agent 通道恒 down（审批通知从未建立）+ 去重窗口有界",
+  "publishedAt": "2026-10-27T11:22:47Z"
 }
