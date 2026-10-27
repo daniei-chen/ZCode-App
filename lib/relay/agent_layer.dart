@@ -51,6 +51,15 @@ class RelayAgentLayer {
   final _fragments = <String, List<Uint8List?>>{};
   final _fragmentTotal = <String, int>{};
   Completer<void>? _bootstrapping;
+  Timer? _bootstrapRetry;
+  final bool _disposed = false;
+
+  /// 引导失败后的重试间隔（指数到 60s）。引导链每一步都可能因网络抖动
+  /// 失败——只在配对时试一次的话，一次抖动就让 agent 一直 down 到下次
+  /// 重连（诊断包里 agent=down 正是这种状态）。
+  static const _retryBase = Duration(seconds: 5);
+  static const _retryCap = Duration(seconds: 60);
+  int _retryAttempt = 0;
 
   bool get isReady => _ready;
 
@@ -58,12 +67,26 @@ class RelayAgentLayer {
   /// （同一连接只会引导一次；重连后监控会先 [reset]）。
   void onPaired() {
     if (_ready || _bootstrapping != null) return;
+    _bootstrapRetry?.cancel();
+    _bootstrapRetry = null;
     final bootstrapping = Completer<void>();
     _bootstrapping = bootstrapping;
     unawaited(
       _bootstrap().whenComplete(() {
         if (identical(_bootstrapping, bootstrapping)) _bootstrapping = null;
         if (!bootstrapping.isCompleted) bootstrapping.complete();
+        if (_disposed || _ready) return;
+        // 没就绪 = 引导链某一步失败：退避重试，别让 agent 永久 down。
+        _retryAttempt += 1;
+        final seconds = _retryBase.inSeconds * (1 << (_retryAttempt - 1).clamp(0, 4));
+        final delay = Duration(
+          seconds: seconds > _retryCap.inSeconds ? _retryCap.inSeconds : seconds,
+        );
+        _bootstrapRetry?.cancel();
+        _bootstrapRetry = Timer(delay, () {
+          if (_disposed || _ready) return;
+          onPaired();
+        });
       }),
     );
   }
@@ -71,6 +94,9 @@ class RelayAgentLayer {
   /// 断线/被踢/停止：清态、放行挂起调用。下次配对重新引导。
   void reset() {
     _ready = false;
+    _retryAttempt = 0;
+    _bootstrapRetry?.cancel();
+    _bootstrapRetry = null;
     _workspaceKey = '';
     _bridgeSessionId = '';
     _connectionId = '';
@@ -125,7 +151,12 @@ class RelayAgentLayer {
       const Duration(seconds: 10),
       onTimeout: () => null,
     ).catchError((_) => null);
-    final key = result?['activeWorkspaceKey'];
+    // v1.8.5 修：activeWorkspaceKey 在 **result 里**，不在 payload 顶层
+    // （docs/RELAY-PROTOCOL-VERIFIED §3 的实测响应形状）。
+    // 之前只在顶层找，永远取不到 → 桥开不起来 → agent 恒 down。
+    final nested = result?['result'];
+    final key = (nested is Map ? nested['activeWorkspaceKey'] : null) ??
+        result?['activeWorkspaceKey'];
     if (key is String && key.isNotEmpty) return key;
     return null;
   }
@@ -135,10 +166,21 @@ class RelayAgentLayer {
         'zrbridge-$_requestSeq-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}';
     _requestSeq += 1;
     final requestId = 'agent-$_requestSeq';
+    final bridgeSessionId = _bridgeSessionId;
     final completer = Completer<Map<dynamic, dynamic>?>();
     _pending.add(_PendingCall(
-      match: (json) =>
-          json is Map && json['requestId'] == requestId ? json : null,
+      // v1.8.5 修：官方 `workspace-bridge-ready` 的匹配谓词是
+      // **bridgeSessionId**，不是 requestId（docs/RELAY-PROTOCOL-VERIFIED
+      // §3「匹配谓词按 bridgeSessionId，不是 requestId」）。
+      // 之前只按 requestId 匹配，一旦服务端按官方语义只回 bridgeSessionId，
+      // 这个 completer 永远等不到 → 桥开不起来 → agent 恒为 down →
+      // 审批/输入事件订阅从未建立（诊断包 agent=down 的直接原因）。
+      // 两种谓词都接受：requestId 或 bridgeSessionId 命中即为本次开桥。
+      match: (json) => json is Map &&
+              (json['requestId'] == requestId ||
+                  json['bridgeSessionId'] == bridgeSessionId)
+          ? json
+          : null,
       completer: completer,
     ));
     sendJson({
@@ -204,6 +246,7 @@ class RelayAgentLayer {
       match: (json) => json is Map && json['ack'] is Map ? json : null,
     );
     if (sub != null) {
+      _retryAttempt = 0;
       _reportReady(true);
     }
   }

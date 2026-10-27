@@ -135,14 +135,18 @@ void main() {
       // 引导第 1 步：workspace-list-request 走监控同一条 socket。
       expect(sentPayloadOfType(sockets.first, 'workspace-list-request'),
           isNotNull);
+      // 真实形状（v1.8.5）：activeWorkspaceKey 在 payload.result 里，
+      // 不在 payload 顶层。
       sockets.first.serverSends(
         jsonEncode({
           'type': 'data',
           'payload': {
             'zcode_type': 'workspace-list-response',
             'requestId': 'agent-1',
-            'activeWorkspaceKey': 'ws-key',
-            'result': {'tasks': <Object>[]},
+            'result': {
+              'activeWorkspaceKey': 'ws-key',
+              'tasks': <Object>[],
+            },
           },
           'client_ts': 1792972706,
         }),
@@ -157,12 +161,13 @@ void main() {
       expect(bridgeOpen, isNotNull);
       final bridgeSessionId = '${bridgeOpen!['bridgeSessionId']}';
       expect(bridgeSessionId, isNotEmpty);
+      // 只回 bridgeSessionId，不回 requestId——官方匹配谓词就是这个
+      // （v1.8.5 修：旧代码只认 requestId，这种响应会被丢弃）。
       sockets.first.serverSends(
         jsonEncode({
           'type': 'data',
           'payload': {
             'zcode_type': 'workspace-bridge-ready',
-            'requestId': 'agent-2',
             'bridgeSessionId': bridgeSessionId,
           },
           'client_ts': 1792972706,
@@ -294,6 +299,53 @@ void main() {
           expect('${payload['requestId']}', startsWith('monitor-'));
         }
       }
+    });
+  });
+
+  test('引导失败后自动重试（v1.8.5：不让 agent 永久 down）', () {
+    fakeAsync((async) {
+      final sockets = <FakeSocket>[];
+      final readyStates = <bool>[];
+      final connection = RelayMonitorConnection(
+        deviceId: 'dev12345678',
+        deviceSid: 'd_ABC',
+        deviceMid: 'mid-1',
+        appVersion: '3.16.3',
+        tokenProvider: () async => 'jwt',
+        relayTokenExchange: (jwt) async => 'relay',
+        socketFactory: () {
+          final socket = FakeSocket(false);
+          sockets.add(socket);
+          return socket;
+        },
+        onState: (_, _) {},
+        onAgentEvent: (_, _) {},
+        onAgentReady: (_, ready) => readyStates.add(ready),
+      );
+      unawaited(connection.start());
+      async.elapse(const Duration(milliseconds: 10));
+      sockets.first.serverSends(
+        '{"type":"auth_ack","device_sid":"d_ABC","pair_status":"matched"}',
+      );
+      async.elapse(const Duration(milliseconds: 10));
+
+      // 故意不回 workspace-list-response → 引导链超时失败。
+      final firstRequestCount = sockets.first.sent
+          .where((t) => t.contains('workspace-list-request'))
+          .length;
+      expect(firstRequestCount, greaterThanOrEqualTo(1));
+
+      // 10s 请求超时 + 5s 重试间隔后，应再次发起引导（证明有重试）。
+      async.elapse(const Duration(seconds: 20));
+      final laterCount = sockets.first.sent
+          .where((t) => t.contains('workspace-list-request'))
+          .length;
+      expect(
+        laterCount,
+        greaterThan(firstRequestCount),
+        reason: '引导失败后必须自动重试，否则 agent 永远 down',
+      );
+      expect(connection.agentReady, isFalse);
     });
   });
 }

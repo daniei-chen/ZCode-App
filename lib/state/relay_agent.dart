@@ -27,7 +27,20 @@ import 'session_pool.dart';
 /// 动作分发器的一次性命令兜底（[RelayAgentChannel] 按需连接）。
 class RelayAgentNotifier extends Notifier<Map<String, bool>> {
   final _sids = <String, String>{};
+  /// 已提醒过的交互 id。**有界 + 顺序淘汰**（v1.8.5）：头无引擎是常驻的，
+  /// 无界集合会一直涨；而永久去重还会让"同一 interactionId 重启后再次
+  /// 出现"永远收不到提醒。保留最近 512 个足够去重重放。
   final _seenInteractions = <String>{};
+  static const _seenLimit = 512;
+
+  bool _markSeen(String interactionId) {
+    if (_seenInteractions.contains(interactionId)) return false;
+    _seenInteractions.add(interactionId);
+    while (_seenInteractions.length > _seenLimit) {
+      _seenInteractions.remove(_seenInteractions.first);
+    }
+    return true;
+  }
   bool _disposed = false;
 
   @override
@@ -96,7 +109,7 @@ class RelayAgentNotifier extends Notifier<Map<String, bool>> {
   void _consumeInteraction(String deviceId, Map<dynamic, dynamic> item) {
     final interactionId = item['interactionId'];
     if (interactionId is! String || interactionId.isEmpty) return;
-    if (!_seenInteractions.add(interactionId)) return;
+    if (!_markSeen(interactionId)) return;
     final payload = item['payload'];
     if (payload is! Map) return;
     final kind = '${payload['kind']}';
